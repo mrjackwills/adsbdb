@@ -22,6 +22,8 @@ pg_dump.tar
 **/*.csv
 **/*.7z
 
+**/scraper_html.ts
+
 # local env files
 **/.env*
 **/*.env*

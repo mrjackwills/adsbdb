@@ -1,0 +1,33 @@
+{
+	"compilerOptions": {
+	  /* Visit https://aka.ms/tsconfig.json to read more about this file */
+   
+	  /* Basic Options */
+	  "target": "es2020",                          /* Specify ECMAScript target version: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', 'ES2018', 'ES2019', 'ES2020', or 'ESNEXT'. */
+	  "module": "commonjs",                     /* Specify module code generation: 'none', 'commonjs', 'amd', 'system', 'umd', 'es2015', 'es2020', or 'ESNext'. */
+	  "lib": ["es2020"],
+	  "moduleResolution": "node",
+	  "outDir": "./dist",                        /* Redirect output structure to the directory. */
+	  "rootDir": "./src",                       /* Specify the root directory of input files. Use to control the output directory structure with --outDir. */
+	  "strict": true,                           /* Enable all strict type-checking options. */
+	  "noUnusedLocals": true,                /* Report errors on unused locals. */
+	  "noUnusedParameters": true,            /* Report errors on unused parameters. */
+	  "noImplicitReturns": true,             /* Report error when not all code paths in function return a value. */
+	  "noEmitOnError": true,
+	  "noUncheckedIndexedAccess": true,
+	  "noFallthroughCasesInSwitch" : true,
+	  "esModuleInterop": true,                  /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */
+	  "experimentalDecorators": true,        /* Enables experimental support for ES7 decorators. */
+	  "skipLibCheck": true,                     /* Skip type checking of declaration files. */
+	  "forceConsistentCasingInFileNames": true, /* Disallow inconsistently-cased references to the same file. */
+	  "resolveJsonModule": true,
+	  "removeComments": true,
+	  "exactOptionalPropertyTypes": true,
+	  "useUnknownInCatchVariables": true,
+	  "baseUrl": "src",
+	},
+	"ts-node": {
+		"files": true,
+	},
+	"exclude": ["node_modules", "**/*.spec.ts", "**/__tests__"]
+  }
