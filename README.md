@@ -11,10 +11,13 @@
 </p>
 
 <p align="center">
+	<strike>
 	Built in <a href='https://www.rust-lang.org/' target='_blank' rel='noopener noreferrer'>Rust</a>
 	for <a href='https://www.docker.com/' target='_blank' rel='noopener noreferrer'>Docker</a>,
 	using <a href='https://www.postgresql.org/' target='_blank' rel='noopener noreferrer'>PostgreSQL</a>
 	& <a href='https://www.redis.io/' target='_blank' rel='noopener noreferrer'>Redis</a> 
+	</strike>
+	This is the api as written in it's original typescript form
 </p>
 
 
