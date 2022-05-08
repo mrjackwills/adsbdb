@@ -1,0 +1,27 @@
+/target
+/releases
+Cargo.lock
+
+**/.pgpass
+**/pg_dump*
+**/.tar.gpg*
+**/*appendonly.aof
+
+db_data
+backups
+nginx_confs
+
+**/test_scrape.txt
+
+**/aircraft.csv
+**/airport.csv
+**/country.csv
+**/flightroute_iata.csv
+**/flightroute_icao.csv
+pg_dump.tar
+**/*.csv
+**/*.7z
+
+# local env files
+**/.env*
+**/*.env*
