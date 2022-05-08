@@ -233,7 +233,6 @@ mod tests {
     use serde_json::Value;
     use tokio::task::JoinHandle;
 
-
     // Get basic api params, also flushes all redis keys
     async fn setup() -> (AppEnv, PgPool, Connection) {
         let app_env = parse_env::AppEnv::get_env();

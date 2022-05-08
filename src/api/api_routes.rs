@@ -782,7 +782,7 @@ mod tests {
             .get(key.to_string())
             .await;
         assert!(result.is_ok());
-		assert_eq!(result.unwrap(), "null");
+        assert_eq!(result.unwrap(), "null");
 
         let ttl: usize = application_state
             .redis
