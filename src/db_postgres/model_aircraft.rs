@@ -39,10 +39,9 @@ struct AircraftPhoto {
 // }
 
 impl ModelAircraft {
-
-	/// Seperated out, so can use in tests with a transaction
-	fn get_query() -> &'static str {
-		r#"
+    /// Seperated out, so can use in tests with a transaction
+    fn get_query() -> &'static str {
+        r#"
 SELECT
 	$1 AS mode_s,
 	aro.registered_owner,
@@ -89,11 +88,10 @@ ON
 	aa.aircraft_photo_id = ap.aircraft_photo_id
 WHERE
 	ams.mode_s = $1"#
-	}
-	
+    }
 
     pub async fn get(db: &PgPool, mode_s: &str, prefix: &str) -> Result<Option<Self>, AppError> {
-      let query = Self::get_query();
+        let query = Self::get_query();
         match sqlx::query_as::<_, Self>(query)
             .bind(mode_s)
             .bind(prefix)
@@ -194,7 +192,7 @@ mod tests {
             .await
             .unwrap();
 
-		let query = ModelAircraft::get_query();
+        let query = ModelAircraft::get_query();
 
         let result = sqlx::query_as::<_, ModelAircraft>(query)
             .bind(mode_s)

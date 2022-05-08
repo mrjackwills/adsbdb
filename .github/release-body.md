@@ -1,7 +1,6 @@
 ### 2022-05-08
 
-### Fixes
-+ yml release, [7a8aec840bf9edc088ea47895d2069316ba3c754]
+### Features
++ Init commit
 
-
-see <a href='https://github.com/mrjackwills/adsbdb_rust/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
+see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details

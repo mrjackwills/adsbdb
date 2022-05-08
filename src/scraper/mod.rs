@@ -1,14 +1,13 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 #[allow(unused)]
-use tracing::{error};
+use tracing::error;
 
 use crate::{
     api::AppError,
     db_postgres::{Model, ModelAircraft, ModelAirport, ModelFlightroute},
     parse_env::AppEnv,
 };
-
 
 const ICAO: &str = "\"icao\":";
 
@@ -479,12 +478,11 @@ mod tests {
             registered_owner_country_name: "France".to_owned(),
             registered_owner_operator_flag_code: "DEF".to_owned(),
             registered_owner: "Aviation Defence Service".to_owned(),
-            url_photo: Some(
-                format!("{}001/001/example.jpg", setup.0.url_photo_prefix),
-            ),
-            url_photo_thumbnail: Some(
-				format!("{}thumbnails/001/001/example.jpg", setup.0.url_photo_prefix)
-            ),
+            url_photo: Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
+            url_photo_thumbnail: Some(format!(
+                "{}thumbnails/001/001/example.jpg",
+                setup.0.url_photo_prefix
+            )),
         };
         assert_eq!(result.unwrap(), expected);
         remove_scraped_data(&setup.1).await;

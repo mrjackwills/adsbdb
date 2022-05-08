@@ -70,7 +70,7 @@ pub struct ModelFlightroute {
 #[async_trait]
 impl Model<Self> for ModelFlightroute {
     async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {
-		let query = Self::get_query();
+        let query = Self::get_query();
         match sqlx::query_as::<_, Self>(query)
             .bind(callsign)
             .fetch_one(db)
@@ -86,10 +86,9 @@ impl Model<Self> for ModelFlightroute {
 }
 
 impl ModelFlightroute {
-
-	/// Seperated out, so can use in tests with a transaction
-	fn get_query() -> &'static str {
-		r#"
+    /// Seperated out, so can use in tests with a transaction
+    fn get_query() -> &'static str {
+        r#"
 		SELECT
 			$1 as callsign,
 			( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
@@ -141,7 +140,7 @@ impl ModelFlightroute {
 			fl.airport_destination_id = apd.airport_id
 		WHERE 
 			flc.callsign = $1"#
-	}
+    }
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
     pub async fn insert_scraped_flightroute(
         db: &PgPool,
