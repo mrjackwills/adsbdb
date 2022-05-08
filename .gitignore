@@ -13,6 +13,7 @@ nginx_confs
 
 **/test_scrape.txt
 
+**/scraper_html.ts
 **/aircraft.csv
 **/airport.csv
 **/country.csv
