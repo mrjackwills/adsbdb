@@ -8,13 +8,7 @@ repository = "https://github.com/mrjackwills/adsbdb"
 license = "MIT"
 readme = "README.md"
 
-# [[bin]]
-# name = "adsbdb"
-# path = "src/main.rs"
-
-
 [dependencies]
-# axum = { git="https://github.com/tokio-rs/axum.git", branch = "handle-get-in-content-length-rejection" }
 anyhow = "1.0"
 async-trait = "0.1.53"
 axum ="0.5.4"
