@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # rust create_release
-# v0.0.14
+# v0.0.15
 
 PACKAGE_NAME='adsbdb'
 STAR_LINE='****************************************'
@@ -19,7 +19,6 @@ error_close() {
 	echo -e "\n${RED}ERROR - EXITED: ${YELLOW}$1${RESET}\n";
 	exit 1
 }
-
 
 if [ -z "$PACKAGE_NAME" ]
 then
@@ -40,7 +39,6 @@ user_input() {
 update_major () {
 	local bumped_major
 	bumped_major=$((MAJOR + 1))
-	# MAJOR="7"
 	echo "${bumped_major}.0.0"
 }
 
@@ -138,7 +136,6 @@ update_version_number_in_files () {
 	# update dev-docker compose image version
 	sed -i -r -E "s=image: (\w+):[0-9]+\.[0-9]+\.[0-9]+=image: \1:${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dev.docker-compose.yml
 }
-
 
 # Work out the current version, based on git tags
 # create new semver version based on user input
