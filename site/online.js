@@ -4,7 +4,7 @@ const secondsToText = (s) => {
 	const second = zeroPad(Math.trunc(s % 60));
 	const minute = zeroPad(Math.floor(s / 60 % 60));
 	const hour = zeroPad(Math.floor(s / 60 / 60 % 24));
-	const day = Math.floor(s / 60 / 60 / 24);
+	const day = zeroPad(Math.floor(s / 60 / 60 / 24));
 	return `${day} days, ${hour} hours, ${minute} minutes, ${second} seconds`;
 };
 
@@ -23,8 +23,4 @@ const  check_status = async () => {
 	}
 }
 
-check_status()
-
-setInterval(() => {
-	check_status()
-}, 60000);
+check_status();

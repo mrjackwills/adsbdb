@@ -26,7 +26,7 @@
 	</header>
 
 	<main>
-		<div id="stats">
+		<div id="stats" style="display: hidden">
 			<h4>Stats</h4>
 			current api version: <span id='api_version'></span>
 			<br>
@@ -35,12 +35,11 @@
 		</div>
 		<p>
 			<h4>Rate limits</h4>
-			Calculated over a 60 second period
 			<table>
 				<thead>
 					<tr>
-						<th># requests </th>
-						<th>block time in seconds </th>
+						<th>requests</th>
+						<th>block time in seconds</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -54,6 +53,7 @@
 					</tr>
 				</tbody>
 			</table>
+			Calculated over a 60 second period
 		</p>
 		<hr>
 		<h4>Routes & Responses</h4>
@@ -227,7 +227,132 @@
 		<br>
 		<br>
 		<pre><code>{ response: { aircraft: {...}, flightroute: {...} } }</code></pre>
-		<hr>
+		<table>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"type"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"icao_type"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"manufacturer"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"mode_s"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_country_iso_name"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_operator_flag_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"url_photo"</td>
+					<td>string || null</td>
+				</tr>
+				<tr>
+					<td>"url_photo_thumbnail"</td>
+					<td>string || null</td>
+				</tr>
+				<tr>
+					<td>"callsign"</td>
+					<td>string</td>
+					</tr>
+				<tr>
+					<td>"origin_airport_country_iso_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_elevation"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_iata_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_icao_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_latitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_longitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_municipality"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_country_iso_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_elevation"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_iata_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_icao_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_latitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_longitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_municipality"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_name"</td>
+					<td>string</td>
+				</tr>
+			</tbody>
+		</table>
 	</main>
 </body>
 <script type="text/javascript" src="./online.js">
