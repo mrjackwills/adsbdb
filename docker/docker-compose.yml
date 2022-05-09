@@ -4,7 +4,7 @@ networks:
     name: adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.0.2
+    image: adsbdb_postgres:0.0.3
     container_name: adsbdb_postgres
     build:
       context: .
@@ -38,7 +38,7 @@ services:
       timeout: 20s
       retries: 3
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.0.2
+    image: adsbdb_postgres_backup:0.0.3
     container_name: adsbdb_postgres_backup
     build:
       context: .
@@ -73,7 +73,7 @@ services:
         limits:
           memory: 32MB
   adsbdb_redis:
-    image: adsbdb_redis:0.0.2
+    image: adsbdb_redis:0.0.3
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -109,7 +109,7 @@ services:
         limits:
           memory: 16M
   adsbdb_api:
-    image: adsbdb_api:0.0.2
+    image: adsbdb_api:0.0.3
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
