@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="./simple.min.css">
+	<title>adsbdb</title>
+	<link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="./images/favicon-16x16.png">
+	<link rel="manifest" href="./images/site.webmanifest">
+	<link rel="mask-icon" href="./images/safari-pinned-tab.svg" color="#5bbad5">
+	<meta name="msapplication-TileColor" content="#da532c">
+	<meta name="theme-color" content="#ffffff">
+</head>
+<body>
+	<header>
+		<img alt="adsbdb logo" src="./images/android-chrome-192x192.png" width='125px' />
+		<h1>adsbdb.com</h1>
+		<a href="https://github.com/mrjackwills/adsbdb">
+			<button>
+				<img alt="adsbdb logo" src="./github.png" width='18px'/> 
+				github repo
+			</button>
+		</a>
+	</header>
+
+	<main>
+		<div id="stats" style="display: hidden">
+			<h4>Stats</h4>
+			current api version: <span id='api_version'></span>
+			<br>
+			uptime: <span id='uptime'></span>
+		<hr>
+		</div>
+		<p>
+			<h4>Rate limits</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>requests</th>
+						<th>block time in seconds</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>120 +</td>
+						<td>60</td>
+					</tr>
+					<tr>
+						<td>240 +</td>
+						<td>300 (reset on each subsequent request)</td>
+					</tr>
+				</tbody>
+			</table>
+			Calculated over a 60 second period
+		</p>
+		<hr>
+		<h4>Routes & Responses</h4>
+		<code>https://api.adsbdb.com/v0/online</code>
+		<br>
+		<pre><code>{ response: {...} }</code></pre>
+		<table>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"api_version"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"uptime"</td>
+					<td> number</td>
+				</tr>
+			</tbody>
+		</table>
+		<hr>
+		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S]</code>
+		<br>
+		<pre><code>{ response: { aircraft: {...} } }</code></pre>
+		<table>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"type"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"icao_type"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"manufacturer"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"mode_s"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_country_iso_name"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_operator_flag_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"url_photo"</td>
+					<td>string || null</td>
+				</tr>
+				<tr>
+					<td>"url_photo_thumbnail"</td>
+					<td>string || null</td>
+				</tr>
+			</tbody>
+		</table>
+		<hr>
+		<code>https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
+		<br>
+		<pre><code>{ response: { flightroute: {...} } }</code></pre>
+		<table>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"callsign"</td>
+					<td>string</td>
+					</tr>
+				<tr>
+					<td>"origin_airport_country_iso_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_elevation"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_iata_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_icao_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_latitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_longitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_municipality"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_country_iso_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_elevation"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_iata_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_icao_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_latitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_longitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_municipality"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_name"</td>
+					<td>string</td>
+				</tr>
+			</tbody>
+		</table>
+		<hr>
+		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S]?callsign=[CALLSIGN]</code>
+		<br>
+		<br>
+		<pre><code>{ response: { aircraft: {...}, flightroute: {...} } }</code></pre>
+		<table>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"type"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"icao_type"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"manufacturer"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"mode_s"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_country_iso_name"</td>
+					<td> string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner_operator_flag_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"registered_owner"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"url_photo"</td>
+					<td>string || null</td>
+				</tr>
+				<tr>
+					<td>"url_photo_thumbnail"</td>
+					<td>string || null</td>
+				</tr>
+				<tr>
+					<td>"callsign"</td>
+					<td>string</td>
+					</tr>
+				<tr>
+					<td>"origin_airport_country_iso_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_elevation"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_iata_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_icao_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_latitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_longitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_municipality"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"origin_airport_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_country_iso_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_country_name"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_elevation"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_iata_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_icao_code"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_latitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_longitude"</td>
+					<td>number</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_municipality"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"destination_airport_name"</td>
+					<td>string</td>
+				</tr>
+			</tbody>
+		</table>
+	</main>
+</body>
+<script type="text/javascript" src="./online.js">
+</script>
+</html>

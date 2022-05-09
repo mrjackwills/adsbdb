@@ -49,6 +49,6 @@ RUN chmod +x /healthcheck/health_api.sh
 COPY --from=builder /adsbdb/target/x86_64-unknown-linux-musl/release/adsbdb ./
 
 # Use an unprivileged user.
-USER {DOCKER_APP_USER}:{DOCKER_APP_USER}
+USER ${DOCKER_APP_USER}:${DOCKER_APP_USER}
 
 CMD ["/adsbdb/adsbdb"]

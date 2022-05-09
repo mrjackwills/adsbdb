@@ -166,3 +166,5 @@ cargo watch -q -c -w src/ -x 'test  -- --test-threads=1 --nocapture'
 # Run all 
 cargo test -- --test-threads=1 --nocapture
 ```
+
+<!-- ```cross build --target aarch64-unknown-linux-gnu --release``` -->
