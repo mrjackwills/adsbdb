@@ -1,3 +1,6 @@
+### Features
++ Basic website added, [ef0ddadf1d1610a2ae7ba481a28fbcb497faba44]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.3'>v0.0.3</a>
 ### 2022-05-09
 

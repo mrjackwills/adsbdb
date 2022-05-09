@@ -14,12 +14,10 @@ const  check_status = async () => {
 	const response = await request.json();
 	const uptime = document.querySelector("#uptime");
 	const api_version = document.querySelector("#api_version");
-
 	if (response?.response?.uptime && response?.response?.api_version) {
 		api_version.innerHTML = response.response.api_version
 		uptime.innerHTML = secondsToText(response.response.uptime)
 		document.querySelector('#stats').style.display = 'block';
-
 	}
 }
 
