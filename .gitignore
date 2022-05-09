@@ -1,6 +1,5 @@
 /target
 /releases
-Cargo.lock
 
 **/.pgpass
 **/pg_dump*

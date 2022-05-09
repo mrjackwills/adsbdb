@@ -30,7 +30,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
@@ -107,13 +107,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 16M
   adsbdb_api:
     image: adsbdb_api:0.0.2
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
-      context: $HOME/adsbdb/src
+      context: $HOME/adsbdb
       dockerfile: $HOME/adsbdb/docker/dockerfile/api.Dockerfile
       args:
         - DOCKER_UID=${DOCKER_UID}
@@ -140,7 +140,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 32M
     healthcheck:
       test: ["CMD", "/healthcheck/health_api.sh"]
       interval: 30s
