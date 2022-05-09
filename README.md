@@ -15,6 +15,8 @@
 	for <a href='https://www.docker.com/' target='_blank' rel='noopener noreferrer'>Docker</a>,
 	using <a href='https://www.postgresql.org/' target='_blank' rel='noopener noreferrer'>PostgreSQL</a>
 	& <a href='https://www.redis.io/' target='_blank' rel='noopener noreferrer'>Redis</a> 
+	<br>
+	<sub> See typescript branch for original typescript version</sub>
 </p>
 
 
@@ -29,7 +31,7 @@
 			"icao_type": string,
 			"manufacturer": string,
 			"mode_s": string,
-			"registered_owner_country_iso_name": string [two char country_code_iso],
+			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
 			"registered_owner_operator_flag_code": string,
 			"registered_owner": string,
