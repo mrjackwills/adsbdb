@@ -135,6 +135,13 @@ update_version_number_in_files () {
 
 	# update dev-docker compose image version
 	sed -i -r -E "s=image: (\w+):[0-9]+\.[0-9]+\.[0-9]+=image: \1:${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dev.docker-compose.yml
+
+
+	# update endpoint in website js
+	sed -i -r -E "s=https://api.adsbdb.com/v0/online=https://api.adsbdb.com/v${MAJOR}/online=g" ./site/online.js
+
+	# update endpoint in website html
+	sed -i -r -E "s=https://api.adsbdb.com/v0=https://api.adsbdb.com/v${MAJOR}=g" ./site/index.html	
 }
 
 # Work out the current version, based on git tags
