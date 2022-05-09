@@ -5,10 +5,10 @@
 FROM rust:latest AS builder
 
 RUN rustup target add x86_64-unknown-linux-musl
-RUN apt update && apt install -y musl-tools musl-dev
+RUN apt-get update && apt-get install -y musl-tools musl-dev
 RUN update-ca-certificates
 
-ENV USER=adsbdb
+ENV DOCKER_APP_USER=adsbdb
 ENV UID=10001
 
 RUN adduser \
@@ -18,12 +18,12 @@ RUN adduser \
     --shell "/sbin/nologin" \
     --no-create-home \
     --uid "${UID}" \
-    "${USER}"
+    "${DOCKER_APP_USER}"
 
 
 WORKDIR /adsbdb
 
-COPY Cargo.toml Cargo.lock  ./
+COPY Cargo.* ./
 COPY ./src ./src
 
 RUN cargo build --target x86_64-unknown-linux-musl --release
@@ -40,10 +40,15 @@ COPY --from=builder /etc/group /etc/group
 
 WORKDIR /adsbdb
 
+RUN mkdir /healthcheck
+
+COPY --chown=${DOCKER_APP_USER} docker/healthcheck/health_api.sh /healthcheck/
+RUN chmod +x /healthcheck/health_api.sh
+
 # Copy our build
 COPY --from=builder /adsbdb/target/x86_64-unknown-linux-musl/release/adsbdb ./
 
 # Use an unprivileged user.
-USER adsbdb:adsbdb
+USER {DOCKER_APP_USER}:{DOCKER_APP_USER}
 
 CMD ["/adsbdb/adsbdb"]

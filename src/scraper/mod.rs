@@ -139,7 +139,7 @@ impl Scrapper {
     /// Request for photo from third party site
     #[cfg(not(test))]
     async fn request_photo(&self, mode_s: String) -> Result<Option<PhotoResponse>, AppError> {
-        let url = format!("{}/ac_thumb.json?m={}&n=1", self.photo_url, mode_s);
+        let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {

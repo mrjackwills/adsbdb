@@ -16,7 +16,7 @@ RUN apk add --update --no-cache tzdata \
 	&& adduser -u ${DOCKER_UID} -S -G ${DOCKER_APP_GROUP} ${DOCKER_APP_USER} \
 	&& mkdir /pg_data /backups /healthcheck /init /redis_data /logs \
 	&& chown -R ${DOCKER_APP_USER}:postgres /pg_data \
-	&& chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /healthcheck /init /backups /redis_data /logs
+	&& chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /healthcheck /init /backups /logs
 
 # From pg_dump
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./data/pg_dump.tar /init/
