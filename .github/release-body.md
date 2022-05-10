@@ -1,7 +1,10 @@
 ### 2022-05-10
 
+### Chores
++ update dependacies, [af54e606a91e6a46a578971c988009453a60a3da] 
+
 ### Features
-+ Added a DATA github issue template, and link to it on the site, [c939b89b2df2db4413bf474ee52a3dd8e9b1de3b]
++ set content-body to max length of 1024, [269f5a7f3a2db1d0ba6e82085045f73fd7984e93]
 
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
