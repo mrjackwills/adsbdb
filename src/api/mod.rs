@@ -8,7 +8,7 @@ use axum::{
     extract::{ConnectInfo, ContentLengthLimit},
     handler::Handler,
     http::{HeaderMap, Request},
-    middleware::{self, Next, from_extractor},
+    middleware::{self, from_extractor, Next},
     response::{IntoResponse, Response},
     routing::get,
     Extension, Json, Router,
