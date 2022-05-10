@@ -1,6 +1,6 @@
 [package]
 name = "adsbdb"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2021"
 authors = ["Jack Wills <email@mrjackwills.com>"]
 description = "aircraft & flightroute api"
@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.53"
-axum ="0.5.4"
+axum ="0.5.5"
 dotenv = "0.15.0"
 openssl = { version = '0.10', features = ["vendored"] }
 parking_lot = "0.12.0"
@@ -21,7 +21,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0"
 sqlx = {version="0.5.13", features = ["runtime-tokio-rustls", "postgres", "time"]}
 thiserror = "1.0.31"
-tokio = {version = "1.17.0", features=["full"]}
+tokio = {version = "1.18.2", features=["full"]}
 tower = { version = "0.4", features = ["full"] }
 tower-http = {version="0.3.2", features = ["full"] }
 tracing = "0.1.32"

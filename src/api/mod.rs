@@ -5,10 +5,10 @@ use thiserror::Error;
 use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
-    extract::ConnectInfo,
+    extract::{ConnectInfo, ContentLengthLimit},
     handler::Handler,
     http::{HeaderMap, Request},
-    middleware::{self, Next},
+    middleware::{self, from_extractor, Next},
     response::{IntoResponse, Response},
     routing::get,
     Extension, Json, Router,
@@ -141,9 +141,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Connection) {
         .layer(
             ServiceBuilder::new()
                 .layer(cors)
-                // This requires that the content-length header is set!
-                // is broken for get request as is, but a PR is in the works
-                // .layer(from_extractor::<ContentLengthLimit<(), 1024>>())
+                .layer(from_extractor::<ContentLengthLimit<(), 1024>>())
                 .layer(Extension(application_state))
                 .layer(middleware::from_fn(rate_limiting)),
         );
