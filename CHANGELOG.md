@@ -1,5 +1,8 @@
 ### Chores
-+ update dependacies, now able to set content-body to max length 1024
++ update dependacies, [af54e606a91e6a46a578971c988009453a60a3da] 
+
+### Features
++ set content-body to max length of 1024, [269f5a7f3a2db1d0ba6e82085045f73fd7984e93]
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.5'>v0.0.5</a>
 ### 2022-05-10
