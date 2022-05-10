@@ -1,5 +1,8 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.5'>v0.0.5</a>
+### 2022-05-10
+
 ### Features
-+ Added a DATA github issue template, and link to it on the site, [c939b89b2df2db4413bf474ee52a3dd8e9b1de3b]
++ Added a DATA github issue template, and link to it on the site, [c939b89b](https://github.com/mrjackwills/adsbdb/commit/c939b89b2df2db4413bf474ee52a3dd8e9b1de3b),
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.4'>v0.0.4</a>
 ### 2022-05-09

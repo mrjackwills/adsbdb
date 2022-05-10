@@ -1,8 +1,7 @@
-### 2022-05-09
+### 2022-05-10
 
 ### Features
-+ Basic website added, [ef0ddadf1d1610a2ae7ba481a28fbcb497faba44]
-+ Update website version number on create release, [d91dc82c2a78b23ba99199d0d20ff0110496efce]
++ Added a DATA github issue template, and link to it on the site, [c939b89b2df2db4413bf474ee52a3dd8e9b1de3b]
 
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
