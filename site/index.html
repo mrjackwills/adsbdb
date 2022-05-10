@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta charset='utf-8'>
+	<meta name='viewport' content='height=device-height, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0'>
 	<link rel="stylesheet" href="./simple.min.css">
 	<title>adsbdb</title>
 	<link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
@@ -15,9 +16,9 @@
 </head>
 <body>
 	<header>
-		<img alt="adsbdb logo" src="./images/android-chrome-192x192.png" width='125px' />
+		<img alt="adsbdb logo" src="./images/android-chrome-512x512.png" width='125px' />
 		<h1>adsbdb.com</h1>
-		<a href="https://github.com/mrjackwills/adsbdb">
+		<a href="https://github.com/mrjackwills/adsbdb" target='_blank' rel='noopener noreferrer'>
 			<button>
 				<img alt="adsbdb logo" src="./github.png" width='18px'/> 
 				github repo
@@ -26,6 +27,8 @@
 	</header>
 
 	<main>
+		<p> Please report any incorrect data to the <a href="https://github.com/mrjackwills/adsbdb/issues/new/choose"  target='_blank' rel='noopener noreferrer'>issues page</a>, with the <strong>Data</strong> tag</p>
+		<hr>
 		<div id="stats" style="display: hidden">
 			<h4>Stats</h4>
 			current api version: <span id='api_version'></span>
@@ -33,6 +36,7 @@
 			uptime: <span id='uptime'></span>
 		<hr>
 		</div>
+
 		<p>
 			<h4>Rate limits</h4>
 			<table>
