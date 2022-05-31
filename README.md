@@ -150,7 +150,7 @@ If an unknown callsign is provided as a query param, but the aircraft is known, 
 
 See <a href="https://github.com/mrjackwills/adsbdb/releases" target='_blank' rel='noopener noreferrer'>releases</a>
 
-download & install (x86_64_musl one liner)
+download (x86_64_musl one liner)
 
 ```bash
 wget https://www.github.com/mrjackwills/adsbdb/releases/latest/download/adsbdb_linux_x86_64_musl.tar.gz &&

@@ -5,9 +5,10 @@ on:
       - 'v*.*.*'
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
+      
       # Build for linux x86_64 musl
       - name: build release x86_64_musl
         uses: actions-rs/toolchain@v1
@@ -23,7 +24,7 @@ jobs:
       - name: compress aarch64 binary
         run: tar -C target/x86_64-unknown-linux-musl/release -czf ./adsbdb_linux_x86_64_musl.tar.gz adsbdb
 
-   - name: Release
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref }}
@@ -31,8 +32,6 @@ jobs:
           body_path: ".github/release-body.md"
           draft: false
           files: |
-             adsbdb_linux_musl.tar.gz
+             adsbdb_linux_x86_64_musl.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          
