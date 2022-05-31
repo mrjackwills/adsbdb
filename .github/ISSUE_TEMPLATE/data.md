@@ -1,5 +1,5 @@
 ---
-name: Data issue
+name: Data
 about: Report any issues with data retreived
 title: "[DATA] "
 labels: data

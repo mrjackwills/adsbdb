@@ -9,7 +9,7 @@ const secondsToText = (s) => {
 };
 
 
-const  check_status = async () => {
+const check_status = async () => {
 	const request = await fetch("https://api.adsbdb.com/v0/online");
 	const response = await request.json();
 	const uptime = document.querySelector("#uptime");

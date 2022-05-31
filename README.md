@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-	aircraft & flightroute api
+	public aircraft & flightroute api
 </p>
 
 <p align="center">
