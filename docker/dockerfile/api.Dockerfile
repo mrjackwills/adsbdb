@@ -32,7 +32,7 @@ RUN cargo build --target x86_64-unknown-linux-musl --release
 # App only #
 ############
 
-FROM alpine
+FROM scratch
 
 # Import from builder.
 COPY --from=builder /etc/passwd /etc/passwd

@@ -1,4 +1,4 @@
-FROM alpine:3.15
+FROM alpine:3.16
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \

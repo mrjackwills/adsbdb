@@ -228,6 +228,7 @@ release_flow() {
 	git checkout dev
 	git merge --no-ff main -m 'chore: merge main into dev'
 	git branch -d "$RELEASE_BRANCH"
+	git push origin dev
 }
 
 

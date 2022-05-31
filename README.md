@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
- <h1 align="center">api.adsbdb.com</h1>
+ <h1 align="center"><a href='https://api.adsbdb.com' target='_blank' rel='noopener noreferrer'>api.adsbdb.com</a></h1>
 </p>
 
 <p align="center">
-	aircraft & flightroute api
+	public aircraft & flightroute api
 </p>
 
 <p align="center">
@@ -146,6 +146,17 @@ If an unknown callsign is provided as a query param, but the aircraft is known, 
 
 ---
 
+## Download
+
+See <a href="https://github.com/mrjackwills/adsbdb/releases" target='_blank' rel='noopener noreferrer'>releases</a>
+
+download (x86_64_musl one liner)
+
+```bash
+wget https://www.github.com/mrjackwills/adsbdb/releases/latest/download/adsbdb_linux_x86_64_musl.tar.gz &&
+tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb
+```
+
 ### Run
 
 Operate docker compose containers via
@@ -156,8 +167,7 @@ Operate docker compose containers via
 
 ## Tests
 
-Requires postgres & redis to both be operational and seeded with data
-
+Requires postgres & redis to both be operational and seeded with valid data
 
 ```bash
 # Watch
