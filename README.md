@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
- <h1 align="center">api.adsbdb.com</h1>
+ <h1 align="center"><a href='https://api.adsbdb.com' target='_blank' rel='noopener noreferrer'>api.adsbdb.com</a></h1>
 </p>
 
 <p align="center">
