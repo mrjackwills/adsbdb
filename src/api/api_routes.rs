@@ -152,60 +152,60 @@ pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRe
 mod tests {
     use super::*;
 
-    // use axum::http::Uri;
-    // use axum::response::IntoResponse;
-    // use redis::{AsyncCommands, RedisError};
+    use axum::http::Uri;
+    use axum::response::IntoResponse;
+    use redis::{AsyncCommands, RedisError};
     use sqlx::PgPool;
 
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
 
-    // const CALLSIGN: &str = "ANA460";
+    const CALLSIGN: &str = "ANA460";
 
-    // // Also flushed redis of all keys!
-    // async fn get_application_state() -> Extension<ApplicationState> {
-    //     let app_env = parse_env::AppEnv::get_env();
-    //     let postgres = db_postgres::db_pool(&app_env).await.unwrap();
-    //     let mut redis = Redis::get_connection(&app_env).await.unwrap();
-    //     let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
-    //     Extension(ApplicationState::new(postgres, redis, &app_env))
-    // }
+    // Also flushed redis of all keys!
+    async fn get_application_state() -> Extension<ApplicationState> {
+        let app_env = parse_env::AppEnv::get_env();
+        let postgres = db_postgres::db_pool(&app_env).await.unwrap();
+        let mut redis = Redis::get_connection(&app_env).await.unwrap();
+        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+        Extension(ApplicationState::new(postgres, redis, &app_env))
+    }
 
-    // async fn sleep(ms: u64) {
-    //     tokio::time::sleep(std::time::Duration::from_millis(ms)).await
-    // }
+    async fn sleep(ms: u64) {
+        tokio::time::sleep(std::time::Duration::from_millis(ms)).await
+    }
 
-    // async fn remove_scraped_flightroute(db: &PgPool) {
-    //     let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-    //     sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
-    //     let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-    //     sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
-    //     let app_env = parse_env::AppEnv::get_env();
-    //     let mut redis = Redis::get_connection(&app_env).await.unwrap();
-    //     let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
-    // }
+    async fn remove_scraped_flightroute(db: &PgPool) {
+        let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
+        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+        let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
+        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+        let app_env = parse_env::AppEnv::get_env();
+        let mut redis = Redis::get_connection(&app_env).await.unwrap();
+        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+    }
 
-    // #[tokio::test]
-    // // basically a 404 handler
-    // async fn http_api_fallback_route() {
-    //     let uri = "/test/uri".parse::<Uri>().unwrap();
-    //     let response = fallback(uri.clone()).await;
-    //     assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
-    //     assert_eq!(response.1.response, format!("unknown endpoint: {}", uri));
-    // }
+    #[tokio::test]
+    // basically a 404 handler
+    async fn http_api_fallback_route() {
+        let uri = "/test/uri".parse::<Uri>().unwrap();
+        let response = fallback(uri.clone()).await;
+        assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
+        assert_eq!(response.1.response, format!("unknown endpoint: {}", uri));
+    }
 
-    // #[tokio::test]
-    // async fn http_api_online_route() {
-    //     let application_state = get_application_state().await;
+    #[tokio::test]
+    async fn http_api_online_route() {
+        let application_state = get_application_state().await;
 
-    //     sleep(1000).await;
-    //     let response = get_online(application_state).await;
+        sleep(1000).await;
+        let response = get_online(application_state).await;
 
-    //     assert_eq!(response.0, axum::http::StatusCode::OK);
-    //     assert_eq!(env!("CARGO_PKG_VERSION"), response.1.response.api_version);
-    //     assert!(response.1.response.uptime >= 1);
-    // }
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        assert_eq!(env!("CARGO_PKG_VERSION"), response.1.response.api_version);
+        assert!(response.1.response.uptime >= 1);
+    }
 
     // #[tokio::test]
     // async fn http_api_get_mode_s_err() {
@@ -226,43 +226,43 @@ mod tests {
     //     );
     // }
 
-    // #[tokio::test]
-    // async fn http_api_get_mode_s_ok_with_photo() {
-    //     let mode_s = "A44F3B".to_owned();
-    //     let application_state = get_application_state().await;
-    //     let invalid_mode_s = axum::extract::Path(mode_s.clone());
-    //     let hm = axum::extract::Query(HashMap::new());
-    //     let response = get_mode_s(application_state.clone(), invalid_mode_s, hm).await;
+    #[tokio::test]
+    async fn http_api_get_mode_s_ok_with_photo() {
+        let mode_s = "A44F3B".to_owned();
+        let application_state = get_application_state().await;
+		let path = ModeS::new(mode_s.clone()).unwrap();
+        let hm = axum::extract::Query(HashMap::new());
+        let response = get_mode_s(application_state.clone(), path, hm).await;
 
-    //     assert!(response.is_ok());
-    //     let response = response.unwrap();
-    //     assert_eq!(response.0, axum::http::StatusCode::OK);
-    //     let aircraft = ModelAircraft {
-    //         aircraft_type: "Citation Sovereign".to_owned(),
-    //         icao_type: "C680".to_owned(),
-    //         manufacturer: "Cessna".to_owned(),
-    //         mode_s: mode_s.clone(),
-    //         registered_owner: "NetJets".to_owned(),
-    //         registered_owner_operator_flag_code: "EJA".to_owned(),
-    //         registered_owner_country_name: "United States".to_owned(),
-    //         registered_owner_country_iso_name: "US".to_owned(),
-    //         url_photo: Some(format!(
-    //             "{}{}",
-    //             application_state.url_prefix, "001/572/001572354.jpg"
-    //         )),
-    //         url_photo_thumbnail: Some(format!(
-    //             "{}thumbnails/{}",
-    //             application_state.url_prefix, "001/572/001572354.jpg"
-    //         )),
-    //     };
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let aircraft = ModelAircraft {
+            aircraft_type: "Citation Sovereign".to_owned(),
+            icao_type: "C680".to_owned(),
+            manufacturer: "Cessna".to_owned(),
+            mode_s,
+            registered_owner: "NetJets".to_owned(),
+            registered_owner_operator_flag_code: "EJA".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: Some(format!(
+                "{}{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+            url_photo_thumbnail: Some(format!(
+                "{}thumbnails/{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+        };
 
-    //     match &response.1.response.aircraft {
-    //         Some(x) => assert_eq!(x, &aircraft),
-    //         None => unreachable!(),
-    //     }
+        match &response.1.response.aircraft {
+            Some(x) => assert_eq!(x, &aircraft),
+            None => unreachable!(),
+        }
 
-    //     assert!(response.1.response.flightroute.is_none());
-    // }
+        assert!(response.1.response.flightroute.is_none());
+    }
 
     // #[tokio::test]
     // async fn http_api_get_mode_s_ok_no_photo() {

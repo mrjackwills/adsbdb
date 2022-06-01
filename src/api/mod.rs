@@ -23,8 +23,8 @@ use tower::ServiceBuilder;
 use tracing::info;
 
 mod api_routes;
-mod input;
 mod response;
+mod input;
 
 use crate::{
     db_redis::{check_rate_limit, RedisKey},

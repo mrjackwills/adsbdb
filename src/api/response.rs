@@ -7,7 +7,7 @@ pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, PartialOrd)]
 pub struct ResponseJson<T> {
-    response: T,
+    pub response: T,
 }
 
 impl<T> ResponseJson<T> {
