@@ -30,7 +30,7 @@ use crate::{
     scraper::Scrapper,
 };
 
-pub use api_routes::check_callsign;
+// pub use api_routes::check_callsign;
 
 type AsJsonRes<T> = Json<ResponseJson<T>>;
 

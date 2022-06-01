@@ -107,11 +107,7 @@ WHERE
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
-    pub async fn insert_photo(
-        db: &PgPool,
-        photo: PhotoData,
-        mode_s: &str,
-    ) -> Result<(), AppError> {
+    pub async fn insert_photo(db: &PgPool, photo: PhotoData, mode_s: &str) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
         Self::photo_transaction(&mut transaction, photo, mode_s).await?;
         transaction.commit().await?;

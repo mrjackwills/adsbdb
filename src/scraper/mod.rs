@@ -231,9 +231,17 @@ mod tests {
 
     async fn remove_scraped_data(db: &PgPool) {
         let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-        sqlx::query(query).bind(TEST_CALLSIGN).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(TEST_CALLSIGN)
+            .execute(db)
+            .await
+            .unwrap();
         let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-        sqlx::query(query).bind(TEST_CALLSIGN).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(TEST_CALLSIGN)
+            .execute(db)
+            .await
+            .unwrap();
         let query = r#"
 		UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_id = (
 			SELECT
@@ -247,7 +255,11 @@ mod tests {
 			WHERE
 				ams.mode_s = $1)"#;
 
-        sqlx::query(query).bind(TEST_MODE_S).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(TEST_MODE_S)
+            .execute(db)
+            .await
+            .unwrap();
         let query = r#"DELETE FROM aircraft_photo WHERE url_photo = $1"#;
         sqlx::query(query)
             .bind("001/001/example.jpg")
