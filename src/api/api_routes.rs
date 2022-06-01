@@ -207,7 +207,7 @@ mod tests {
     async fn http_api_get_mode_s_ok_with_photo() {
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-		let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = get_mode_s(application_state.clone(), path, hm).await;
 
@@ -244,7 +244,7 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_mode_s_ok_no_photo() {
         let mode_s = "A44917".to_owned();
-		let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::new(mode_s.clone()).unwrap();
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
         let response = get_mode_s(application_state.clone(), path, hm).await;
@@ -280,7 +280,7 @@ mod tests {
         let mode_s = "A44F3B".to_owned();
         let key = RedisKey::ModeS(mode_s.clone());
         let application_state = get_application_state().await;
-		let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = get_mode_s(application_state.clone(), path, hm)
             .await
@@ -313,7 +313,7 @@ mod tests {
         let mode_s = "A44917".to_owned();
         let key = RedisKey::ModeS(mode_s.clone());
         let application_state = get_application_state().await;
-		let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = get_mode_s(application_state.clone(), path, hm)
             .await
@@ -348,7 +348,7 @@ mod tests {
         let mode_s = "ABABAB".to_owned();
         let key = RedisKey::ModeS(mode_s.clone());
         let application_state = get_application_state().await;
-		let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = get_mode_s(application_state.clone(), path.clone(), hm)
             .await
@@ -409,7 +409,6 @@ mod tests {
         assert_eq!(ttl, 604800);
     }
 
-
     #[tokio::test]
     async fn http_api_get_callsign_ok() {
         let callsign = "TOM35MR".to_owned();
@@ -464,10 +463,8 @@ mod tests {
     async fn http_api_get_callsign_cached() {
         let callsign = "TOM35MR".to_owned();
         let application_state = get_application_state().await;
-		let path = Callsign::new(callsign.clone()).unwrap();
-        let response = get_callsign(application_state.clone(), path)
-            .await
-            .unwrap();
+        let path = Callsign::new(callsign.clone()).unwrap();
+        let response = get_callsign(application_state.clone(), path).await.unwrap();
 
         let key = RedisKey::Callsign(callsign);
         let result: Result<String, RedisError> = application_state
@@ -494,7 +491,7 @@ mod tests {
     // Insert a new flightroute using the scraper
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
-		let path = Callsign::new(CALLSIGN.to_owned()).unwrap();
+        let path = Callsign::new(CALLSIGN.to_owned()).unwrap();
 
         let response = get_callsign(application_state.clone(), path).await;
 
@@ -546,7 +543,7 @@ mod tests {
     async fn http_api_get_callsign_none_cached() {
         let callsign = "ABABAB".to_owned();
         let application_state = get_application_state().await;
-		let path = Callsign::new(callsign.clone()).unwrap();
+        let path = Callsign::new(callsign.clone()).unwrap();
 
         let response = get_callsign(application_state.clone(), path.clone())
             .await
@@ -575,7 +572,6 @@ mod tests {
         assert_eq!(ttl, 604800);
 
         sleep(1000).await;
-
 
         // Check second request is also in redis, and cache ttl gets reset
         let response = get_callsign(application_state.clone(), path)
@@ -688,7 +684,7 @@ mod tests {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44917".to_owned();
         let application_state = get_application_state().await;
-		let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::new(mode_s.clone()).unwrap();
 
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
