@@ -152,151 +152,38 @@ pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRe
 mod tests {
     use super::*;
 
-    use axum::http::Uri;
-    use axum::response::IntoResponse;
-    use redis::{AsyncCommands, RedisError};
+    // use axum::http::Uri;
+    // use axum::response::IntoResponse;
+    // use redis::{AsyncCommands, RedisError};
     use sqlx::PgPool;
 
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
 
-    const CALLSIGN: &str = "ANA460";
+    // const CALLSIGN: &str = "ANA460";
 
-    // Also flushed redis of all keys!
-    async fn get_application_state() -> Extension<ApplicationState> {
-        let app_env = parse_env::AppEnv::get_env();
-        let postgres = db_postgres::db_pool(&app_env).await.unwrap();
-        let mut redis = Redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
-        Extension(ApplicationState::new(postgres, redis, &app_env))
-    }
-
-    async fn sleep(ms: u64) {
-        tokio::time::sleep(std::time::Duration::from_millis(ms)).await
-    }
-
-    async fn remove_scraped_flightroute(db: &PgPool) {
-        let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
-        let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
-        let app_env = parse_env::AppEnv::get_env();
-        let mut redis = Redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
-    }
-
-    // #[test]
-    // fn http_api_is_charset_valid() {
-    //     let char = 'a';
-    //     let result = is_charset(char, 'z');
-    //     assert!(result);
-
-    //     let char = '1';
-    //     let result = is_charset(char, 'b');
-    //     assert!(result);
+    // // Also flushed redis of all keys!
+    // async fn get_application_state() -> Extension<ApplicationState> {
+    //     let app_env = parse_env::AppEnv::get_env();
+    //     let postgres = db_postgres::db_pool(&app_env).await.unwrap();
+    //     let mut redis = Redis::get_connection(&app_env).await.unwrap();
+    //     let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+    //     Extension(ApplicationState::new(postgres, redis, &app_env))
     // }
 
-    // #[test]
-    // fn http_api_is_charset_invalid() {
-    //     let char = 'g';
-    //     let result = is_charset(char, 'b');
-    //     assert!(!result);
-
-    //     let char = '%';
-    //     let result = is_charset(char, 'b');
-    //     assert!(!result);
+    // async fn sleep(ms: u64) {
+    //     tokio::time::sleep(std::time::Duration::from_millis(ms)).await
     // }
 
-    // #[test]
-    // fn http_api_check_callsign_ok() {
-    //     let valid = String::from("AaBb12");
-    //     let result = check_callsign(valid);
-    //     assert_eq!(result.unwrap(), "AABB12".to_owned());
-
-    //     let valid = String::from("AaaA1111");
-    //     let result = check_callsign(valid);
-    //     assert_eq!(result.unwrap(), "AAAA1111".to_owned());
-    // }
-
-    // #[test]
-    // fn http_api_check_callsign_err() {
-    //     // Too short
-    //     let valid = String::from("aaa");
-    //     let result = check_callsign(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::Callsign(a) => assert_eq!(a, "aaa".to_owned()),
-    //         _ => unreachable!(),
-    //     };
-
-    //     // Too long
-    //     let valid = String::from("bbbbbbbbb");
-    //     let result = check_callsign(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::Callsign(a) => assert_eq!(a, "bbbbbbbbb".to_owned()),
-    //         _ => unreachable!(),
-    //     };
-
-    //     // contains invalid char
-    //     let valid = String::from("aaa124*");
-    //     let result = check_callsign(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::Callsign(a) => assert_eq!(a, "aaa124*".to_owned()),
-    //         _ => unreachable!(),
-    //     };
-    // }
-
-    // #[test]
-    // fn http_api_check_mode_s_ok() {
-    //     let valid = String::from("AaBb12");
-    //     let result = check_mode_s(valid);
-    //     assert_eq!(result.unwrap(), "AABB12".to_owned());
-
-    //     let valid = String::from("FFF999");
-    //     let result = check_mode_s(valid);
-    //     assert_eq!(result.unwrap(), "FFF999".to_owned());
-    // }
-
-    // #[test]
-    // fn http_api_check_mode_s_err() {
-    //     // Too short
-    //     let valid = String::from("aaaaa");
-    //     let result = check_mode_s(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::ModeS(a) => assert_eq!(a, "aaaaa".to_owned()),
-    //         _ => unreachable!(),
-    //     };
-
-    //     // Too long
-    //     let valid = String::from("bbbbbbb");
-    //     let result = check_mode_s(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::ModeS(a) => assert_eq!(a, "bbbbbbb".to_owned()),
-    //         _ => unreachable!(),
-    //     };
-
-    //     // contains invalid alpha char
-    //     let valid = String::from("aaa12h");
-    //     let result = check_mode_s(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::ModeS(a) => assert_eq!(a, "aaa12h".to_owned()),
-    //         _ => unreachable!(),
-    //     };
-
-    //     // contains invalid non-alpha char
-    //     let valid = String::from("aaa12$");
-    //     let result = check_mode_s(valid);
-    //     assert!(result.is_err());
-    //     match result.unwrap_err() {
-    //         AppError::ModeS(a) => assert_eq!(a, "aaa12$".to_owned()),
-    //         _ => unreachable!(),
-    //     };
+    // async fn remove_scraped_flightroute(db: &PgPool) {
+    //     let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
+    //     sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+    //     let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
+    //     sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+    //     let app_env = parse_env::AppEnv::get_env();
+    //     let mut redis = Redis::get_connection(&app_env).await.unwrap();
+    //     let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
     // }
 
     // #[tokio::test]
