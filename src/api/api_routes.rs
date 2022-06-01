@@ -1,119 +1,17 @@
 use std::collections::HashMap;
 
-use async_trait::async_trait;
-use axum::extract::{FromRequest, RequestParts};
 use axum::Extension;
-use serde::{Deserialize, Serialize};
 
-use super::{AppError, ApplicationState, AsJsonRes, ResponseJson};
+use super::input::{Callsign, ModeS};
+use super::response::{AircraftAndRoute, AsJsonRes, Online, ResponseJson};
+use super::{AppError, ApplicationState};
 use crate::db_postgres::{Model, ModelAircraft, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, RedisKey};
-
-/// Response for the /online api route
-#[derive(Serialize, Deserialize)]
-pub struct Online {
-    uptime: u64,
-    api_version: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AircraftAndRoute {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub aircraft: Option<ModelAircraft>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flightroute: Option<ModelFlightroute>,
-}
-
-// Check if input char is 0-9, a-end
-fn is_charset(c: char, end: char) -> bool {
-    c.is_ascii_digit() || ('a'..=end).contains(&c.to_ascii_lowercase())
-}
-
-trait Validate {
-    fn validate(x: String) -> Result<String, AppError>;
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ModeSPath {
-    mode_s: String,
-}
-
-impl ModeSPath {
-    pub fn new(x: String) -> Result<Self, AppError> {
-        Ok(Self {
-            mode_s: Self::validate(x)?,
-        })
-    }
-}
-impl Validate for ModeSPath {
-    /// Make sure that input is a valid mode_s string, validitiy is [a-f]{6}
-    fn validate(input: String) -> Result<String, AppError> {
-        let valid = input.len() == 6 && input.chars().all(|c| is_charset(c, 'f'));
-        if valid {
-            Ok(input.to_uppercase())
-        } else {
-            Err(AppError::ModeS(input))
-        }
-    }
-}
-
-#[async_trait]
-impl<B> FromRequest<B> for ModeSPath
-where
-    B: Send,
-{
-    type Rejection = AppError;
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request(req).await {
-            Ok(value) => Ok(ModeSPath::new(value.0)?),
-            Err(_) => Err(AppError::ModeS(String::from("invalid"))),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CallsignPath {
-    callsign: String,
-}
-
-impl CallsignPath {
-    pub fn new(x: String) -> Result<Self, AppError> {
-        Ok(Self {
-            callsign: Self::validate(x)?,
-        })
-    }
-}
-
-impl Validate for CallsignPath {
-    // Make sure that input is a valid callsignstring, validitiy is [a-z]{4-8}
-    fn validate(input: String) -> Result<String, AppError> {
-        let valid = (4..=8).contains(&input.len()) && input.chars().all(|c| is_charset(c, 'z'));
-        if valid {
-            Ok(input.to_uppercase())
-        } else {
-            Err(AppError::Callsign(input))
-        }
-    }
-}
-
-#[async_trait]
-impl<B> FromRequest<B> for CallsignPath
-where
-    B: Send,
-{
-    type Rejection = AppError;
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request(req).await {
-            Ok(value) => Ok(CallsignPath::new(value.0)?),
-            Err(_) => Err(AppError::ModeS(String::from("invalid"))),
-        }
-    }
-}
 
 /// Get flightroute, refactored so can use in either get_mode_s (with a callsign query param), or get_callsign.
 /// Check redis cache for aircraft (or 'none'), or hit postgres
 async fn find_flightroute(
-    path: &CallsignPath,
+    path: &Callsign,
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(path.callsign.to_owned());
@@ -136,7 +34,7 @@ async fn find_flightroute(
 
 /// Check redis cache for aircraft (or 'none'), or hit postgres
 async fn find_aircraft(
-    path: &ModeSPath,
+    path: &ModeS,
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::ModeS(path.mode_s.to_owned());
@@ -166,48 +64,49 @@ async fn find_aircraft(
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 pub async fn get_mode_s(
     Extension(state): Extension<ApplicationState>,
-    path: ModeSPath,
-    // axum::extract::Path(mode_s): axum::extract::Path<String>,
-    axum::extract::Query(callsign): axum::extract::Query<HashMap<String, String>>,
+    path: ModeS,
+    axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    // if let Some(callsign) = callsign.get("callsign") {
-    //     let (aircraft, flightroute) = tokio::join!(
-    //         find_aircraft(&path, state.clone()),
-    //         find_flightroute(callsign.to_owned(), state)
-    //     );
-    //     if let Ok(Some(a)) = aircraft {
-    //         let flightroute = flightroute?;
-    //         Ok((
-    //             axum::http::StatusCode::OK,
-    //             ResponseJson::new(AircraftAndRoute {
-    //                 aircraft: Some(a),
-    //                 flightroute,
-    //             }),
-    //         ))
-    //     } else {
-    //         Err(AppError::UnknownInDb("aircraft"))
-    //     }
-    // } else {
-    let aircraft = find_aircraft(&path, state).await?;
-    if let Some(a) = aircraft {
-        Ok((
-            axum::http::StatusCode::OK,
-            ResponseJson::new(AircraftAndRoute {
-                aircraft: Some(a),
-                flightroute: None,
-            }),
-        ))
+    // Check if optional callsign query param
+    if let Some(query_param) = queries.get("callsign") {
+        let callsign = Callsign::new(query_param.to_owned())?;
+        let (aircraft, flightroute) = tokio::join!(
+            find_aircraft(&path, state.clone()),
+            find_flightroute(&callsign, state)
+        );
+        if let Ok(Some(a)) = aircraft {
+            let flightroute = flightroute?;
+            Ok((
+                axum::http::StatusCode::OK,
+                ResponseJson::new(AircraftAndRoute {
+                    aircraft: Some(a),
+                    flightroute,
+                }),
+            ))
+        } else {
+            Err(AppError::UnknownInDb("aircraft"))
+        }
     } else {
-        Err(AppError::UnknownInDb("aircraft"))
+        let aircraft = find_aircraft(&path, state).await?;
+        if let Some(a) = aircraft {
+            Ok((
+                axum::http::StatusCode::OK,
+                ResponseJson::new(AircraftAndRoute {
+                    aircraft: Some(a),
+                    flightroute: None,
+                }),
+            ))
+        } else {
+            Err(AppError::UnknownInDb("aircraft"))
+        }
     }
-    // }
 }
 
 /// Return a flightroute detail from a callsign input
 pub async fn get_callsign(
     Extension(state): Extension<ApplicationState>,
     // axum::extract::Path(callsign): axum::extract::Path<String>,
-    path: CallsignPath,
+    path: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // /TODO do this in impl from request, copy from other projects, they we can assume that callsign is valid
     // let callsign = check_callsign(callsign)?;

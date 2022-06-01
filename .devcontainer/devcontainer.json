@@ -35,14 +35,14 @@
 	"extensions": [
 		"vadimcn.vscode-lldb",
 		"mutantdino.resourcemonitor",
-		"matklad.rust-analyzer",
 		"tamasfe.even-better-toml",
 		"serayuzgur.crates",
 		"christian-kohler.path-intellisense",
 		"timonwong.shellcheck",
 		"ms-vscode.live-server",
 		"rangav.vscode-thunder-client",
-		"bmuskalla.vscode-tldr"
+		"bmuskalla.vscode-tldr",
+		"rust-lang.rust-analyze"
 	],
 
 
