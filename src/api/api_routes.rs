@@ -1,70 +1,30 @@
 use std::collections::HashMap;
 
 use axum::Extension;
-use serde::{Deserialize, Serialize};
 
-use super::{AppError, ApplicationState, AsJsonRes, ResponseJson};
+use super::input::{Callsign, ModeS};
+use super::response::{AircraftAndRoute, AsJsonRes, Online, ResponseJson};
+use super::{AppError, ApplicationState};
 use crate::db_postgres::{Model, ModelAircraft, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, RedisKey};
-
-/// Response for the /online api route
-#[derive(Serialize, Deserialize)]
-pub struct Online {
-    uptime: u64,
-    api_version: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AircraftAndRoute {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub aircraft: Option<ModelAircraft>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flightroute: Option<ModelFlightroute>,
-}
-
-// Check if input char is 0-9, a-end
-fn is_charset(c: char, end: char) -> bool {
-    c.is_ascii_digit() || ('a'..=end).contains(&c.to_ascii_lowercase())
-}
-
-//  Make sure that input is a valid callsignstring, validitiy is [a-z]{4-8}
-// Should accept str or string
-pub fn check_callsign(input: String) -> Result<String, AppError> {
-    let valid = (4..=8).contains(&input.len()) && input.chars().all(|c| is_charset(c, 'z'));
-    if valid {
-        Ok(input.to_uppercase())
-    } else {
-        Err(AppError::Callsign(input))
-    }
-}
-
-/// Make sure that input is a valid mode_s string, validitiy is [a-f]{6}
-fn check_mode_s(input: String) -> Result<String, AppError> {
-    let valid = input.len() == 6 && input.chars().all(|c| is_charset(c, 'f'));
-    if valid {
-        Ok(input.to_uppercase())
-    } else {
-        Err(AppError::ModeS(input))
-    }
-}
 
 /// Get flightroute, refactored so can use in either get_mode_s (with a callsign query param), or get_callsign.
 /// Check redis cache for aircraft (or 'none'), or hit postgres
 async fn find_flightroute(
-    callsign: String,
+    path: &Callsign,
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
-    let redis_key = RedisKey::Callsign(callsign.clone());
+    let redis_key = RedisKey::Callsign(path.callsign.to_owned());
     let cache: Option<Option<ModelFlightroute>> = get_cache(&state.redis, &redis_key).await?;
     if let Some(flightroute) = cache {
         Ok(flightroute)
     } else {
-        let mut flightroute = ModelFlightroute::get(&state.postgres, &callsign).await?;
+        let mut flightroute = ModelFlightroute::get(&state.postgres, &path.callsign).await?;
 
         if flightroute.is_none() {
             flightroute = state
                 .scraper
-                .scrape_flightroute(&state.postgres, &callsign)
+                .scrape_flightroute(&state.postgres, &path.callsign)
                 .await?
         }
         insert_cache(&state.redis, &flightroute, &redis_key).await?;
@@ -74,23 +34,25 @@ async fn find_flightroute(
 
 /// Check redis cache for aircraft (or 'none'), or hit postgres
 async fn find_aircraft(
-    mode_s: String,
+    path: &ModeS,
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
-    let mode_s = check_mode_s(mode_s)?;
-    let redis_key = RedisKey::ModeS(mode_s.clone());
+    let redis_key = RedisKey::ModeS(path.mode_s.to_owned());
     let cache: Option<Option<ModelAircraft>> = get_cache(&state.redis, &redis_key).await?;
     if let Some(aircraft) = cache {
         Ok(aircraft)
     } else {
-        let mut aircraft = ModelAircraft::get(&state.postgres, &mode_s, &state.url_prefix).await?;
+        let mut aircraft =
+            ModelAircraft::get(&state.postgres, path.mode_s.as_str(), &state.url_prefix).await?;
         if let Some(craft) = aircraft.clone() {
             if craft.url_photo.is_none() {
                 state
                     .scraper
-                    .scrape_photo(&state.postgres, mode_s.clone())
+                    .scrape_photo(&state.postgres, path.mode_s.as_str())
                     .await?;
-                aircraft = ModelAircraft::get(&state.postgres, &mode_s, &state.url_prefix).await?;
+                aircraft =
+                    ModelAircraft::get(&state.postgres, path.mode_s.as_str(), &state.url_prefix)
+                        .await?;
             }
         }
         insert_cache(&state.redis, &aircraft, &redis_key).await?;
@@ -102,13 +64,15 @@ async fn find_aircraft(
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 pub async fn get_mode_s(
     Extension(state): Extension<ApplicationState>,
-    axum::extract::Path(mode_s): axum::extract::Path<String>,
-    axum::extract::Query(callsign): axum::extract::Query<HashMap<String, String>>,
+    path: ModeS,
+    axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    if let Some(callsign) = callsign.get("callsign") {
+    // Check if optional callsign query param
+    if let Some(query_param) = queries.get("callsign") {
+        let callsign = Callsign::new(query_param.to_owned())?;
         let (aircraft, flightroute) = tokio::join!(
-            find_aircraft(mode_s, state.clone()),
-            find_flightroute(callsign.to_owned(), state)
+            find_aircraft(&path, state.clone()),
+            find_flightroute(&callsign, state)
         );
         if let Ok(Some(a)) = aircraft {
             let flightroute = flightroute?;
@@ -123,7 +87,7 @@ pub async fn get_mode_s(
             Err(AppError::UnknownInDb("aircraft"))
         }
     } else {
-        let aircraft = find_aircraft(mode_s, state).await?;
+        let aircraft = find_aircraft(&path, state).await?;
         if let Some(a) = aircraft {
             Ok((
                 axum::http::StatusCode::OK,
@@ -141,10 +105,9 @@ pub async fn get_mode_s(
 /// Return a flightroute detail from a callsign input
 pub async fn get_callsign(
     Extension(state): Extension<ApplicationState>,
-    axum::extract::Path(callsign): axum::extract::Path<String>,
+    path: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    let callsign = check_callsign(callsign)?;
-    let flightroute = find_flightroute(callsign, state).await?;
+    let flightroute = find_flightroute(&path, state).await?;
 
     if let Some(a) = flightroute {
         Ok((
@@ -187,7 +150,6 @@ mod tests {
     use super::*;
 
     use axum::http::Uri;
-    use axum::response::IntoResponse;
     use redis::{AsyncCommands, RedisError};
     use sqlx::PgPool;
 
@@ -220,119 +182,6 @@ mod tests {
         let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
     }
 
-    #[test]
-    fn http_api_is_charset_valid() {
-        let char = 'a';
-        let result = is_charset(char, 'z');
-        assert!(result);
-
-        let char = '1';
-        let result = is_charset(char, 'b');
-        assert!(result);
-    }
-
-    #[test]
-    fn http_api_is_charset_invalid() {
-        let char = 'g';
-        let result = is_charset(char, 'b');
-        assert!(!result);
-
-        let char = '%';
-        let result = is_charset(char, 'b');
-        assert!(!result);
-    }
-
-    #[test]
-    fn http_api_check_callsign_ok() {
-        let valid = String::from("AaBb12");
-        let result = check_callsign(valid);
-        assert_eq!(result.unwrap(), "AABB12".to_owned());
-
-        let valid = String::from("AaaA1111");
-        let result = check_callsign(valid);
-        assert_eq!(result.unwrap(), "AAAA1111".to_owned());
-    }
-
-    #[test]
-    fn http_api_check_callsign_err() {
-        // Too short
-        let valid = String::from("aaa");
-        let result = check_callsign(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::Callsign(a) => assert_eq!(a, "aaa".to_owned()),
-            _ => unreachable!(),
-        };
-
-        // Too long
-        let valid = String::from("bbbbbbbbb");
-        let result = check_callsign(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::Callsign(a) => assert_eq!(a, "bbbbbbbbb".to_owned()),
-            _ => unreachable!(),
-        };
-
-        // contains invalid char
-        let valid = String::from("aaa124*");
-        let result = check_callsign(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::Callsign(a) => assert_eq!(a, "aaa124*".to_owned()),
-            _ => unreachable!(),
-        };
-    }
-
-    #[test]
-    fn http_api_check_mode_s_ok() {
-        let valid = String::from("AaBb12");
-        let result = check_mode_s(valid);
-        assert_eq!(result.unwrap(), "AABB12".to_owned());
-
-        let valid = String::from("FFF999");
-        let result = check_mode_s(valid);
-        assert_eq!(result.unwrap(), "FFF999".to_owned());
-    }
-
-    #[test]
-    fn http_api_check_mode_s_err() {
-        // Too short
-        let valid = String::from("aaaaa");
-        let result = check_mode_s(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::ModeS(a) => assert_eq!(a, "aaaaa".to_owned()),
-            _ => unreachable!(),
-        };
-
-        // Too long
-        let valid = String::from("bbbbbbb");
-        let result = check_mode_s(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::ModeS(a) => assert_eq!(a, "bbbbbbb".to_owned()),
-            _ => unreachable!(),
-        };
-
-        // contains invalid alpha char
-        let valid = String::from("aaa12h");
-        let result = check_mode_s(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::ModeS(a) => assert_eq!(a, "aaa12h".to_owned()),
-            _ => unreachable!(),
-        };
-
-        // contains invalid non-alpha char
-        let valid = String::from("aaa12$");
-        let result = check_mode_s(valid);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::ModeS(a) => assert_eq!(a, "aaa12$".to_owned()),
-            _ => unreachable!(),
-        };
-    }
-
     #[tokio::test]
     // basically a 404 handler
     async fn http_api_fallback_route() {
@@ -355,31 +204,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_mode_s_err() {
-        let application_state = get_application_state().await;
-        let invalid_mode_s = axum::extract::Path("bbbbbbb".to_owned());
-        let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state, invalid_mode_s, hm).await;
-        assert!(response.is_err());
-        let response = response.unwrap_err();
-        match &response {
-            AppError::ModeS(x) => assert_eq!(x.to_owned(), "bbbbbbb".to_owned()),
-            _ => unreachable!(),
-        };
-        assert_eq!(response.to_string(), "invalid modeS:".to_owned());
-        assert_eq!(
-            response.into_response().status(),
-            axum::http::StatusCode::BAD_REQUEST
-        );
-    }
-
-    #[tokio::test]
     async fn http_api_get_mode_s_ok_with_photo() {
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let invalid_mode_s = axum::extract::Path(mode_s.clone());
+		let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state.clone(), invalid_mode_s, hm).await;
+        let response = get_mode_s(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -388,7 +218,7 @@ mod tests {
             aircraft_type: "Citation Sovereign".to_owned(),
             icao_type: "C680".to_owned(),
             manufacturer: "Cessna".to_owned(),
-            mode_s: mode_s.clone(),
+            mode_s,
             registered_owner: "NetJets".to_owned(),
             registered_owner_operator_flag_code: "EJA".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
@@ -414,10 +244,10 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_mode_s_ok_no_photo() {
         let mode_s = "A44917".to_owned();
+		let path = ModeS::new(mode_s.clone()).unwrap();
         let application_state = get_application_state().await;
-        let invalid_mode_s = axum::extract::Path(mode_s.clone());
         let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state.clone(), invalid_mode_s, hm).await;
+        let response = get_mode_s(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -450,9 +280,9 @@ mod tests {
         let mode_s = "A44F3B".to_owned();
         let key = RedisKey::ModeS(mode_s.clone());
         let application_state = get_application_state().await;
-        let valid_mode_s = axum::extract::Path(mode_s.clone());
+		let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state.clone(), valid_mode_s, hm)
+        let response = get_mode_s(application_state.clone(), path, hm)
             .await
             .unwrap();
 
@@ -483,9 +313,9 @@ mod tests {
         let mode_s = "A44917".to_owned();
         let key = RedisKey::ModeS(mode_s.clone());
         let application_state = get_application_state().await;
-        let valid_mode_s = axum::extract::Path(mode_s.clone());
+		let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state.clone(), valid_mode_s, hm)
+        let response = get_mode_s(application_state.clone(), path, hm)
             .await
             .unwrap();
 
@@ -518,9 +348,9 @@ mod tests {
         let mode_s = "ABABAB".to_owned();
         let key = RedisKey::ModeS(mode_s.clone());
         let application_state = get_application_state().await;
-        let valid_mode_s = axum::extract::Path(mode_s.clone());
+		let path = ModeS::new(mode_s.clone()).unwrap();
         let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state.clone(), valid_mode_s, hm)
+        let response = get_mode_s(application_state.clone(), path.clone(), hm)
             .await
             .unwrap_err();
 
@@ -550,9 +380,8 @@ mod tests {
         sleep(1000).await;
 
         // make sure a second requst to an unknown mode_s will extend cache ttl
-        let valid_mode_s = axum::extract::Path(mode_s.clone());
         let hm = axum::extract::Query(HashMap::new());
-        let response = get_mode_s(application_state.clone(), valid_mode_s, hm)
+        let response = get_mode_s(application_state.clone(), path, hm)
             .await
             .unwrap_err();
 
@@ -580,30 +409,13 @@ mod tests {
         assert_eq!(ttl, 604800);
     }
 
-    #[tokio::test]
-    async fn http_api_get_callsign_s_err() {
-        let application_state = get_application_state().await;
-        let invalid_callsign = axum::extract::Path("bbbbbbbbb".to_owned());
-        let response = get_callsign(application_state, invalid_callsign).await;
-        assert!(response.is_err());
-        let response = response.unwrap_err();
-        match &response {
-            AppError::Callsign(x) => assert_eq!(x.to_owned(), "bbbbbbbbb".to_owned()),
-            _ => unreachable!(),
-        };
-        assert_eq!(response.to_string(), "invalid callsign:".to_owned());
-        assert_eq!(
-            response.into_response().status(),
-            axum::http::StatusCode::BAD_REQUEST
-        );
-    }
 
     #[tokio::test]
     async fn http_api_get_callsign_ok() {
         let callsign = "TOM35MR".to_owned();
         let application_state = get_application_state().await;
-        let invalid_mode_s = axum::extract::Path(callsign.clone());
-        let response = get_callsign(application_state.clone(), invalid_mode_s).await;
+        let path = Callsign::new(callsign.clone()).unwrap();
+        let response = get_callsign(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -652,8 +464,8 @@ mod tests {
     async fn http_api_get_callsign_cached() {
         let callsign = "TOM35MR".to_owned();
         let application_state = get_application_state().await;
-        let valid_callsign = axum::extract::Path(callsign.clone());
-        let response = get_callsign(application_state.clone(), valid_callsign)
+		let path = Callsign::new(callsign.clone()).unwrap();
+        let response = get_callsign(application_state.clone(), path)
             .await
             .unwrap();
 
@@ -682,8 +494,9 @@ mod tests {
     // Insert a new flightroute using the scraper
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
-        let valid_callsign = axum::extract::Path(CALLSIGN.to_owned());
-        let response = get_callsign(application_state.clone(), valid_callsign).await;
+		let path = Callsign::new(CALLSIGN.to_owned()).unwrap();
+
+        let response = get_callsign(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -733,8 +546,9 @@ mod tests {
     async fn http_api_get_callsign_none_cached() {
         let callsign = "ABABAB".to_owned();
         let application_state = get_application_state().await;
-        let valid_callsign = axum::extract::Path(callsign.clone());
-        let response = get_callsign(application_state.clone(), valid_callsign)
+		let path = Callsign::new(callsign.clone()).unwrap();
+
+        let response = get_callsign(application_state.clone(), path.clone())
             .await
             .unwrap_err();
         match response {
@@ -762,10 +576,9 @@ mod tests {
 
         sleep(1000).await;
 
-        let valid_callsign = axum::extract::Path(callsign.clone());
 
         // Check second request is also in redis, and cache ttl gets reset
-        let response = get_callsign(application_state.clone(), valid_callsign)
+        let response = get_callsign(application_state.clone(), path)
             .await
             .unwrap_err();
 
@@ -799,11 +612,11 @@ mod tests {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let mode_s_path = axum::extract::Path(mode_s.clone());
+        let path = ModeS::new(mode_s.clone()).unwrap();
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = get_mode_s(application_state.clone(), mode_s_path, hm).await;
+        let response = get_mode_s(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -875,11 +688,12 @@ mod tests {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44917".to_owned();
         let application_state = get_application_state().await;
-        let mode_s_path = axum::extract::Path(mode_s.clone());
+		let path = ModeS::new(mode_s.clone()).unwrap();
+
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = get_mode_s(application_state.clone(), mode_s_path, hm).await;
+        let response = get_mode_s(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();

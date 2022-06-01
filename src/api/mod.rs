@@ -11,7 +11,7 @@ use axum::{
     middleware::{self, from_extractor, Next},
     response::{IntoResponse, Response},
     routing::get,
-    Extension, Json, Router,
+    Extension, Router,
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -23,6 +23,8 @@ use tower::ServiceBuilder;
 use tracing::info;
 
 mod api_routes;
+mod response;
+mod input;
 
 use crate::{
     db_redis::{check_rate_limit, RedisKey},
@@ -30,20 +32,7 @@ use crate::{
     scraper::Scrapper,
 };
 
-pub use api_routes::check_callsign;
-
-type AsJsonRes<T> = Json<ResponseJson<T>>;
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, PartialOrd)]
-pub struct ResponseJson<T> {
-    response: T,
-}
-
-impl<T> ResponseJson<T> {
-    pub fn new(response: T) -> Json<ResponseJson<T>> {
-        Json(Self { response })
-    }
-}
+use self::response::ResponseJson;
 
 #[allow(unused)]
 #[derive(Clone)]
