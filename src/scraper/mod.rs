@@ -138,7 +138,7 @@ impl Scrapper {
 
     /// Request for photo from third party site
     #[cfg(not(test))]
-    async fn request_photo(&self, mode_s: String) -> Result<Option<PhotoResponse>, AppError> {
+    async fn request_photo(&self, mode_s: &str) -> Result<Option<PhotoResponse>, AppError> {
         let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
@@ -166,8 +166,8 @@ impl Scrapper {
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
-    async fn request_photo(&self, mode_s: String) -> Result<Option<PhotoResponse>, AppError> {
-        match mode_s.as_str() {
+    async fn request_photo(&self, mode_s: &str) -> Result<Option<PhotoResponse>, AppError> {
+        match mode_s {
             "393C00" => Ok(Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
@@ -180,8 +180,8 @@ impl Scrapper {
     }
 
     // Attempt to get photol url, and also insert into db
-    pub async fn scrape_photo(&self, db: &PgPool, mode_s: String) -> Result<(), AppError> {
-        let photo_response = self.request_photo(mode_s.clone()).await?;
+    pub async fn scrape_photo(&self, db: &PgPool, mode_s: &str) -> Result<(), AppError> {
+        let photo_response = self.request_photo(mode_s).await?;
         if let Some(photo) = photo_response {
             if let Some(data) = photo.data {
                 ModelAircraft::insert_photo(db, data[0].clone(), mode_s).await?;
@@ -218,10 +218,10 @@ mod tests {
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
 
-    const CALLSIGN: &str = "ANA460";
-    const ORIGIN: &str = "ROAH";
-    const DESTINATION: &str = "RJTT";
-    const MODE_S: &str = "393C00";
+    const TEST_CALLSIGN: &str = "ANA460";
+    const TEST_ORIGIN: &str = "ROAH";
+    const TEST_DESTINATION: &str = "RJTT";
+    const TEST_MODE_S: &str = "393C00";
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -231,9 +231,9 @@ mod tests {
 
     async fn remove_scraped_data(db: &PgPool) {
         let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+        sqlx::query(query).bind(TEST_CALLSIGN).execute(db).await.unwrap();
         let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+        sqlx::query(query).bind(TEST_CALLSIGN).execute(db).await.unwrap();
         let query = r#"
 		UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_id = (
 			SELECT
@@ -247,7 +247,7 @@ mod tests {
 			WHERE
 				ams.mode_s = $1)"#;
 
-        sqlx::query(query).bind(MODE_S).execute(db).await.unwrap();
+        sqlx::query(query).bind(TEST_MODE_S).execute(db).await.unwrap();
         let query = r#"DELETE FROM aircraft_photo WHERE url_photo = $1"#;
         sqlx::query(query)
             .bind("001/001/example.jpg")
@@ -299,21 +299,21 @@ mod tests {
         // Valid against known ORIGIN
         let result = Scrapper::validate_icao("roah");
         assert!(result.is_some());
-        assert_eq!(result.unwrap(), ORIGIN);
+        assert_eq!(result.unwrap(), TEST_ORIGIN);
 
         // Valid against known DESTINATION
         let result = Scrapper::validate_icao("rjtt");
         assert!(result.is_some());
-        assert_eq!(result.unwrap(), DESTINATION);
+        assert_eq!(result.unwrap(), TEST_DESTINATION);
     }
 
     #[tokio::test]
     async fn scraper_check_icao_in_db_true() {
         let setup = setup().await;
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
-            destination: DESTINATION.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
         let result = Scrapper::check_icao_in_db(&setup.1, &expected).await;
         assert!(result.is_ok());
@@ -324,9 +324,9 @@ mod tests {
     async fn scraper_check_icao_in_db_false_origin() {
         let setup = setup().await;
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
             origin: "AAAA".to_owned(),
-            destination: DESTINATION.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
         let result = Scrapper::check_icao_in_db(&setup.1, &expected).await;
         assert!(result.is_ok());
@@ -337,8 +337,8 @@ mod tests {
     async fn scraper_check_icao_in_db_false_destination() {
         let setup = setup().await;
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
             destination: "AAAA".to_owned(),
         };
         let result = Scrapper::check_icao_in_db(&setup.1, &expected).await;
@@ -349,12 +349,12 @@ mod tests {
     #[test]
     fn scraper_extract_icao_codes() {
         let html_string = include_str!("./test_scrape.txt");
-        let result = Scrapper::extract_icao_codes(html_string, CALLSIGN);
+        let result = Scrapper::extract_icao_codes(html_string, TEST_CALLSIGN);
 
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
-            destination: DESTINATION.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
 
         assert!(result.is_some());
@@ -366,15 +366,15 @@ mod tests {
     async fn scraper_use_live_site() {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let result = scraper.request_callsign(CALLSIGN).await;
+        let result = scraper.request_callsign(TEST_CALLSIGN).await;
 
         assert!(result.is_ok());
 
-        let result = Scrapper::extract_icao_codes(&result.unwrap(), CALLSIGN);
+        let result = Scrapper::extract_icao_codes(&result.unwrap(), TEST_CALLSIGN);
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
-            destination: DESTINATION.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
 
         assert!(result.is_some());
@@ -386,7 +386,7 @@ mod tests {
     async fn scraper_scraper_for_route_insert() {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let result = scraper.scrape_flightroute(&setup.1, CALLSIGN).await;
+        let result = scraper.scrape_flightroute(&setup.1, TEST_CALLSIGN).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -433,7 +433,7 @@ mod tests {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
         let mode_s = "393C00";
-        let result = scraper.request_photo(mode_s.to_owned()).await;
+        let result = scraper.request_photo(mode_s).await;
         assert!(result.is_ok());
         let expected = PhotoResponse {
             status: 200,
@@ -445,12 +445,12 @@ mod tests {
         assert_eq!(result.unwrap().unwrap(), expected);
 
         let mode_s = "AAAAAA";
-        let result = scraper.request_photo(mode_s.to_owned()).await;
+        let result = scraper.request_photo(mode_s).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
         let mode_s = "AAAAAB";
-        let result = scraper.request_photo(mode_s.to_owned()).await;
+        let result = scraper.request_photo(mode_s).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
     }
@@ -460,10 +460,10 @@ mod tests {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
 
-        let result = scraper.scrape_photo(&setup.1, MODE_S.to_owned()).await;
+        let result = scraper.scrape_photo(&setup.1, TEST_MODE_S).await;
         assert!(result.is_ok());
 
-        let result = ModelAircraft::get(&setup.1, MODE_S, &setup.0.url_photo_prefix).await;
+        let result = ModelAircraft::get(&setup.1, TEST_MODE_S, &setup.0.url_photo_prefix).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();

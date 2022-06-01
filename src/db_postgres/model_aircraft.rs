@@ -110,7 +110,7 @@ WHERE
     pub async fn insert_photo(
         db: &PgPool,
         photo: PhotoData,
-        mode_s: String,
+        mode_s: &str,
     ) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
         Self::photo_transaction(&mut transaction, photo, mode_s).await?;
@@ -122,7 +122,7 @@ WHERE
     async fn photo_transaction(
         transaction: &mut Transaction<'_, Postgres>,
         photo: PhotoData,
-        mode_s: String,
+        mode_s: &str,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
 
@@ -188,7 +188,7 @@ mod tests {
         let mode_s = "A51D23";
         let url_prefix = "http://www.example.com/";
 
-        ModelAircraft::photo_transaction(&mut transaction, photodata.clone(), mode_s.to_owned())
+        ModelAircraft::photo_transaction(&mut transaction, photodata.clone(), mode_s)
             .await
             .unwrap();
 
