@@ -1,3 +1,6 @@
+### Features
++ N-Number to Mode-S conversion, also include n_number in aircraft response, closes [#1], ,[2f0b9052e1121022183da34bdd05e7d76e402a83]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.7'>v0.0.7</a>
 ### 2022-05-31
 
