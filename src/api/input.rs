@@ -3,7 +3,7 @@ use std::fmt;
 use async_trait::async_trait;
 use axum::extract::{FromRequest, RequestParts};
 
-use crate::n_number::{ALLCHARS};
+use crate::n_number::ALLCHARS;
 
 use super::AppError;
 
@@ -86,7 +86,7 @@ impl NNumber {
 impl Validate for NNumber {
     /// Make sure that input is an uppercase valid n_number string, validitiy is N[a-z0-9 (but not I or O)]{1-5}
     fn validate(input: String) -> Result<String, AppError> {
-		let input = input.to_uppercase();
+        let input = input.to_uppercase();
         if input.starts_with('N')
             && (2..=6).contains(&input.chars().count())
             && input.chars().all(|x| ALLCHARS.contains(x))
@@ -226,7 +226,7 @@ mod tests {
 
         test("N2");
         test("N124ZA");
-		test("Nff45");
+        test("Nff45");
     }
 
     #[test]

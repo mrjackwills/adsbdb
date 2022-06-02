@@ -142,7 +142,8 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Connection) {
         .route(&Routes::Callsign.to_string(), get(api_routes::get_callsign))
         .route(&Routes::Online.to_string(), get(api_routes::get_online))
         .route(&Routes::NNumber.to_string(), get(api_routes::get_n_number))
-    .route(&Routes::Online.to_string(), get(api_routes::get_mode_s));
+    	// .route(&Routes::Online.to_string(), get(api_routes::get_mode_s));
+		;
 
     let prefix = get_api_version();
 
@@ -391,7 +392,7 @@ mod tests {
         assert_eq!(result["icao_type"], "CRJ7");
         assert_eq!(result["manufacturer"], "Bombardier");
         assert_eq!(result["mode_s"], mode_s);
-		assert_eq!(result["n_number"], "N539GJ");
+        assert_eq!(result["n_number"], "N539GJ");
         assert_eq!(result["registered_owner"], "United Express");
         assert_eq!(result["registered_owner_country_iso_name"], "US");
         assert_eq!(result["registered_owner_country_name"], "United States");
@@ -423,7 +424,7 @@ mod tests {
         assert_eq!(aircraft_result["icao_type"], "CRJ7");
         assert_eq!(aircraft_result["manufacturer"], "Bombardier");
         assert_eq!(aircraft_result["mode_s"], mode_s);
-		assert_eq!(aircraft_result["n_number"], "N539GJ");
+        assert_eq!(aircraft_result["n_number"], "N539GJ");
         assert_eq!(aircraft_result["registered_owner"], "United Express");
         assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
         assert_eq!(
@@ -531,7 +532,7 @@ mod tests {
         assert_eq!(result, "unknown aircraft");
     }
 
-	#[tokio::test]
+    #[tokio::test]
     async fn http_mod_get_n_number_ok() {
         start_server().await;
         let n_number = "n1235f";
@@ -546,7 +547,7 @@ mod tests {
         assert_eq!(result, "A061E4");
     }
 
-	#[tokio::test]
+    #[tokio::test]
     async fn http_mod_get_n_number_err() {
         start_server().await;
         let n_number = "a1235f";
@@ -561,8 +562,7 @@ mod tests {
         assert_eq!(result, "invalid n_number: A1235F");
     }
 
-
-	// #[tokio::test]
+    // #[tokio::test]
     // async fn http_mod_get_n_number_un() {
     //     start_server().await;
     //     let mode_s = "ABABAB";
@@ -576,8 +576,6 @@ mod tests {
     //     let result = resp.json::<PostResponse>().await.unwrap().response;
     //     assert_eq!(result, "unknown aircraft");
     // }
-
-
 
     #[tokio::test]
     async fn http_mod_get_online() {

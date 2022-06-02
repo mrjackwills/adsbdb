@@ -22,7 +22,7 @@ const DIGITSET: &str = "0123456789";
 const CHARSET_LEN: usize = 24;
 
 lazy_static! {
-	/// Uppercase icao charset + digits
+    /// Uppercase icao charset + digits
     pub static ref ALLCHARS: String = format!("{}{}", ICAO_CHARSET, DIGITSET);
 }
 
@@ -163,20 +163,21 @@ fn suffix_offset(offset: &str) -> Result<usize, AppError> {
 /// and from the given number i
 /// The output is an hexadecimal of length 6 starting with the suffix
 /// Example: create_icao('a', 11) -> "a0000b"
-fn create_icao(prefix: &str, count: usize) -> Result<String, AppError> {
+fn create_icao(prefix: &str, count: usize) -> Result<ModeS, AppError> {
     let as_hex = format!("{:X}", count);
     let l = prefix.chars().count() + as_hex.chars().count();
     if prefix.len() + as_hex.chars().count() > ICAO_SIZE {
         Err(NError::CreateICAO.error())
     } else {
         let to_fill = format!("{:0^width$}", "", width = ICAO_SIZE - l);
-        Ok(format!("{prefix}{to_fill}{}", as_hex).to_uppercase())
+        ModeS::new(format!("{prefix}{to_fill}{}", as_hex).to_uppercase())
     }
 }
 
 // Maybe just string Option<String>?
 // Get the N-Number from a given ICAO string
-pub fn icao_to_n(mode_s: &ModeS) -> Result<String, AppError> {
+// return Option<NNUmber>
+pub fn icao_to_n(mode_s: &ModeS) -> Result<NNumber, AppError> {
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
         return Err(NError::FirstChar.error());
@@ -199,13 +200,13 @@ pub fn icao_to_n(mode_s: &ModeS) -> Result<String, AppError> {
             Bucket::Four => {
                 rem = calc_rem(&mut output, rem, Bucket::Four);
                 if rem == 0 {
-                    return Ok(output);
+                    return NNumber::new(output);
                 }
             }
             _ => {
                 rem = calc_rem(&mut output, rem, bucket);
                 if rem < SUFFIX_SIZE {
-                    return Ok(format!("{}{}", output, get_suffix(rem)?));
+                    return NNumber::new(format!("{}{}", output, get_suffix(rem)?));
                 }
                 rem -= SUFFIX_SIZE;
             }
@@ -214,32 +215,30 @@ pub fn icao_to_n(mode_s: &ModeS) -> Result<String, AppError> {
 
     if let Some(final_char) = ALLCHARS.chars().nth(rem - 1) {
         output.push(final_char);
-        Ok(output)
+		NNumber::new(output)
+        // Ok(output)
     } else {
         Err(NError::FinalChar.error())
     }
 }
 
-// -> Result<(), AppError>
-fn n_index(n_number: &str, index: usize, bucket: Bucket) -> Result<usize, AppError> {
-    if let Some(char) = n_number.chars().nth(index) {
-        if let Some(mut value) = char.to_digit(10) {
-            value -= bucket.extra() as u32;
-            let output = match bucket {
-                Bucket::One => value as usize * bucket.get(),
-                _ => value as usize * bucket.get() + SUFFIX_SIZE,
-            };
-            Ok(output)
+fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<usize, AppError> {
+    if let Some(bucket) = bucket {
+        if let Some(char) = n_number.chars().nth(index) {
+            if let Some(mut value) = char.to_digit(10) {
+                value -= bucket.extra() as u32;
+                let output = match bucket {
+                    Bucket::One => value as usize * bucket.get(),
+                    _ => value as usize * bucket.get() + SUFFIX_SIZE,
+                };
+                Ok(output)
+            } else {
+                Err(NError::CharToDigit.error())
+            }
         } else {
-            Err(NError::CharToDigit.error())
+            Err(NError::GetIndex.error())
         }
-    } else {
-        Err(NError::GetIndex.error())
-    }
-}
-
-fn n_index_4(n_number: &str, index: usize) -> Result<usize, AppError> {
-    if let Some(char) = n_number.chars().nth(index) {
+    } else if let Some(char) = n_number.chars().nth(index) {
         if let Some(pos) = ALLCHARS.chars().position(|x| x == char) {
             Ok(pos + 1)
         } else {
@@ -250,18 +249,17 @@ fn n_index_4(n_number: &str, index: usize) -> Result<usize, AppError> {
     }
 }
 
-
 /// Convert a Tail Number (N-Number) to the corresponding ICAO address
 /// Only works with US registrations (ICAOS starting with 'a' and tail number starting with 'N')
 /// Return None for invalid parameter
 /// Return the ICAO address associated with the given N-Number in string format on success
-pub fn n_to_icao(mut n_number: &NNumber) -> Result<String, AppError> {
-
+// return Option<ModeS>
+pub fn n_to_icao(mut n_number: &NNumber) -> Result<ModeS, AppError> {
     let prefix = "a";
     let mut count = 0;
 
-	// this is messy?
-	let mut n_number = &n_number.to_string()[0..];
+    // this is messy?
+    let mut n_number = &n_number.to_string()[0..];
 
     if n_number.chars().count() > 1 {
         n_number = &n_number[1..];
@@ -269,18 +267,18 @@ pub fn n_to_icao(mut n_number: &NNumber) -> Result<String, AppError> {
         for index in 0..n_number.chars().count() {
             if let Some(char_index) = n_number.chars().nth(index) {
                 if index == 4 {
-                    count += n_index_4(n_number, index)?;
+                    count += calc_count(n_number, index, None)?;
                 } else if ICAO_CHARSET.contains(char_index) {
                     count += suffix_offset(&n_number[index..])?;
                     break;
                 } else if index == 0 {
-                    count += n_index(n_number, index, Bucket::One)?;
+                    count += calc_count(n_number, index, Some(Bucket::One))?;
                 } else if index == 1 {
-                    count += n_index(n_number, index, Bucket::Two)?;
+                    count += calc_count(n_number, index, Some(Bucket::Two))?;
                 } else if index == 2 {
-                    count += n_index(n_number, index, Bucket::Three)?;
+                    count += calc_count(n_number, index, Some(Bucket::Three))?;
                 } else if index == 3 {
-                    count += n_index(n_number, index, Bucket::Four)?;
+                    count += calc_count(n_number, index, Some(Bucket::Four))?;
                 }
             } else {
                 return Err(NError::CreateICAO.error());
@@ -337,7 +335,7 @@ mod tests {
         let test = |icao: &str, n_number: &str| {
             let mode_s = ModeS::new(icao.to_owned()).unwrap();
             let result = icao_to_n(&mode_s);
-            assert_eq!(result.unwrap(), n_number);
+            assert_eq!(result.unwrap().to_string(), n_number);
         };
 
         test("a00001", "N1");
@@ -395,7 +393,7 @@ mod tests {
         let test = |n_number: &str, icao: &str| {
             // let mode_s = ModeS::new(icao.to_owned()).unwrap();
             let result = n_to_icao(&NNumber::new(n_number.to_owned()).unwrap());
-            assert_eq!(result.unwrap(), icao);
+            assert_eq!(result.unwrap().to_string(), icao);
         };
 
         test("N1", "A00001");

@@ -99,7 +99,7 @@ WHERE
 
     pub async fn get(db: &PgPool, mode_s: &ModeS, prefix: &str) -> Result<Option<Self>, AppError> {
         let n_number = match icao_to_n(mode_s) {
-            Ok(data) => data,
+            Ok(data) => data.to_string(),
             Err(_) => String::from(""),
         };
 

@@ -59,7 +59,7 @@ pub async fn get_n_number(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     let icao = match n_to_icao(&n_number) {
-        Ok(data) => data,
+        Ok(data) => data.to_string(),
         Err(_) => String::from(""),
     };
     Ok((axum::http::StatusCode::OK, ResponseJson::new(icao)))
@@ -208,13 +208,13 @@ mod tests {
         assert!(response.1.response.uptime >= 1);
     }
 
-	#[tokio::test]
+    #[tokio::test]
     async fn http_api_n_number_route() {
-		let n_number = NNumber::new("N123AB".to_owned()).unwrap();
+        let n_number = NNumber::new("N123AB".to_owned()).unwrap();
         let response = get_n_number(n_number).await;
 
-		assert!(response.is_ok());
-		let response = response.unwrap();
+        assert!(response.is_ok());
+        let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         assert_eq!(response.1.response, "A05ED9");
     }
