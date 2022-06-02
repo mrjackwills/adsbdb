@@ -8,6 +8,10 @@ fn is_charset(c: char, end: char) -> bool {
     c.is_ascii_digit() || ('a'..=end).contains(&c.to_ascii_lowercase())
 }
 
+pub fn is_hex(input: &str) -> bool {
+    input.chars().all(|c| is_charset(c, 'f'))
+}
+
 trait Validate {
     fn validate(x: String) -> Result<String, AppError>;
 }
@@ -27,7 +31,7 @@ impl ModeS {
 impl Validate for ModeS {
     /// Make sure that input is an uppercase valid mode_s string, validitiy is [a-f]{6}
     fn validate(input: String) -> Result<String, AppError> {
-        let valid = input.len() == 6 && input.chars().all(|c| is_charset(c, 'f'));
+        let valid = input.len() == 6 && is_hex(&input);
         if valid {
             Ok(input.to_uppercase())
         } else {
@@ -157,7 +161,7 @@ mod tests {
         };
 
         test("AaBb12");
-        test("FFF999");
+        test("C03BF1");
     }
 
     #[test]

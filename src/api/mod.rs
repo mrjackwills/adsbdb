@@ -16,7 +16,7 @@ use axum::{
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
-    time::Instant,
+    time::Instant, num::ParseIntError,
 };
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
@@ -31,6 +31,7 @@ use crate::{
     parse_env::AppEnv,
     scraper::Scrapper,
 };
+pub use input::{is_hex, ModeS};
 
 use self::response::ResponseJson;
 
@@ -158,6 +159,8 @@ async fn signal_shutdown() {
 pub enum AppError {
     #[error("invalid callsign:")]
     Callsign(String),
+    #[error("internal error:")]
+    Internal(String),
     #[error("invalid modeS:")]
     ModeS(String),
     #[error("not found")]
@@ -170,32 +173,42 @@ pub enum AppError {
     RateLimited(usize),
     #[error("unknown")]
     UnknownInDb(&'static str),
+	#[error("parse int")]
+    ParseInt(#[from] ParseIntError)
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let prefix = self.to_string();
         let (status, body) = match self {
-            AppError::Callsign(err) => (
+            Self::Callsign(err) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-            AppError::ModeS(err) => (
-                axum::http::StatusCode::BAD_REQUEST,
+            Self::Internal(err)  => (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-            AppError::SqlxError(_) | AppError::RedisError(_) => {
-                (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
-            }
-            AppError::SerdeJson(_) => (
+			Self::ParseInt(_) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(prefix),
             ),
-            AppError::RateLimited(limit) => (
+            Self::ModeS(err) => (
+                axum::http::StatusCode::BAD_REQUEST,
+                ResponseJson::new(format!("{} {}", prefix, err)),
+            ),
+            Self::SqlxError(_) | Self::RedisError(_) => {
+                (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
+            }
+            Self::SerdeJson(_) => (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                ResponseJson::new(prefix),
+            ),
+            Self::RateLimited(limit) => (
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{} {} seconds", prefix, limit)),
             ),
-            AppError::UnknownInDb(variety) => (
+            Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{} {}", prefix, variety)),
             ),
