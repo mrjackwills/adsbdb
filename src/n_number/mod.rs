@@ -24,25 +24,7 @@ lazy_static! {
     pub static ref ALLCHARS: String = format!("{}{}", ICAO_CHARSET, DIGITSET);
 }
 
-// suffix_size = 1 + len(charset) + int(pow(len(charset),2))
-// static ref SUFFIX_SIZE: usize = 1 + CHARSET.chars().count() * CHARSET.chars().count() + CHARSET.chars().count();
 const SUFFIX_SIZE: usize = 601;
-
-// let bucket4_size = 1 + len(charset) + len(digitset)             # 35
-// static ref BUCKET_4: usize = 1 + CHARSET.chars().count() + DIGITSET.chars().count();
-// const BUCKET_4: usize = 35;
-
-// let bucket3_size = len(digitset)*bucket4_size + suffix_size     # 951
-// static ref BUCKET_3: usize = DIGITSET.chars().count() * BUCKET_4 + SUFFIX_SIZE;
-// const BUCKET_3: usize = 951;
-
-// let bucket2_size = len(digitset)*(bucket3_size) + suffix_size   # 10111
-// static ref BUCKET_2 ref BUCKET2_SIZE: usize = DIGITSET.chars().count() * BUCKET_3 + SUFFIX_SIZE;
-// const BUCKET_2: usize = 10111;
-
-// let bucket1_size = len(digitset)*(bucket2_size) + suffix_size   # 101711
-// static ref BUCKET1_SIZE: usize = DIGITSET.chars().count() * BUCKET_2 + SUFFIX_SIZE;
-// const BUCKET_1: usize = 101711;
 
 enum NError {
     CharToDigit,
@@ -170,10 +152,9 @@ fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
     }
 }
 
-// Maybe just string Option<String>?
-// Get the N-Number from a given mode_s
+// Convert from ModeS to NNumber
 pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
-	
+
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
         return Err(NError::FirstChar.error());
