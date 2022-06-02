@@ -1,5 +1,5 @@
 <p align="center">
- <img src='./.github/logo.svg' width='200px'/>
+ <img src='./.github/logo.svg' width='125px'/>
 </p>
 
 <p align="center">
@@ -47,6 +47,26 @@
 Unknown aircraft return status 404 with
 ```json
 { "response": "unknown aircraft"}
+```
+---
+
+Convert from MODE-S string to N-Number string
+```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
+```json
+{
+	"response": string
+}
+
+```
+---
+
+Convert from N-Number string to Mode_S string
+```https://api.adsbdb.com/v[semver.major]/n-number/[N-NUMBER]```
+```json
+{
+	"response": string
+}
+
 ```
 ---
 
