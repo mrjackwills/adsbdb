@@ -15,8 +15,9 @@ use axum::{
 };
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    num::ParseIntError,
     sync::Arc,
-    time::Instant, num::ParseIntError,
+    time::Instant,
 };
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
@@ -173,8 +174,8 @@ pub enum AppError {
     RateLimited(usize),
     #[error("unknown")]
     UnknownInDb(&'static str),
-	#[error("parse int")]
-    ParseInt(#[from] ParseIntError)
+    #[error("parse int")]
+    ParseInt(#[from] ParseIntError),
 }
 
 impl IntoResponse for AppError {
@@ -185,11 +186,11 @@ impl IntoResponse for AppError {
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-            Self::Internal(err)  => (
+            Self::Internal(err) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-			Self::ParseInt(_) => (
+            Self::ParseInt(_) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(prefix),
             ),

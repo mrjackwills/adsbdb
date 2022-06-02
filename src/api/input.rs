@@ -94,7 +94,7 @@ where
 }
 
 /// ApiRoutes tests
-/// cargo watch -q -c -w src/ -x 'test mod_api_input -- --test-threads=1 --nocapture'
+/// cargo watch -q -c -w src/ -x 'test mod_api_input -- --nocapture'
 #[cfg(test)]
 mod tests {
     use super::*;
