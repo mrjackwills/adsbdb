@@ -4,7 +4,7 @@ use sqlx::{Error, PgPool, Postgres, Transaction};
 
 use crate::{
     api::{AppError, ModeS},
-    n_number::icao_to_n,
+    n_number::mode_s_to_n_number,
     scraper::PhotoData,
 };
 
@@ -98,7 +98,7 @@ WHERE
     }
 
     pub async fn get(db: &PgPool, mode_s: &ModeS, prefix: &str) -> Result<Option<Self>, AppError> {
-        let n_number = match icao_to_n(mode_s) {
+        let n_number = match mode_s_to_n_number(mode_s) {
             Ok(data) => data.to_string(),
             Err(_) => String::from(""),
         };
@@ -111,11 +111,7 @@ WHERE
             .fetch_one(db)
             .await
         {
-            Ok(mut aircraft) => {
-                // let n_number = icao_to_n(mode_s);
-                // aircraft.n_number = None;
-                Ok(Some(aircraft))
-            }
+            Ok(aircraft) => Ok(Some(aircraft)),
             Err(e) => match e {
                 Error::RowNotFound => Ok(None),
                 _ => Err(AppError::SqlxError(e)),

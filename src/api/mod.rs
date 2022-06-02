@@ -142,8 +142,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Connection) {
         .route(&Routes::Callsign.to_string(), get(api_routes::get_callsign))
         .route(&Routes::Online.to_string(), get(api_routes::get_online))
         .route(&Routes::NNumber.to_string(), get(api_routes::get_n_number))
-    	// .route(&Routes::Online.to_string(), get(api_routes::get_mode_s));
-		;
+    	.route(&Routes::ModeS.to_string(), get(api_routes::get_mode_s));
 
     let prefix = get_api_version();
 
@@ -372,7 +371,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_mod_get_mode_s() {
+    async fn http_mod_get_aircraft() {
         start_server().await;
         let mode_s = "A6D27B";
         let url = format!(
@@ -403,7 +402,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_mod_get_mode_s_and_callsign() {
+    async fn http_mod_get_aircraft_and_callsign() {
         start_server().await;
         let mode_s = "A6D27B";
         let callsign = "TOM35MR";
@@ -518,7 +517,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_mod_get_mode_s_unknown() {
+    async fn http_mod_get_aircraft_unknown() {
         start_server().await;
         let mode_s = "ABABAB";
         let url = format!(
@@ -562,20 +561,50 @@ mod tests {
         assert_eq!(result, "invalid n_number: A1235F");
     }
 
-    // #[tokio::test]
-    // async fn http_mod_get_n_number_un() {
-    //     start_server().await;
-    //     let mode_s = "ABABAB";
-    //     let url = format!(
-    //         "http://127.0.0.1:8100{}/aircraft/{}",
-    //         get_api_version(),
-    //         mode_s
-    //     );
-    //     let resp = reqwest::get(url).await.unwrap();
-    //     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-    //     let result = resp.json::<PostResponse>().await.unwrap().response;
-    //     assert_eq!(result, "unknown aircraft");
-    // }
+	#[tokio::test]
+    async fn http_mod_get_mode_s_ok() {
+        start_server().await;
+        let mode_s = "ACD2D3";
+        let url = format!(
+            "http://127.0.0.1:8100{}/mode-s/{}",
+            get_api_version(),
+            mode_s
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<PostResponse>().await.unwrap().response;
+        assert_eq!(result, "N925XJ");
+    }
+
+	#[tokio::test]
+    async fn http_mod_get_mode_s_ok_empty() {
+        start_server().await;
+        let mode_s = "CCD2D3";
+        let url = format!(
+            "http://127.0.0.1:8100{}/mode-s/{}",
+            get_api_version(),
+            mode_s
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<PostResponse>().await.unwrap().response;
+        assert_eq!(result, "");
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_mode_s_err() {
+        start_server().await;
+        let mode_s = "JCD2D3";
+        let url = format!(
+            "http://127.0.0.1:8100{}/mode-s/{}",
+            get_api_version(),
+            mode_s
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let result = resp.json::<PostResponse>().await.unwrap().response;
+        assert_eq!(result, "invalid modeS: JCD2D3");
+    }
 
     #[tokio::test]
     async fn http_mod_get_online() {

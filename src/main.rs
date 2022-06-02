@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 mod api;
 mod db_postgres;
 mod db_redis;

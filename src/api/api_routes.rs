@@ -7,7 +7,7 @@ use super::response::{AircraftAndRoute, AsJsonRes, Online, ResponseJson};
 use super::{AppError, ApplicationState};
 use crate::db_postgres::{Model, ModelAircraft, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, RedisKey};
-use crate::n_number::n_to_icao;
+use crate::n_number::{n_number_to_mode_s, mode_s_to_n_number};
 
 /// Get flightroute, refactored so can use in either get_mode_s (with a callsign query param), or get_callsign.
 /// Check redis cache for aircraft (or 'none'), or hit postgres
@@ -58,7 +58,17 @@ async fn find_aircraft(
 pub async fn get_n_number(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    let icao = match n_to_icao(&n_number) {
+    let mode_s = match n_number_to_mode_s(&n_number) {
+        Ok(data) => data.to_string(),
+        Err(_) => String::from(""),
+    };
+    Ok((axum::http::StatusCode::OK, ResponseJson::new(mode_s)))
+}
+
+pub async fn get_mode_s(
+    mode_s: ModeS,
+) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
+    let icao = match mode_s_to_n_number(&mode_s) {
         Ok(data) => data.to_string(),
         Err(_) => String::from(""),
     };

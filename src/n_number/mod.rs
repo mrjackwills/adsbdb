@@ -13,8 +13,6 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 
 const ICAO_SIZE: usize = 6;
-// max size of a N-Number
-const NNUMBER_MAX_SIZE: usize = 6;
 
 // alphabet without I and O
 const ICAO_CHARSET: &str = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -48,8 +46,7 @@ const SUFFIX_SIZE: usize = 601;
 
 enum NError {
     CharToDigit,
-    InvalidN,
-    CreateICAO,
+    FormatModeS,
     FinalChar,
     FirstChar,
     GetIndex,
@@ -66,8 +63,7 @@ impl fmt::Display for NError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let disp = match self {
             Self::CharToDigit => "char_not_digit",
-            Self::InvalidN => "invalid_n",
-            Self::CreateICAO => "create_icao",
+            Self::FormatModeS => "format_mode_s",
             Self::FinalChar => "final_char",
             Self::FirstChar => "not_a",
             Self::GetIndex => "get_index",
@@ -159,15 +155,15 @@ fn suffix_offset(offset: &str) -> Result<usize, AppError> {
     Ok(count)
 }
 
-/// Creates an american icao number composed from the prefix ('a' for USA)
+/// Creates an american mode_s number composed from the prefix ('a' for USA)
 /// and from the given number i
 /// The output is an hexadecimal of length 6 starting with the suffix
-/// Example: create_icao('a', 11) -> "a0000b"
-fn create_icao(prefix: &str, count: usize) -> Result<ModeS, AppError> {
+/// Example: format_mode_s('a', 11) -> "a0000b"
+fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
     let as_hex = format!("{:X}", count);
     let l = prefix.chars().count() + as_hex.chars().count();
     if prefix.len() + as_hex.chars().count() > ICAO_SIZE {
-        Err(NError::CreateICAO.error())
+        Err(NError::FormatModeS.error())
     } else {
         let to_fill = format!("{:0^width$}", "", width = ICAO_SIZE - l);
         ModeS::new(format!("{prefix}{to_fill}{}", as_hex).to_uppercase())
@@ -175,8 +171,9 @@ fn create_icao(prefix: &str, count: usize) -> Result<ModeS, AppError> {
 }
 
 // Maybe just string Option<String>?
-// Get the N-Number from a given ICAO string
-pub fn icao_to_n(mode_s: &ModeS) -> Result<NNumber, AppError> {
+// Get the N-Number from a given mode_s
+pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
+	
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
         return Err(NError::FirstChar.error());
@@ -252,7 +249,7 @@ fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<us
 /// Only works with US registrations (ICAOS starting with 'a' and tail number starting with 'N')
 /// Return None for invalid parameter
 /// Return the ICAO address associated with the given N-Number in string format on success
-pub fn n_to_icao(mut n_number: &NNumber) -> Result<ModeS, AppError> {
+pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
     let prefix = "a";
     let mut count = 0;
 
@@ -279,11 +276,11 @@ pub fn n_to_icao(mut n_number: &NNumber) -> Result<ModeS, AppError> {
                     count += calc_count(n_number, index, Some(Bucket::Four))?;
                 }
             } else {
-                return Err(NError::CreateICAO.error());
+                return Err(NError::FormatModeS.error());
             }
         }
     }
-    create_icao(prefix, count)
+    format_mode_s(prefix, count)
 }
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
@@ -291,21 +288,21 @@ pub fn n_to_icao(mut n_number: &NNumber) -> Result<ModeS, AppError> {
 mod tests {
     use super::*;
 
-    // This will create every valid American, as in starts with 'A', icao
-    fn gen_all_icao() -> Vec<ModeS> {
+    // This will create every valid American, as in starts with 'A', mode_s
+    fn gen_all_mode_s() -> Vec<ModeS> {
         let mut output = vec![];
-        for i in (1..=915399) {
-            let mode_s = create_icao("a", i).unwrap();
+        for i in 1..=915399 {
+            let mode_s = format_mode_s("a", i).unwrap();
             output.push(mode_s);
         }
         output
     }
 
     #[test]
-    fn n_number_mod_icao_to_n() {
-        let test = |icao: &str, n_number: &str| {
-            let mode_s = ModeS::new(icao.to_owned()).unwrap();
-            let result = icao_to_n(&mode_s);
+    fn n_number_mod_mode_s_to_n() {
+        let test = |mode_s: &str, n_number: &str| {
+            let mode_s = ModeS::new(mode_s.to_owned()).unwrap();
+            let result = mode_s_to_n_number(&mode_s);
             assert_eq!(result.unwrap().to_string(), n_number);
         };
 
@@ -359,25 +356,25 @@ mod tests {
     }
 
     #[test]
-	/// Create every possible valid ICAO, and make sure can be converted to N-Number
-    fn n_number_mod_every_icao_to_n() {
+	/// Create every possible valid mode_s, and make sure can be converted to N-Number
+    fn n_number_mod_every_mode_s_to_n() {
         let test = |mode_s: &ModeS| {
-            let result = icao_to_n(mode_s);
+            let result = mode_s_to_n_number(mode_s);
             assert!(result.is_ok());
         };
 
-        let all_possible_mode_s = gen_all_icao();
+        let all_possible_mode_s = gen_all_mode_s();
         for mode_s in all_possible_mode_s {
             test(&mode_s);
         }
     }
 
 	#[test]
-	/// Only works with American ICAOS, which start with 'A'
-    fn n_number_mod_icao_to_n_err() {
-		let test = |icao: &str| {
-            let mode_s = ModeS::new(icao.to_owned()).unwrap();
-            let result = icao_to_n(&mode_s);
+	/// Only works with American mode_s, which start with 'A'
+    fn n_number_mod_mode_s_to_n_err() {
+		let test = |mode_s: &str| {
+            let mode_s = ModeS::new(mode_s.to_owned()).unwrap();
+            let result = mode_s_to_n_number(&mode_s);
             assert!(result.is_err());
         };
 
@@ -388,10 +385,10 @@ mod tests {
     }
 
     #[test]
-    fn n_number_mod_n_to_icao() {
-        let test = |n_number: &str, icao: &str| {
-            let result = n_to_icao(&NNumber::new(n_number.to_owned()).unwrap());
-            assert_eq!(result.unwrap().to_string(), icao);
+    fn n_number_mod_n_to_mode_s() {
+        let test = |n_number: &str, mode_s: &str| {
+            let result = n_number_to_mode_s(&NNumber::new(n_number.to_owned()).unwrap());
+            assert_eq!(result.unwrap().to_string(), mode_s);
         };
 
         test("N1", "A00001");
