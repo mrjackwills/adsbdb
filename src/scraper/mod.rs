@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use tracing::error;
 
 use crate::{
-    api::AppError,
+    api::{AppError, ModeS},
     db_postgres::{Model, ModelAircraft, ModelAirport, ModelFlightroute},
     parse_env::AppEnv,
 };
@@ -138,7 +138,7 @@ impl Scrapper {
 
     /// Request for photo from third party site
     #[cfg(not(test))]
-    async fn request_photo(&self, mode_s: &str) -> Result<Option<PhotoResponse>, AppError> {
+    async fn request_photo(&self, mode_s: &ModeS) -> Result<Option<PhotoResponse>, AppError> {
         let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
@@ -166,8 +166,8 @@ impl Scrapper {
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
-    async fn request_photo(&self, mode_s: &str) -> Result<Option<PhotoResponse>, AppError> {
-        match mode_s {
+    async fn request_photo(&self, mode_s: &ModeS) -> Result<Option<PhotoResponse>, AppError> {
+        match mode_s.to_string().as_str() {
             "393C00" => Ok(Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
@@ -180,7 +180,7 @@ impl Scrapper {
     }
 
     // Attempt to get photol url, and also insert into db
-    pub async fn scrape_photo(&self, db: &PgPool, mode_s: &str) -> Result<(), AppError> {
+    pub async fn scrape_photo(&self, db: &PgPool, mode_s: &ModeS) -> Result<(), AppError> {
         let photo_response = self.request_photo(mode_s).await?;
         if let Some(photo) = photo_response {
             if let Some(data) = photo.data {
@@ -214,6 +214,7 @@ impl Scrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::ModeS;
     use crate::{db_postgres, db_redis};
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
@@ -444,8 +445,8 @@ mod tests {
     async fn scraper_get_photo() {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let mode_s = "393C00";
-        let result = scraper.request_photo(mode_s).await;
+        let mode_s = ModeS::new("393C00".to_owned()).unwrap();
+        let result = scraper.request_photo(&mode_s).await;
         assert!(result.is_ok());
         let expected = PhotoResponse {
             status: 200,
@@ -456,13 +457,13 @@ mod tests {
         };
         assert_eq!(result.unwrap().unwrap(), expected);
 
-        let mode_s = "AAAAAA";
-        let result = scraper.request_photo(mode_s).await;
+        let mode_s = ModeS::new("AAAAAA".to_owned()).unwrap();
+        let result = scraper.request_photo(&mode_s).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
-        let mode_s = "AAAAAB";
-        let result = scraper.request_photo(mode_s).await;
+        let mode_s = ModeS::new("AAAAAB".to_owned()).unwrap();
+        let result = scraper.request_photo(&mode_s).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
     }
@@ -472,10 +473,13 @@ mod tests {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
 
-        let result = scraper.scrape_photo(&setup.1, TEST_MODE_S).await;
+        let mode_s = ModeS::new(TEST_MODE_S.to_owned()).unwrap();
+
+        let result = scraper.scrape_photo(&setup.1, &mode_s).await;
         assert!(result.is_ok());
 
-        let result = ModelAircraft::get(&setup.1, TEST_MODE_S, &setup.0.url_photo_prefix).await;
+        let path = ModeS::new(TEST_MODE_S.to_owned()).unwrap();
+        let result = ModelAircraft::get(&setup.1, &path, &setup.0.url_photo_prefix).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -486,6 +490,7 @@ mod tests {
             icao_type: "FA20".to_owned(),
             manufacturer: "Dassault".to_owned(),
             mode_s: "393C00".to_owned(),
+            n_number: "".to_owned(),
             registered_owner_country_iso_name: "FR".to_owned(),
             registered_owner_country_name: "France".to_owned(),
             registered_owner_operator_flag_code: "DEF".to_owned(),
