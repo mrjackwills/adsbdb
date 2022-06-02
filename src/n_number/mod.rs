@@ -102,15 +102,6 @@ impl Bucket {
     }
 }
 
-fn get_index(offset: &str, index: usize) -> Result<usize, AppError> {
-    let second_char = offset.chars().nth(index).unwrap();
-    if let Some(index) = ICAO_CHARSET.chars().position(|c| c == second_char) {
-        Ok(index)
-    } else {
-        Err(NError::GetIndex.error())
-    }
-}
-
 /// Compute the suffix for the tail number given an offset
 /// offset < suffix_size
 /// An offset of 0 returns in a valid emtpy suffix
@@ -139,6 +130,15 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
     }
 }
 
+fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
+    let second_char = offset.chars().nth(index).unwrap();
+    if let Some(index) = ICAO_CHARSET.chars().position(|c| c == second_char) {
+        Ok(index)
+    } else {
+        Err(NError::GetIndex.error())
+    }
+}
+
 /// Compute the offset corresponding to the given alphabetical suffix
 /// Reverse function of get_suffix()
 /// ''   -> 0
@@ -151,10 +151,10 @@ fn suffix_offset(offset: &str) -> Result<usize, AppError> {
     if offset_len > 2 || !offset.chars().all(|x| ALLCHARS.contains(x)) {
         return Err(NError::SuffixOffset.error());
     }
-    let index = get_index(offset, 0)?;
+    let index = suffix_index(offset, 0)?;
     let mut count = (CHARSET_LEN + 1) * index + 1;
     if offset_len == 2 {
-        count += get_index(offset, 1)? + 1;
+        count += suffix_index(offset, 1)? + 1;
     }
     Ok(count)
 }
@@ -176,7 +176,6 @@ fn create_icao(prefix: &str, count: usize) -> Result<ModeS, AppError> {
 
 // Maybe just string Option<String>?
 // Get the N-Number from a given ICAO string
-// return Option<NNUmber>
 pub fn icao_to_n(mode_s: &ModeS) -> Result<NNumber, AppError> {
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
@@ -216,7 +215,6 @@ pub fn icao_to_n(mode_s: &ModeS) -> Result<NNumber, AppError> {
     if let Some(final_char) = ALLCHARS.chars().nth(rem - 1) {
         output.push(final_char);
         NNumber::new(output)
-        // Ok(output)
     } else {
         Err(NError::FinalChar.error())
     }
@@ -229,6 +227,7 @@ fn n_number_index(n_number: &str, index: usize) -> Result<char, AppError> {
         Err(NError::CharToDigit.error())
     }
 }
+
 fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<usize, AppError> {
     let char = n_number_index(n_number, index)?;
     if let Some(bucket) = bucket {
@@ -253,7 +252,6 @@ fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<us
 /// Only works with US registrations (ICAOS starting with 'a' and tail number starting with 'N')
 /// Return None for invalid parameter
 /// Return the ICAO address associated with the given N-Number in string format on success
-// return Option<ModeS>
 pub fn n_to_icao(mut n_number: &NNumber) -> Result<ModeS, AppError> {
     let prefix = "a";
     let mut count = 0;
@@ -288,47 +286,20 @@ pub fn n_to_icao(mut n_number: &NNumber) -> Result<ModeS, AppError> {
     create_icao(prefix, count)
 }
 
-// 1 max 915399
-
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn n_number_mod() {
-    // 	tester()
-    // }
-
-    // This will create every known icao to number
-    // fn gen_all_icao() -> Vec<(String, String)>{
-
-    // 	let mut output = vec![];
-    // 	for i in (1..=915399){
-    // 		let icao = create_icao("a", i).unwrap();
-    // 		// println!("{}", a)
-
-    // 		let mode_s = ModeS::new(icao.to_owned()).unwrap();
-    // 		let n_number = icao_to_n(&mode_s).unwrap();
-
-    // 		output.push((mode_s.mode_s, n_number));
-    // 	}
-    // 	output
-
-    // }
-
-    // This will create every known icao to number
-    // also mostly pointless to use on icao_to_n, as this funciton uses that anyway!
-    // fn gen_all_icao() -> Vec<(String, String)> {
-    //     let mut output = vec![];
-    //     for i in (1..=915399) {
-    //         let icao = create_icao("a", i).unwrap();
-    //         let mode_s = ModeS::new(icao.to_owned()).unwrap();
-    //         let n_number = icao_to_n(&mode_s).unwrap();
-    //         output.push((mode_s.mode_s, n_number));
-    //     }
-    //     output
-    // }
+    // This will create every valid American, as in starts with 'A', icao
+    fn gen_all_icao() -> Vec<ModeS> {
+        let mut output = vec![];
+        for i in (1..=915399) {
+            let mode_s = create_icao("a", i).unwrap();
+            output.push(mode_s);
+        }
+        output
+    }
 
     #[test]
     fn n_number_mod_icao_to_n() {
@@ -341,57 +312,84 @@ mod tests {
         test("a00001", "N1");
         test("a00724", "N1000Z");
         test("a00725", "N10000");
+
         test("a00726", "N10001");
         test("a00727", "N10002");
         test("a0072e", "N10009");
+
         test("a0072f", "N1001");
         test("a00730", "N1001A");
         test("a00731", "N1001B");
+
         test("a00751", "N10019");
         test("a00752", "N1002");
         test("a00869", "N10099");
+
         test("a0086a", "N101");
         test("a0086b", "N101A");
         test("a0086c", "N101AA");
+
         test("a00c20", "N10199");
         test("a00c21", "N102");
         test("a00c22", "N102A");
+
         test("a029d8", "N10999");
         test("a029d9", "N11");
         test("a029da", "N11A");
+
         test("a029db", "N11AA");
         test("a05157", "N11999");
         test("a05158", "N12");
+
         test("a18d4f", "N19999");
         test("a18d50", "N2");
         test("a18d51", "N2A");
+
         test("a18d52", "N2AA");
         test("A3C9A1", "N343NB");
         test("A403B3", "N358NB");
+
         test("A61D3E", "N493WN");
         test("A7DE57", "N606JF");
         test("AA0AAB", "N746UW");
+
         test("AA7548", "N773MJ");
         test("AC6DE9", "N90MC");
         test("adf7c7", "N99999");
     }
-    // #[test]
-    // fn n_number_mod_n_to_icao() {
-    //     let test = |n_number: &str, icao: &str| {
-    //         // let mode_s = ModeS::new(icao.to_owned()).unwrap();
-    //         let result = n_to_icao(n_number);
-    //         assert_eq!(result.unwrap(), icao);
-    //     };
-    //     let all_possible_combinations = gen_all_icao();
 
-    //     for (mode_s, n_number) in all_possible_combinations {
-    //         test(&n_number, &mode_s);
-    //     }
+    #[test]
+	/// Create every possible valid ICAO, and make sure can be converted to N-Number
+    fn n_number_mod_every_icao_to_n() {
+        let test = |mode_s: &ModeS| {
+            let result = icao_to_n(mode_s);
+            assert!(result.is_ok());
+        };
+
+        let all_possible_mode_s = gen_all_icao();
+        for mode_s in all_possible_mode_s {
+            test(&mode_s);
+        }
+    }
+
+	#[test]
+	/// Only works with American ICAOS, which start with 'A'
+    fn n_number_mod_icao_to_n_err() {
+		let test = |icao: &str| {
+            let mode_s = ModeS::new(icao.to_owned()).unwrap();
+            let result = icao_to_n(&mode_s);
+            assert!(result.is_err());
+        };
+
+		test("B00001");
+		test("F00724");
+		test("C00725");
+		test("E00725");
+    }
 
     #[test]
     fn n_number_mod_n_to_icao() {
         let test = |n_number: &str, icao: &str| {
-            // let mode_s = ModeS::new(icao.to_owned()).unwrap();
             let result = n_to_icao(&NNumber::new(n_number.to_owned()).unwrap());
             assert_eq!(result.unwrap().to_string(), icao);
         };
@@ -445,102 +443,4 @@ mod tests {
         test("N99999", "ADF7C7");
     }
 
-    // #[test]
-    // fn n_number_mod_suffix_offset() {
-    //     // // ""
-    //     // assert_eq!(get_suffix(0), "");
-    //     // // A
-    //     // assert_eq!(get_suffix(1), "A");
-    //     // // AA
-    //     // assert_eq!(get_suffix(2), "AA");
-    //     // // AB
-    //     // assert_eq!(get_suffix(3), "AB");
-    //     // // AC
-    //     // assert_eq!(get_suffix(4), "AC");
-
-    //     let p = create_icao("a", 11200);
-    //     println!("p: {:?}", p);
-
-    //     // // AB
-    //     // let p = get_suffix(3);
-    //     // println!("p: {}", p);
-
-    //     // // AC
-    //     // let p = get_suffix(4);
-    //     // println!("p: {}", p);
-
-    //     // // AZ
-    //     // // this is wrong!
-    //     // let p = get_suffix(24);
-    //     // println!("p: {}", p);
-    // }
-
-    // #[test]
-    // fn n_number_mod_lazy_static() {
-    // 	assert_eq!(*CHARSET_LEN, 24);
-    // 	assert_eq!(*SUFFIX_SIZE, 601);
-    // 	assert_eq!(*BUCKET4_SIZE, 35);
-    // 	assert_eq!(*BUCKET3_SIZE, 951);
-    // 	assert_eq!(*BUCKET2_SIZE, 10111);
-    // 	assert_eq!(*BUCKET1_SIZE, 101711);
-    // }
-
-    // #[test]
-    // fn n_number_mod_get_suffix() {
-    //     // ""
-    //     assert_eq!(get_suffix(0), "");
-    //     // A
-    //     assert_eq!(get_suffix(1), "A");
-    //     // AA
-    //     assert_eq!(get_suffix(2), "AA");
-    //     // AB
-    //     assert_eq!(get_suffix(3), "AB");
-    //     // AC
-    //     assert_eq!(get_suffix(4), "AC");
-
-    //     let p = get_suffix(600);
-    //     println!("p: {}", p);
-
-    //     // AB
-    //     let p = get_suffix(3);
-    //     println!("p: {}", p);
-
-    //     // AC
-    //     let p = get_suffix(4);
-    //     println!("p: {}", p);
-
-    //     // AZ
-    //     // this is wrong!
-    //     let p = get_suffix(24);
-    //     println!("p: {}", p);
-    // }
-    // #[test]
-    // fn n_number_mod_suffix_offset() {
-    //     // // ""
-    //     // assert_eq!(get_suffix(0), "");
-    //     // // A
-    //     // assert_eq!(get_suffix(1), "A");
-    //     // // AA
-    //     // assert_eq!(get_suffix(2), "AA");
-    //     // // AB
-    //     // assert_eq!(get_suffix(3), "AB");
-    //     // // AC
-    //     // assert_eq!(get_suffix(4), "AC");
-
-    //     let p = suffix_offset("ZZ");
-    //     println!("p: {:?}", p);
-
-    //     // // AB
-    //     // let p = get_suffix(3);
-    //     // println!("p: {}", p);
-
-    //     // // AC
-    //     // let p = get_suffix(4);
-    //     // println!("p: {}", p);
-
-    //     // // AZ
-    //     // // this is wrong!
-    //     // let p = get_suffix(24);
-    //     // println!("p: {}", p);
-    // }
 }
