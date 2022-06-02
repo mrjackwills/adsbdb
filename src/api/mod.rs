@@ -14,6 +14,7 @@ use axum::{
     Extension, Router,
 };
 use std::{
+    fmt,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::ParseIntError,
     sync::Arc,
@@ -32,7 +33,7 @@ use crate::{
     parse_env::AppEnv,
     scraper::Scrapper,
 };
-pub use input::{is_hex, ModeS};
+pub use input::{is_hex, ModeS, NNumber};
 
 use self::response::ResponseJson;
 
@@ -112,13 +113,36 @@ fn get_api_version() -> String {
     )
 }
 
+enum Routes {
+    Aircraft,
+    Callsign,
+    Online,
+    NNumber,
+    ModeS,
+}
+
+impl fmt::Display for Routes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let disp = match self {
+            Self::Aircraft => "aircraft/:mode_s",
+            Self::Callsign => "callsign/:callsign",
+            Self::Online => "online",
+            Self::NNumber => "n-number/:n-number",
+            Self::ModeS => "mode-s/:mode_s",
+        };
+        write!(f, "/{}", disp)
+    }
+}
+
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Connection) {
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
     let api_routes = Router::new()
-        .route("/aircraft/:mode_s", get(api_routes::get_mode_s))
-        .route("/callsign/:callsign", get(api_routes::get_callsign))
-        .route("/online", get(api_routes::get_online));
+        .route(&Routes::Aircraft.to_string(), get(api_routes::get_aircraft))
+        .route(&Routes::Callsign.to_string(), get(api_routes::get_callsign))
+        .route(&Routes::Online.to_string(), get(api_routes::get_online))
+        .route(&Routes::NNumber.to_string(), get(api_routes::get_n_number))
+    .route(&Routes::Online.to_string(), get(api_routes::get_mode_s));
 
     let prefix = get_api_version();
 
@@ -160,6 +184,8 @@ async fn signal_shutdown() {
 pub enum AppError {
     #[error("invalid callsign:")]
     Callsign(String),
+    #[error("invalid n_number:")]
+    NNumber(String),
     #[error("internal error:")]
     Internal(String),
     #[error("invalid modeS:")]
@@ -183,6 +209,10 @@ impl IntoResponse for AppError {
         let prefix = self.to_string();
         let (status, body) = match self {
             Self::Callsign(err) => (
+                axum::http::StatusCode::BAD_REQUEST,
+                ResponseJson::new(format!("{} {}", prefix, err)),
+            ),
+            Self::NNumber(err) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
@@ -361,6 +391,7 @@ mod tests {
         assert_eq!(result["icao_type"], "CRJ7");
         assert_eq!(result["manufacturer"], "Bombardier");
         assert_eq!(result["mode_s"], mode_s);
+		assert_eq!(result["n_number"], "N539GJ");
         assert_eq!(result["registered_owner"], "United Express");
         assert_eq!(result["registered_owner_country_iso_name"], "US");
         assert_eq!(result["registered_owner_country_name"], "United States");
@@ -392,6 +423,7 @@ mod tests {
         assert_eq!(aircraft_result["icao_type"], "CRJ7");
         assert_eq!(aircraft_result["manufacturer"], "Bombardier");
         assert_eq!(aircraft_result["mode_s"], mode_s);
+		assert_eq!(aircraft_result["n_number"], "N539GJ");
         assert_eq!(aircraft_result["registered_owner"], "United Express");
         assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
         assert_eq!(
@@ -498,6 +530,54 @@ mod tests {
         let result = resp.json::<PostResponse>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
     }
+
+	#[tokio::test]
+    async fn http_mod_get_n_number_ok() {
+        start_server().await;
+        let n_number = "n1235f";
+        let url = format!(
+            "http://127.0.0.1:8100{}/n-number/{}",
+            get_api_version(),
+            n_number
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<PostResponse>().await.unwrap().response;
+        assert_eq!(result, "A061E4");
+    }
+
+	#[tokio::test]
+    async fn http_mod_get_n_number_err() {
+        start_server().await;
+        let n_number = "a1235f";
+        let url = format!(
+            "http://127.0.0.1:8100{}/n-number/{}",
+            get_api_version(),
+            n_number
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let result = resp.json::<PostResponse>().await.unwrap().response;
+        assert_eq!(result, "invalid n_number: A1235F");
+    }
+
+
+	// #[tokio::test]
+    // async fn http_mod_get_n_number_un() {
+    //     start_server().await;
+    //     let mode_s = "ABABAB";
+    //     let url = format!(
+    //         "http://127.0.0.1:8100{}/aircraft/{}",
+    //         get_api_version(),
+    //         mode_s
+    //     );
+    //     let resp = reqwest::get(url).await.unwrap();
+    //     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    //     let result = resp.json::<PostResponse>().await.unwrap().response;
+    //     assert_eq!(result, "unknown aircraft");
+    // }
+
+
 
     #[tokio::test]
     async fn http_mod_get_online() {
