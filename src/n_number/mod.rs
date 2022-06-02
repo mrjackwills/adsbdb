@@ -215,35 +215,35 @@ pub fn icao_to_n(mode_s: &ModeS) -> Result<NNumber, AppError> {
 
     if let Some(final_char) = ALLCHARS.chars().nth(rem - 1) {
         output.push(final_char);
-		NNumber::new(output)
+        NNumber::new(output)
         // Ok(output)
     } else {
         Err(NError::FinalChar.error())
     }
 }
 
+fn n_number_index(n_number: &str, index: usize) -> Result<char, AppError> {
+    if let Some(char) = n_number.chars().nth(index) {
+        Ok(char)
+    } else {
+        Err(NError::CharToDigit.error())
+    }
+}
 fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<usize, AppError> {
+    let char = n_number_index(n_number, index)?;
     if let Some(bucket) = bucket {
-        if let Some(char) = n_number.chars().nth(index) {
-            if let Some(mut value) = char.to_digit(10) {
-                value -= bucket.extra() as u32;
-                let output = match bucket {
-                    Bucket::One => value as usize * bucket.get(),
-                    _ => value as usize * bucket.get() + SUFFIX_SIZE,
-                };
-                Ok(output)
-            } else {
-                Err(NError::CharToDigit.error())
-            }
+        if let Some(mut value) = char.to_digit(10) {
+            value -= bucket.extra() as u32;
+            let output = match bucket {
+                Bucket::One => value as usize * bucket.get(),
+                _ => value as usize * bucket.get() + SUFFIX_SIZE,
+            };
+            Ok(output)
         } else {
-            Err(NError::GetIndex.error())
+            Err(NError::CharToDigit.error())
         }
-    } else if let Some(char) = n_number.chars().nth(index) {
-        if let Some(pos) = ALLCHARS.chars().position(|x| x == char) {
-            Ok(pos + 1)
-        } else {
-            Err(NError::GetIndex.error())
-        }
+    } else if let Some(pos) = ALLCHARS.chars().position(|x| x == char) {
+        Ok(pos + 1)
     } else {
         Err(NError::GetIndex.error())
     }
