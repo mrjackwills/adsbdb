@@ -18,6 +18,7 @@ pub struct ModelAircraft {
     pub icao_type: String,
     pub manufacturer: String,
     pub mode_s: String,
+    pub n_number: String,
     pub registered_owner_country_iso_name: String,
     pub registered_owner_country_name: String,
     pub registered_owner_operator_flag_code: String,
@@ -25,7 +26,6 @@ pub struct ModelAircraft {
     pub url_photo: Option<String>,
     pub url_photo_thumbnail: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
-    pub n_number: String,
 }
 
 /// Used in transaction of inserting a new photo
