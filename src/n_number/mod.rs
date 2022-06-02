@@ -3,7 +3,7 @@
 // https://github.com/guillaumemichel/icao-nnumber_converter
 // Licensed under Gnu Public License GPLv3.
 
-// Honestly don't truly understant what is happening in most of these functions
+// Honestly don't truly understand what is happening in most of these functions
 // But it seems to work as expected, although probably inefficient
 
 use std::fmt;

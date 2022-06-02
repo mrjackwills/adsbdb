@@ -20,6 +20,13 @@
 </p>
 
 
+<!-- <p align="center">
+  This flight route data is the work of David Taylor, Edinburgh and Jim
+Mason, Glasgow, and may not be copied, published, or incorporated into other
+databases without the explicit permission of David J Taylor, Edinburgh
+</p> -->
+
+
 ## Routes
 
 ```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S]```
