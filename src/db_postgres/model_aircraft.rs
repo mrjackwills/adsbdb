@@ -104,19 +104,12 @@ WHERE
         };
 
         let query = Self::get_query();
-        match sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(query)
             .bind(&mode_s.to_string())
             .bind(n_number)
             .bind(prefix)
-            .fetch_one(db)
-            .await
-        {
-            Ok(aircraft) => Ok(Some(aircraft)),
-            Err(e) => match e {
-                Error::RowNotFound => Ok(None),
-                _ => Err(AppError::SqlxError(e)),
-            },
-        }
+            .fetch_optional(db)
+            .await?)
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback

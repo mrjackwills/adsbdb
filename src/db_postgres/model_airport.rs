@@ -23,16 +23,9 @@ FROM
 	airport_icao_code
 WHERE
 	icao_code = $1"#;
-        match sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(query)
             .bind(airpot_icao)
-            .fetch_one(db)
-            .await
-        {
-            Ok(aircraft) => Ok(Some(aircraft)),
-            Err(e) => match e {
-                Error::RowNotFound => Ok(None),
-                _ => Err(AppError::SqlxError(e)),
-            },
-        }
+            .fetch_optional(db)
+            .await?)
     }
 }

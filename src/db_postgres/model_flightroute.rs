@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sqlx::{Error, PgPool, Postgres, Transaction};
+use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{api::AppError, scraper::ScrapedFlightroute};
 
@@ -70,18 +70,14 @@ pub struct ModelFlightroute {
 #[async_trait]
 impl Model<Self> for ModelFlightroute {
     async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {
+		println!("callsign:: {callsign}");
+
+
         let query = Self::get_query();
-        match sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(query)
             .bind(callsign)
-            .fetch_one(db)
-            .await
-        {
-            Ok(flightroute) => Ok(Some(flightroute)),
-            Err(e) => match e {
-                Error::RowNotFound => Ok(None),
-                _ => Err(AppError::SqlxError(e)),
-            },
-        }
+            .fetch_optional(db)
+            .await?)
     }
 }
 
