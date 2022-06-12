@@ -66,7 +66,6 @@ pub async fn insert_cache<T: Serialize>(
     Ok(())
 }
 
-
 /// Check if rate limited, will return true if so
 pub async fn check_rate_limit(con: &Arc<Mutex<Connection>>, key: RedisKey) -> Result<(), AppError> {
     let count: Option<usize> = con.lock().await.get(key.to_string()).await?;
