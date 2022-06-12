@@ -37,7 +37,6 @@ pub use input::{is_hex, ModeS, NNumber};
 
 use self::response::ResponseJson;
 
-#[allow(unused)]
 #[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
