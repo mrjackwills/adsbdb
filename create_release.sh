@@ -136,7 +136,6 @@ update_version_number_in_files () {
 	# update dev-docker compose image version
 	sed -i -r -E "s=image: (\w+):[0-9]+\.[0-9]+\.[0-9]+=image: \1:${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dev.docker-compose.yml
 
-
 	# update endpoint in website js
 	sed -i -r -E "s=https://api.adsbdb.com/v0/online=https://api.adsbdb.com/v${MAJOR}/online=g" ./site/online.js
 
@@ -218,7 +217,6 @@ release_flow() {
 	update_version_number_in_files
 	git add .
 	git commit -m "chore: release $NEW_TAG_WITH_V"
-
 
 	git checkout main
 	git merge --no-ff "$RELEASE_BRANCH" -m "chore: merge ${RELEASE_BRANCH} into main"

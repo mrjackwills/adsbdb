@@ -1,5 +1,5 @@
 <p align="center">
- <img src='./.github/logo.svg' width='200px'/>
+ <img src='./.github/logo.svg' width='125px'/>
 </p>
 
 <p align="center">
@@ -19,6 +19,23 @@
 	<sub> See typescript branch for original typescript version</sub>
 </p>
 
+<hr>
+<p>
+	Please report any incorrect data to the <a href="https://github.com/mrjackwills/adsbdb/issues/new/choose" target='_blank' rel='noopener noreferrer'>issues page</a>, with the <strong>Data</strong> tag.<br>
+	<br>
+	With thanks to;
+	<li>
+		<a href="http://planebase.biz/" target='_blank' rel='noopener noreferrer'>PlaneBase</a> for the aircraft data.
+	</li>
+	<li>
+		The flight route data is the work of David Taylor, Edinburgh and Jim Mason, Glasgow, and may not be copied, published, or incorporated into other databases without the explicit permission of David J Taylor, Edinburgh.
+	</li>
+	<li>
+	<a href="https://github.com/guillaumemichel/icao-nnumber_converter" target='_blank' rel='noopener noreferrer'>Guillaume Michel</a>, for the icao to n-number conversion 
+	</li>
+</p>
+<hr>
+
 
 ## Routes
 
@@ -31,6 +48,7 @@
 			"icao_type": string,
 			"manufacturer": string,
 			"mode_s": string,
+			"n_number": string,
 			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
 			"registered_owner_operator_flag_code": string,
@@ -46,6 +64,26 @@
 Unknown aircraft return status 404 with
 ```json
 { "response": "unknown aircraft"}
+```
+---
+
+Convert from MODE-S string to N-Number string
+```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
+```json
+{
+	"response": string
+}
+
+```
+---
+
+Convert from N-Number string to Mode_S string
+```https://api.adsbdb.com/v[semver.major]/n-number/[N-NUMBER]```
+```json
+{
+	"response": string
+}
+
 ```
 ---
 
@@ -110,6 +148,7 @@ Unknown callsign return status 404 with
 			"icao_type": string,
 			"manufacturer": string,
 			"mode_s": string,
+			"n_number": string,
 			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
 			"registered_owner_operator_flag_code": string,

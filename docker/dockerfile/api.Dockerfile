@@ -20,7 +20,6 @@ RUN adduser \
     --uid "${UID}" \
     "${DOCKER_APP_USER}"
 
-
 WORKDIR /adsbdb
 
 COPY Cargo.* ./
@@ -32,7 +31,7 @@ RUN cargo build --target x86_64-unknown-linux-musl --release
 # App only #
 ############
 
-FROM scratch
+FROM alpine:3.16
 
 # Import from builder.
 COPY --from=builder /etc/passwd /etc/passwd

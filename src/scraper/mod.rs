@@ -138,8 +138,11 @@ impl Scrapper {
 
     /// Request for photo from third party site
     #[cfg(not(test))]
-    async fn request_photo(&self, mode_s: String) -> Result<Option<PhotoResponse>, AppError> {
-        let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, mode_s);
+    async fn request_photo(
+        &self,
+        aircraft: &ModelAircraft,
+    ) -> Result<Option<PhotoResponse>, AppError> {
+        let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, aircraft.mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
@@ -166,8 +169,11 @@ impl Scrapper {
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
-    async fn request_photo(&self, mode_s: String) -> Result<Option<PhotoResponse>, AppError> {
-        match mode_s.as_str() {
+    async fn request_photo(
+        &self,
+        aircraft: &ModelAircraft,
+    ) -> Result<Option<PhotoResponse>, AppError> {
+        match aircraft.mode_s.as_str() {
             "393C00" => Ok(Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
@@ -180,11 +186,15 @@ impl Scrapper {
     }
 
     // Attempt to get photol url, and also insert into db
-    pub async fn scrape_photo(&self, db: &PgPool, mode_s: String) -> Result<(), AppError> {
-        let photo_response = self.request_photo(mode_s.clone()).await?;
+    pub async fn scrape_photo(
+        &self,
+        db: &PgPool,
+        aircraft: &ModelAircraft,
+    ) -> Result<(), AppError> {
+        let photo_response = self.request_photo(aircraft).await?;
         if let Some(photo) = photo_response {
             if let Some(data) = photo.data {
-                ModelAircraft::insert_photo(db, data[0].clone(), mode_s).await?;
+                ModelAircraft::insert_photo(db, data[0].clone(), aircraft).await?;
             }
         }
         Ok(())
@@ -214,14 +224,15 @@ impl Scrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::ModeS;
     use crate::{db_postgres, db_redis};
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
 
-    const CALLSIGN: &str = "ANA460";
-    const ORIGIN: &str = "ROAH";
-    const DESTINATION: &str = "RJTT";
-    const MODE_S: &str = "393C00";
+    const TEST_CALLSIGN: &str = "ANA460";
+    const TEST_ORIGIN: &str = "ROAH";
+    const TEST_DESTINATION: &str = "RJTT";
+    const TEST_MODE_S: &str = "393C00";
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -231,9 +242,17 @@ mod tests {
 
     async fn remove_scraped_data(db: &PgPool) {
         let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(TEST_CALLSIGN)
+            .execute(db)
+            .await
+            .unwrap();
         let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(TEST_CALLSIGN)
+            .execute(db)
+            .await
+            .unwrap();
         let query = r#"
 		UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_id = (
 			SELECT
@@ -247,7 +266,11 @@ mod tests {
 			WHERE
 				ams.mode_s = $1)"#;
 
-        sqlx::query(query).bind(MODE_S).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(TEST_MODE_S)
+            .execute(db)
+            .await
+            .unwrap();
         let query = r#"DELETE FROM aircraft_photo WHERE url_photo = $1"#;
         sqlx::query(query)
             .bind("001/001/example.jpg")
@@ -299,21 +322,21 @@ mod tests {
         // Valid against known ORIGIN
         let result = Scrapper::validate_icao("roah");
         assert!(result.is_some());
-        assert_eq!(result.unwrap(), ORIGIN);
+        assert_eq!(result.unwrap(), TEST_ORIGIN);
 
         // Valid against known DESTINATION
         let result = Scrapper::validate_icao("rjtt");
         assert!(result.is_some());
-        assert_eq!(result.unwrap(), DESTINATION);
+        assert_eq!(result.unwrap(), TEST_DESTINATION);
     }
 
     #[tokio::test]
     async fn scraper_check_icao_in_db_true() {
         let setup = setup().await;
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
-            destination: DESTINATION.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
         let result = Scrapper::check_icao_in_db(&setup.1, &expected).await;
         assert!(result.is_ok());
@@ -324,9 +347,9 @@ mod tests {
     async fn scraper_check_icao_in_db_false_origin() {
         let setup = setup().await;
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
             origin: "AAAA".to_owned(),
-            destination: DESTINATION.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
         let result = Scrapper::check_icao_in_db(&setup.1, &expected).await;
         assert!(result.is_ok());
@@ -337,8 +360,8 @@ mod tests {
     async fn scraper_check_icao_in_db_false_destination() {
         let setup = setup().await;
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
             destination: "AAAA".to_owned(),
         };
         let result = Scrapper::check_icao_in_db(&setup.1, &expected).await;
@@ -349,12 +372,12 @@ mod tests {
     #[test]
     fn scraper_extract_icao_codes() {
         let html_string = include_str!("./test_scrape.txt");
-        let result = Scrapper::extract_icao_codes(html_string, CALLSIGN);
+        let result = Scrapper::extract_icao_codes(html_string, TEST_CALLSIGN);
 
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
-            destination: DESTINATION.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
 
         assert!(result.is_some());
@@ -366,15 +389,15 @@ mod tests {
     async fn scraper_use_live_site() {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let result = scraper.request_callsign(CALLSIGN).await;
+        let result = scraper.request_callsign(TEST_CALLSIGN).await;
 
         assert!(result.is_ok());
 
-        let result = Scrapper::extract_icao_codes(&result.unwrap(), CALLSIGN);
+        let result = Scrapper::extract_icao_codes(&result.unwrap(), TEST_CALLSIGN);
         let expected = ScrapedFlightroute {
-            callsign: CALLSIGN.to_owned(),
-            origin: ORIGIN.to_owned(),
-            destination: DESTINATION.to_owned(),
+            callsign: TEST_CALLSIGN.to_owned(),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
         };
 
         assert!(result.is_some());
@@ -386,7 +409,7 @@ mod tests {
     async fn scraper_scraper_for_route_insert() {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let result = scraper.scrape_flightroute(&setup.1, CALLSIGN).await;
+        let result = scraper.scrape_flightroute(&setup.1, TEST_CALLSIGN).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -394,6 +417,7 @@ mod tests {
         let result = result.unwrap();
 
         let expected = ModelFlightroute {
+            flightroute_id: 0,
             callsign: "ANA460".to_owned(),
             origin_airport_country_iso_name: "JP".to_owned(),
             origin_airport_country_name: "Japan".to_owned(),
@@ -424,7 +448,112 @@ mod tests {
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };
 
-        assert_eq!(expected, result);
+        // assert_eq!(expected, result);
+
+        assert_eq!(result.callsign, expected.callsign);
+        assert_eq!(
+            result.origin_airport_country_iso_name,
+            expected.origin_airport_country_iso_name
+        );
+        assert_eq!(
+            result.origin_airport_country_name,
+            expected.origin_airport_country_name
+        );
+        assert_eq!(
+            result.origin_airport_elevation,
+            expected.origin_airport_elevation
+        );
+        assert_eq!(
+            result.origin_airport_iata_code,
+            expected.origin_airport_iata_code
+        );
+        assert_eq!(
+            result.origin_airport_icao_code,
+            expected.origin_airport_icao_code
+        );
+        assert_eq!(
+            result.origin_airport_latitude,
+            expected.origin_airport_latitude
+        );
+        assert_eq!(
+            result.origin_airport_longitude,
+            expected.origin_airport_longitude
+        );
+        assert_eq!(
+            result.origin_airport_municipality,
+            expected.origin_airport_municipality
+        );
+        assert_eq!(result.origin_airport_name, expected.origin_airport_name);
+        assert_eq!(
+            result.midpoint_airport_country_iso_name,
+            expected.midpoint_airport_country_iso_name
+        );
+        assert_eq!(
+            result.midpoint_airport_country_name,
+            expected.midpoint_airport_country_name
+        );
+        assert_eq!(
+            result.midpoint_airport_elevation,
+            expected.midpoint_airport_elevation
+        );
+        assert_eq!(
+            result.midpoint_airport_iata_code,
+            expected.midpoint_airport_iata_code
+        );
+        assert_eq!(
+            result.midpoint_airport_icao_code,
+            expected.midpoint_airport_icao_code
+        );
+        assert_eq!(
+            result.midpoint_airport_latitude,
+            expected.midpoint_airport_latitude
+        );
+        assert_eq!(
+            result.midpoint_airport_longitude,
+            expected.midpoint_airport_longitude
+        );
+        assert_eq!(
+            result.midpoint_airport_municipality,
+            expected.midpoint_airport_municipality
+        );
+        assert_eq!(result.midpoint_airport_name, expected.midpoint_airport_name);
+        assert_eq!(
+            result.destination_airport_country_iso_name,
+            expected.destination_airport_country_iso_name
+        );
+        assert_eq!(
+            result.destination_airport_country_name,
+            expected.destination_airport_country_name
+        );
+        assert_eq!(
+            result.destination_airport_elevation,
+            expected.destination_airport_elevation
+        );
+        assert_eq!(
+            result.destination_airport_iata_code,
+            expected.destination_airport_iata_code
+        );
+        assert_eq!(
+            result.destination_airport_icao_code,
+            expected.destination_airport_icao_code
+        );
+        assert_eq!(
+            result.destination_airport_latitude,
+            expected.destination_airport_latitude
+        );
+        assert_eq!(
+            result.destination_airport_longitude,
+            expected.destination_airport_longitude
+        );
+        assert_eq!(
+            result.destination_airport_municipality,
+            expected.destination_airport_municipality
+        );
+        assert_eq!(
+            result.destination_airport_name,
+            expected.destination_airport_name
+        );
+
         remove_scraped_data(&setup.1).await;
     }
 
@@ -432,8 +561,24 @@ mod tests {
     async fn scraper_get_photo() {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let mode_s = "393C00";
-        let result = scraper.request_photo(mode_s.to_owned()).await;
+
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "393C00".to_owned(),
+            n_number: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        // let mode_s = ModeS::new("393C00".to_owned()).unwrap();
+        let result = scraper.request_photo(&test_aircraft).await;
         assert!(result.is_ok());
         let expected = PhotoResponse {
             status: 200,
@@ -444,13 +589,41 @@ mod tests {
         };
         assert_eq!(result.unwrap().unwrap(), expected);
 
-        let mode_s = "AAAAAA";
-        let result = scraper.request_photo(mode_s.to_owned()).await;
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "AAAAAA".to_owned(),
+            n_number: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        let result = scraper.request_photo(&test_aircraft).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
-        let mode_s = "AAAAAB";
-        let result = scraper.request_photo(mode_s.to_owned()).await;
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "AAAAAB".to_owned(),
+            n_number: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        let result = scraper.request_photo(&test_aircraft).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
     }
@@ -460,31 +633,53 @@ mod tests {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
 
-        let result = scraper.scrape_photo(&setup.1, MODE_S.to_owned()).await;
+        let mode_s = ModeS::new(TEST_MODE_S.to_owned()).unwrap();
+
+        let test_aircraft = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
         assert!(result.is_ok());
 
-        let result = ModelAircraft::get(&setup.1, MODE_S, &setup.0.url_photo_prefix).await;
+        let result = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
         assert!(result.is_some());
+        let result = result.unwrap();
 
-        let expected = ModelAircraft {
-            aircraft_type: "Falcon 20 CC117/ECM".to_owned(),
-            icao_type: "FA20".to_owned(),
-            manufacturer: "Dassault".to_owned(),
-            mode_s: "393C00".to_owned(),
-            registered_owner_country_iso_name: "FR".to_owned(),
-            registered_owner_country_name: "France".to_owned(),
-            registered_owner_operator_flag_code: "DEF".to_owned(),
-            registered_owner: "Aviation Defence Service".to_owned(),
-            url_photo: Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
-            url_photo_thumbnail: Some(format!(
+        assert_eq!(result.aircraft_type, test_aircraft.aircraft_type);
+        assert_eq!(result.icao_type, test_aircraft.icao_type);
+        assert_eq!(result.manufacturer, test_aircraft.manufacturer);
+        assert_eq!(result.mode_s, test_aircraft.mode_s);
+        assert_eq!(result.n_number, test_aircraft.n_number);
+        assert_eq!(result.registered_owner, test_aircraft.registered_owner);
+        assert_eq!(
+            result.registered_owner_country_iso_name,
+            test_aircraft.registered_owner_country_iso_name
+        );
+        assert_eq!(
+            result.registered_owner_country_name,
+            test_aircraft.registered_owner_country_name
+        );
+        assert_eq!(
+            result.registered_owner_operator_flag_code,
+            test_aircraft.registered_owner_operator_flag_code
+        );
+        assert_eq!(
+            result.url_photo,
+            Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
+        );
+        assert_eq!(
+            result.url_photo_thumbnail,
+            Some(format!(
                 "{}thumbnails/001/001/example.jpg",
                 setup.0.url_photo_prefix
             )),
-        };
-        assert_eq!(result.unwrap(), expected);
+        );
+
         remove_scraped_data(&setup.1).await;
     }
 }

@@ -6,10 +6,13 @@
 **/.tar.gpg*
 **/*appendonly.aof
 
+n-number*
+
 db_data
 backups
 nginx_confs
 
+docker/data
 **/test_scrape.txt
 
 **/scraper_html.ts

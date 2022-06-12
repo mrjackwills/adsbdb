@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sqlx::{Error, PgPool};
+use sqlx::PgPool;
 
 use crate::api::AppError;
 
@@ -15,7 +15,7 @@ pub struct ModelAirport {
 #[async_trait]
 impl Model<Self> for ModelAirport {
     /// Used for checking that a scraped airport is in db
-    async fn get(db: &PgPool, airpot_icao: &str) -> Result<Option<Self>, AppError> {
+    async fn get(db: &PgPool, airport_icao: &str) -> Result<Option<Self>, AppError> {
         let query = r#"
 SELECT
 	airport_icao_code_id
@@ -23,16 +23,9 @@ FROM
 	airport_icao_code
 WHERE
 	icao_code = $1"#;
-        match sqlx::query_as::<_, Self>(query)
-            .bind(airpot_icao)
-            .fetch_one(db)
-            .await
-        {
-            Ok(aircraft) => Ok(Some(aircraft)),
-            Err(e) => match e {
-                Error::RowNotFound => Ok(None),
-                _ => Err(AppError::SqlxError(e)),
-            },
-        }
+        Ok(sqlx::query_as::<_, Self>(query)
+            .bind(airport_icao)
+            .fetch_optional(db)
+            .await?)
     }
 }

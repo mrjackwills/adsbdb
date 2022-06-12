@@ -1,8 +1,10 @@
 mod api;
 mod db_postgres;
 mod db_redis;
+mod n_number;
 mod parse_env;
 mod scraper;
+
 use parse_env::AppEnv;
 use tracing::Level;
 
