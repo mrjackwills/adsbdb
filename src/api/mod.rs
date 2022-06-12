@@ -141,7 +141,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Connection) {
         .route(&Routes::Callsign.to_string(), get(api_routes::get_callsign))
         .route(&Routes::Online.to_string(), get(api_routes::get_online))
         .route(&Routes::NNumber.to_string(), get(api_routes::get_n_number))
-    	.route(&Routes::ModeS.to_string(), get(api_routes::get_mode_s));
+        .route(&Routes::ModeS.to_string(), get(api_routes::get_mode_s));
 
     let prefix = get_api_version();
 
@@ -560,7 +560,7 @@ mod tests {
         assert_eq!(result, "invalid n_number: A1235F");
     }
 
-	#[tokio::test]
+    #[tokio::test]
     async fn http_mod_get_mode_s_ok() {
         start_server().await;
         let mode_s = "ACD2D3";
@@ -575,7 +575,7 @@ mod tests {
         assert_eq!(result, "N925XJ");
     }
 
-	#[tokio::test]
+    #[tokio::test]
     async fn http_mod_get_mode_s_ok_empty() {
         start_server().await;
         let mode_s = "CCD2D3";

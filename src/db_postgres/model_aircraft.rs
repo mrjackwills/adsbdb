@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sqlx::{Error, PgPool, Postgres, Transaction};
+use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{
     api::{AppError, ModeS},
@@ -10,9 +10,7 @@ use crate::{
 
 #[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelAircraft {
-    // Issue this this when putting into redis :(
-    // #[serde(skip_serializing)]
-    // pub aircraft_id: i64,
+    pub aircraft_id: i64,
     #[serde(rename = "type")]
     pub aircraft_type: String,
     pub icao_type: String,
@@ -25,7 +23,6 @@ pub struct ModelAircraft {
     pub registered_owner: String,
     pub url_photo: Option<String>,
     pub url_photo_thumbnail: Option<String>,
-    // #[serde(skip_serializing_if = "Option::is_none")]
 }
 
 /// Used in transaction of inserting a new photo
@@ -49,6 +46,7 @@ impl ModelAircraft {
     fn get_query() -> &'static str {
         r#"
 SELECT
+	aa.aircraft_id,
 	$1 AS mode_s,
 	$2 as n_number,
 	aro.registered_owner,
@@ -116,10 +114,10 @@ WHERE
     pub async fn insert_photo(
         db: &PgPool,
         photo: PhotoData,
-        mode_s: &ModeS,
+        aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
-        Self::photo_transaction(&mut transaction, photo, mode_s).await?;
+        Self::photo_transaction(&mut transaction, photo, aircraft).await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -128,7 +126,7 @@ WHERE
     async fn photo_transaction(
         transaction: &mut Transaction<'_, Postgres>,
         photo: PhotoData,
-        mode_s: &ModeS,
+        aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
 
@@ -137,30 +135,17 @@ WHERE
             .fetch_one(&mut *transaction)
             .await?;
 
-        // This is slow due to the second select statement
-        // but had issues with redis serialize/deserialize when including the aircraft_id in Self
         let query = r#"
 UPDATE
 	aircraft
 SET
 	aircraft_photo_id = $1
 WHERE
-	aircraft_id = (
-		SELECT
-			aa.aircraft_id
-		FROM
-			aircraft aa
-		JOIN
-			aircraft_mode_s ams
-		ON
-			aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
-		WHERE
-			ams.mode_s = $2
-	)"#;
+	aircraft_id = $2"#;
 
         sqlx::query(query)
             .bind(aircraft_photo.aircraft_photo_id)
-            .bind(&mode_s.to_string())
+            .bind(aircraft.aircraft_id)
             .execute(&mut *transaction)
             .await?;
         Ok(())
@@ -168,8 +153,8 @@ WHERE
 }
 
 // Run tests with
-///
-/// cargo watch -q -c -w src/ -x 'test model_aircraft '
+//
+// cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
 mod tests {
     use crate::{db_postgres, parse_env::AppEnv};
@@ -192,10 +177,25 @@ mod tests {
         };
 
         let mode_s = "A51D23";
+
         let url_prefix = "http://www.example.com/";
 
-        let modes = ModeS::new(mode_s.to_owned()).unwrap();
-        ModelAircraft::photo_transaction(&mut transaction, photodata.clone(), &modes)
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "A51D23".to_owned(),
+            n_number: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        ModelAircraft::photo_transaction(&mut transaction, photodata.clone(), &test_aircraft)
             .await
             .unwrap();
 
@@ -210,6 +210,7 @@ mod tests {
             .unwrap();
 
         let expected = ModelAircraft {
+            aircraft_id: 8415,
             aircraft_type: "CRJ 200LR".to_owned(),
             n_number: "N429AW".to_owned(),
             icao_type: "CRJ2".to_owned(),
@@ -224,6 +225,7 @@ mod tests {
         };
 
         assert_eq!(result, expected);
+
         // Cancel transaction, so can continually re-test with this route
         transaction.rollback().await.unwrap();
     }

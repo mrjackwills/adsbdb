@@ -15,6 +15,7 @@ struct FlightrouteCallsign {
 
 #[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelFlightroute {
+    pub flightroute_id: i64,
     pub callsign: String,
 
     pub origin_airport_country_iso_name: String,
@@ -70,9 +71,6 @@ pub struct ModelFlightroute {
 #[async_trait]
 impl Model<Self> for ModelFlightroute {
     async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {
-		println!("callsign:: {callsign}");
-
-
         let query = Self::get_query();
         Ok(sqlx::query_as::<_, Self>(query)
             .bind(callsign)
@@ -87,6 +85,7 @@ impl ModelFlightroute {
         r#"
 		SELECT
 			$1 as callsign,
+			fl.flightroute_id,
 			( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
 			( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
 			( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
@@ -218,6 +217,7 @@ mod tests {
             .unwrap();
 
         let expected = ModelFlightroute {
+            flightroute_id: 0,
             callsign: "ANA460".to_owned(),
             origin_airport_country_iso_name: "JP".to_owned(),
             origin_airport_country_name: "Japan".to_owned(),
@@ -248,7 +248,110 @@ mod tests {
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };
 
-        assert_eq!(result, expected);
+        // Have to do it like this, as unable to guarantee the flightroute id correctly in tests
+        assert_eq!(result.callsign, expected.callsign);
+        assert_eq!(
+            result.origin_airport_country_iso_name,
+            expected.origin_airport_country_iso_name
+        );
+        assert_eq!(
+            result.origin_airport_country_name,
+            expected.origin_airport_country_name
+        );
+        assert_eq!(
+            result.origin_airport_elevation,
+            expected.origin_airport_elevation
+        );
+        assert_eq!(
+            result.origin_airport_iata_code,
+            expected.origin_airport_iata_code
+        );
+        assert_eq!(
+            result.origin_airport_icao_code,
+            expected.origin_airport_icao_code
+        );
+        assert_eq!(
+            result.origin_airport_latitude,
+            expected.origin_airport_latitude
+        );
+        assert_eq!(
+            result.origin_airport_longitude,
+            expected.origin_airport_longitude
+        );
+        assert_eq!(
+            result.origin_airport_municipality,
+            expected.origin_airport_municipality
+        );
+        assert_eq!(result.origin_airport_name, expected.origin_airport_name);
+        assert_eq!(
+            result.midpoint_airport_country_iso_name,
+            expected.midpoint_airport_country_iso_name
+        );
+        assert_eq!(
+            result.midpoint_airport_country_name,
+            expected.midpoint_airport_country_name
+        );
+        assert_eq!(
+            result.midpoint_airport_elevation,
+            expected.midpoint_airport_elevation
+        );
+        assert_eq!(
+            result.midpoint_airport_iata_code,
+            expected.midpoint_airport_iata_code
+        );
+        assert_eq!(
+            result.midpoint_airport_icao_code,
+            expected.midpoint_airport_icao_code
+        );
+        assert_eq!(
+            result.midpoint_airport_latitude,
+            expected.midpoint_airport_latitude
+        );
+        assert_eq!(
+            result.midpoint_airport_longitude,
+            expected.midpoint_airport_longitude
+        );
+        assert_eq!(
+            result.midpoint_airport_municipality,
+            expected.midpoint_airport_municipality
+        );
+        assert_eq!(result.midpoint_airport_name, expected.midpoint_airport_name);
+        assert_eq!(
+            result.destination_airport_country_iso_name,
+            expected.destination_airport_country_iso_name
+        );
+        assert_eq!(
+            result.destination_airport_country_name,
+            expected.destination_airport_country_name
+        );
+        assert_eq!(
+            result.destination_airport_elevation,
+            expected.destination_airport_elevation
+        );
+        assert_eq!(
+            result.destination_airport_iata_code,
+            expected.destination_airport_iata_code
+        );
+        assert_eq!(
+            result.destination_airport_icao_code,
+            expected.destination_airport_icao_code
+        );
+        assert_eq!(
+            result.destination_airport_latitude,
+            expected.destination_airport_latitude
+        );
+        assert_eq!(
+            result.destination_airport_longitude,
+            expected.destination_airport_longitude
+        );
+        assert_eq!(
+            result.destination_airport_municipality,
+            expected.destination_airport_municipality
+        );
+        assert_eq!(
+            result.destination_airport_name,
+            expected.destination_airport_name
+        );
 
         // Cancel transaction, so can continually re-test with this route
         transaction.rollback().await.unwrap();

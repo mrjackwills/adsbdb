@@ -153,8 +153,8 @@ fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
 }
 
 // Convert from ModeS to NNumber
+// Maybe always return a string?
 pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
-
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
         return Err(NError::FirstChar.error());
@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-	/// Create every possible valid mode_s, and make sure can be converted to N-Number
+    /// Create every possible valid mode_s, and make sure can be converted to N-Number
     fn n_number_mod_every_mode_s_to_n() {
         let test = |mode_s: &ModeS| {
             let result = mode_s_to_n_number(mode_s);
@@ -350,19 +350,19 @@ mod tests {
         }
     }
 
-	#[test]
-	/// Only works with American mode_s, which start with 'A'
+    #[test]
+    /// Only works with American mode_s, which start with 'A'
     fn n_number_mod_mode_s_to_n_err() {
-		let test = |mode_s: &str| {
+        let test = |mode_s: &str| {
             let mode_s = ModeS::new(mode_s.to_owned()).unwrap();
             let result = mode_s_to_n_number(&mode_s);
             assert!(result.is_err());
         };
 
-		test("B00001");
-		test("F00724");
-		test("C00725");
-		test("E00725");
+        test("B00001");
+        test("F00724");
+        test("C00725");
+        test("E00725");
     }
 
     #[test]
@@ -420,5 +420,4 @@ mod tests {
         test("N90MC", "AC6DE9");
         test("N99999", "ADF7C7");
     }
-
 }

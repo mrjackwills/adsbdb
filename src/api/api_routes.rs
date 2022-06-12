@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use axum::Extension;
 
 use super::input::{Callsign, ModeS, NNumber};
-use super::response::{AircraftAndRoute, AsJsonRes, Online, ResponseJson};
+use super::response::{
+    AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseFlightRoute, ResponseJson,
+};
 use super::{AppError, ApplicationState};
 use crate::db_postgres::{Model, ModelAircraft, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, RedisKey};
-use crate::n_number::{n_number_to_mode_s, mode_s_to_n_number};
+use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either get_mode_s (with a callsign query param), or get_callsign.
 /// Check redis cache for aircraft (or 'none'), or hit postgres
@@ -46,7 +48,7 @@ async fn find_aircraft(
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
         if let Some(craft) = aircraft.clone() {
             if craft.url_photo.is_none() {
-                state.scraper.scrape_photo(&state.postgres, mode_s).await?;
+                state.scraper.scrape_photo(&state.postgres, &craft).await?;
                 aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
             }
         }
@@ -94,8 +96,8 @@ pub async fn get_aircraft(
             Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
-                    aircraft: Some(a),
-                    flightroute,
+                    aircraft: Some(ResponseAircraft::from(a)),
+                    flightroute: ResponseFlightRoute::from(flightroute),
                 }),
             ))
         } else {
@@ -107,7 +109,7 @@ pub async fn get_aircraft(
             Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
-                    aircraft: Some(a),
+                    aircraft: Some(ResponseAircraft::from(a)),
                     flightroute: None,
                 }),
             ))
@@ -129,7 +131,7 @@ pub async fn get_callsign(
             axum::http::StatusCode::OK,
             ResponseJson::new(AircraftAndRoute {
                 aircraft: None,
-                flightroute: Some(a),
+                flightroute: ResponseFlightRoute::from(Some(a)),
             }),
         ))
     } else {
@@ -240,7 +242,7 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let aircraft = ModelAircraft {
+        let aircraft = ResponseAircraft {
             aircraft_type: "Citation Sovereign".to_owned(),
             icao_type: "C680".to_owned(),
             manufacturer: "Cessna".to_owned(),
@@ -279,7 +281,7 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let aircraft = ModelAircraft {
+        let aircraft = ResponseAircraft {
             aircraft_type: "737MAX 9".to_owned(),
             icao_type: "B39M".to_owned(),
             manufacturer: "Boeing".to_owned(),
@@ -322,7 +324,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let result: ModelAircraft = serde_json::from_str(&result.unwrap()).unwrap();
+        let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
 
@@ -355,7 +357,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let result: ModelAircraft = serde_json::from_str(&result.unwrap()).unwrap();
+        let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
 
@@ -447,7 +449,7 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let flightroute = ModelFlightroute {
+        let flightroute = ResponseFlightRoute {
             callsign: callsign.clone(),
             origin_airport_country_iso_name: "ES".to_owned(),
             origin_airport_country_name: "Spain".to_owned(),
@@ -503,7 +505,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
+        let result: ResponseFlightRoute = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(&result, response.1.response.flightroute.as_ref().unwrap());
         let ttl: usize = application_state
             .redis
@@ -527,7 +529,7 @@ mod tests {
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
 
-        let expected = ModelFlightroute {
+        let expected = ResponseFlightRoute {
             callsign: "ANA460".to_owned(),
             origin_airport_country_iso_name: "JP".to_owned(),
             origin_airport_country_name: "Japan".to_owned(),
@@ -646,7 +648,7 @@ mod tests {
         let response = response.unwrap();
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let flightroute = ModelFlightroute {
+        let flightroute = ResponseFlightRoute {
             callsign: callsign.clone(),
             origin_airport_country_iso_name: "ES".to_owned(),
             origin_airport_country_name: "Spain".to_owned(),
@@ -677,7 +679,7 @@ mod tests {
             destination_airport_name: "Bristol Airport".to_owned(),
         };
 
-        let aircraft = ModelAircraft {
+        let aircraft = ResponseAircraft {
             aircraft_type: "Citation Sovereign".to_owned(),
             icao_type: "C680".to_owned(),
             manufacturer: "Cessna".to_owned(),
@@ -724,7 +726,7 @@ mod tests {
         let response = response.unwrap();
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let flightroute = ModelFlightroute {
+        let flightroute = ResponseFlightRoute {
             callsign: callsign.clone(),
             origin_airport_country_iso_name: "ES".to_owned(),
             origin_airport_country_name: "Spain".to_owned(),
@@ -755,7 +757,7 @@ mod tests {
             destination_airport_name: "Bristol Airport".to_owned(),
         };
 
-        let aircraft = ModelAircraft {
+        let aircraft = ResponseAircraft {
             aircraft_type: "737MAX 9".to_owned(),
             icao_type: "B39M".to_owned(),
             manufacturer: "Boeing".to_owned(),

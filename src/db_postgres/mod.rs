@@ -34,5 +34,3 @@ pub async fn db_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     migrations::migrations(&pool).await?;
     Ok(pool)
 }
-
-// test me
