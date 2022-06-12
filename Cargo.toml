@@ -11,22 +11,22 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.53"
-axum ="0.5.5"
+axum ="0.5.6"
 dotenv = "0.15.0"
 openssl = { version = '0.10', features = ["vendored"] }
 lazy_static = "1.4.0"
-parking_lot = "0.12.0"
+parking_lot = "0.12.1"
 redis = { version = "0.21.5", features = ["tokio-comp"] }
-reqwest = {version = "0.11.9", features=["json", "native-tls"]}
-serde = { version = "1.0.136", features = ["derive"] }
+reqwest = {version = "0.11.10", features=["json", "native-tls"]}
+serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0"
 sqlx = {version="0.5.13", features = ["runtime-tokio-rustls", "postgres", "time"]}
 thiserror = "1.0.31"
-tokio = {version = "1.18.2", features=["full"]}
+tokio = {version = "1.19.2", features=["full"]}
 tower = { version = "0.4", features = ["full"] }
-tower-http = {version="0.3.2", features = ["full"] }
-tracing = "0.1.32"
-tracing-subscriber = "0.3.9"
+tower-http = {version="0.3.4", features = ["full"] }
+tracing = "0.1.35"
+tracing-subscriber = "0.3.11"
 
 [profile.release]
 lto = true
