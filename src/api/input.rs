@@ -64,7 +64,6 @@ where
     }
 }
 
-// TEST ME
 #[derive(Debug, Clone, PartialEq)]
 pub struct NNumber {
     n_number: String,
@@ -111,13 +110,6 @@ where
         }
     }
 }
-
-// if !n_number.to_uppercase().starts_with('N')
-// || !(2..=NNUMBER_MAX_SIZE).contains(&len_n_number)
-// || !n_number.chars().all(|x| ALLCHARS.contains(x))
-// {
-// return Err(NError::InvalidN.error());
-// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Callsign {

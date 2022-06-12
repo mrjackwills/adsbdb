@@ -22,12 +22,16 @@
 <hr>
 <p>
 	Please report any incorrect data to the <a href="https://github.com/mrjackwills/adsbdb/issues/new/choose" target='_blank' rel='noopener noreferrer'>issues page</a>, with the <strong>Data</strong> tag.<br>
-		With thanks to;
+	<br>
+	With thanks to;
 	<li>
 		<a href="http://planebase.biz/" target='_blank' rel='noopener noreferrer'>PlaneBase</a> for the aircraft data.
 	</li>
 	<li>
 		The flight route data is the work of David Taylor, Edinburgh and Jim Mason, Glasgow, and may not be copied, published, or incorporated into other databases without the explicit permission of David J Taylor, Edinburgh.
+	</li>
+	<li>
+	<a href="https://github.com/guillaumemichel/icao-nnumber_converter" target='_blank' rel='noopener noreferrer'>Guillaume Michel</a>, for the icao to n-number conversion 
 	</li>
 </p>
 <hr>
