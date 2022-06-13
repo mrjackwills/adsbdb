@@ -58,81 +58,100 @@ impl ResponseAircraft {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Airport {
+    pub country_iso_name: String,
+    pub country_name: String,
+    pub elevation: i32,
+    pub iata_code: String,
+    pub icao_code: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub municipality: String,
+    pub name: String,
+}
+
+impl Airport {
+    fn from(flightroute: &ModelFlightroute) -> (Self, Option<Self>, Self) {
+        let origin = Self {
+            name: flightroute.origin_airport_name.to_owned(),
+            country_iso_name: flightroute.origin_airport_country_iso_name.to_owned(),
+            country_name: flightroute.origin_airport_country_name.to_owned(),
+            elevation: flightroute.origin_airport_elevation,
+            iata_code: flightroute.origin_airport_iata_code.to_owned(),
+            icao_code: flightroute.origin_airport_icao_code.to_owned(),
+            latitude: flightroute.origin_airport_latitude,
+            longitude: flightroute.origin_airport_longitude,
+            municipality: flightroute.origin_airport_municipality.to_owned(),
+        };
+
+        let mut midpoint = None;
+        // This is a messy way to do it, but it works
+        // If midpoint_airport_name is_some, then all midpoint values are some
+        if flightroute.midpoint_airport_name.is_some() {
+            midpoint = Some(Self {
+                name: flightroute
+                    .midpoint_airport_name
+                    .to_owned()
+                    .unwrap_or_default(),
+                country_iso_name: flightroute
+                    .midpoint_airport_country_iso_name
+                    .to_owned()
+                    .unwrap_or_default(),
+                country_name: flightroute
+                    .midpoint_airport_country_name
+                    .to_owned()
+                    .unwrap_or_default(),
+                elevation: flightroute.midpoint_airport_elevation.unwrap_or_default(),
+                iata_code: flightroute
+                    .midpoint_airport_iata_code
+                    .to_owned()
+                    .unwrap_or_default(),
+                icao_code: flightroute
+                    .midpoint_airport_icao_code
+                    .to_owned()
+                    .unwrap_or_default(),
+                latitude: flightroute.midpoint_airport_latitude.unwrap_or_default(),
+                longitude: flightroute.midpoint_airport_longitude.unwrap_or_default(),
+                municipality: flightroute
+                    .midpoint_airport_municipality
+                    .to_owned()
+                    .unwrap_or_default(),
+            });
+        }
+
+        let destination = Self {
+            name: flightroute.destination_airport_name.to_owned(),
+            country_iso_name: flightroute.destination_airport_country_iso_name.to_owned(),
+            country_name: flightroute.destination_airport_country_name.to_owned(),
+            elevation: flightroute.destination_airport_elevation,
+            iata_code: flightroute.destination_airport_iata_code.to_owned(),
+            icao_code: flightroute.destination_airport_icao_code.to_owned(),
+            latitude: flightroute.destination_airport_latitude,
+            longitude: flightroute.destination_airport_longitude,
+            municipality: flightroute.destination_airport_municipality.to_owned(),
+        };
+        (origin, midpoint, destination)
+    }
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct ResponseFlightRoute {
     pub callsign: String,
-
-    pub origin_airport_country_iso_name: String,
-    pub origin_airport_country_name: String,
-    pub origin_airport_elevation: i32,
-    pub origin_airport_iata_code: String,
-    pub origin_airport_icao_code: String,
-    pub origin_airport_latitude: f64,
-    pub origin_airport_longitude: f64,
-    pub origin_airport_municipality: String,
-    pub origin_airport_name: String,
-
+    pub origin: Airport,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_country_iso_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_country_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_elevation: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_iata_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_icao_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_latitude: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_longitude: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_municipality: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midpoint_airport_name: Option<String>,
-
-    pub destination_airport_country_iso_name: String,
-    pub destination_airport_country_name: String,
-    pub destination_airport_elevation: i32,
-    pub destination_airport_iata_code: String,
-    pub destination_airport_icao_code: String,
-    pub destination_airport_latitude: f64,
-    pub destination_airport_longitude: f64,
-    pub destination_airport_municipality: String,
-    pub destination_airport_name: String,
+    pub midpoint: Option<Airport>,
+    pub destination: Airport,
 }
 
 impl ResponseFlightRoute {
     pub fn from(op_fl: Option<ModelFlightroute>) -> Option<Self> {
         if let Some(fl) = op_fl {
+            let airports = Airport::from(&fl);
             Some(Self {
                 callsign: fl.callsign,
-                origin_airport_country_iso_name: fl.origin_airport_country_iso_name,
-                origin_airport_country_name: fl.origin_airport_country_name,
-                origin_airport_elevation: fl.origin_airport_elevation,
-                origin_airport_iata_code: fl.origin_airport_iata_code,
-                origin_airport_icao_code: fl.origin_airport_icao_code,
-                origin_airport_latitude: fl.origin_airport_latitude,
-                origin_airport_longitude: fl.origin_airport_longitude,
-                origin_airport_municipality: fl.origin_airport_municipality,
-                origin_airport_name: fl.origin_airport_name,
-                midpoint_airport_country_iso_name: fl.midpoint_airport_country_iso_name,
-                midpoint_airport_country_name: fl.midpoint_airport_country_name,
-                midpoint_airport_elevation: fl.midpoint_airport_elevation,
-                midpoint_airport_iata_code: fl.midpoint_airport_iata_code,
-                midpoint_airport_icao_code: fl.midpoint_airport_icao_code,
-                midpoint_airport_latitude: fl.midpoint_airport_latitude,
-                midpoint_airport_longitude: fl.midpoint_airport_longitude,
-                midpoint_airport_municipality: fl.midpoint_airport_municipality,
-                midpoint_airport_name: fl.midpoint_airport_name,
-                destination_airport_country_iso_name: fl.destination_airport_country_iso_name,
-                destination_airport_country_name: fl.destination_airport_country_name,
-                destination_airport_elevation: fl.destination_airport_elevation,
-                destination_airport_iata_code: fl.destination_airport_iata_code,
-                destination_airport_icao_code: fl.destination_airport_icao_code,
-                destination_airport_latitude: fl.destination_airport_latitude,
-                destination_airport_longitude: fl.destination_airport_longitude,
-                destination_airport_municipality: fl.destination_airport_municipality,
-                destination_airport_name: fl.destination_airport_name,
+                origin: airports.0,
+                midpoint: airports.1,
+                destination: airports.2,
             })
         } else {
             None
@@ -140,7 +159,7 @@ impl ResponseFlightRoute {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct AircraftAndRoute {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aircraft: Option<ResponseAircraft>,

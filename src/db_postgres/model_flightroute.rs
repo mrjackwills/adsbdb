@@ -28,23 +28,14 @@ pub struct ModelFlightroute {
     pub origin_airport_municipality: String,
     pub origin_airport_name: String,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_country_iso_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_country_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_elevation: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_iata_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_icao_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_latitude: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_longitude: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_municipality: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint_airport_name: Option<String>,
 
     pub destination_airport_country_iso_name: String,

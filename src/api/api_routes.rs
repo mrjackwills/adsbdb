@@ -46,6 +46,7 @@ async fn find_aircraft(
         Ok(aircraft)
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
+
         if let Some(craft) = aircraft.clone() {
             if craft.url_photo.is_none() {
                 state.scraper.scrape_photo(&state.postgres, &craft).await?;
@@ -170,11 +171,14 @@ mod tests {
     use redis::{AsyncCommands, RedisError};
     use sqlx::PgPool;
 
+    use crate::api::response::Airport;
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
 
     const CALLSIGN: &str = "ANA460";
+
+    // with midpoint
 
     // Also flushed redis of all keys!
     async fn get_application_state() -> Extension<ApplicationState> {
@@ -451,33 +455,85 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.clone(),
-            origin_airport_country_iso_name: "ES".to_owned(),
-            origin_airport_country_name: "Spain".to_owned(),
-            origin_airport_elevation: 27,
-            origin_airport_iata_code: "PMI".to_owned(),
-            origin_airport_icao_code: "LEPA".to_owned(),
-            origin_airport_latitude: 39.551701,
-            origin_airport_longitude: 2.73881,
-            origin_airport_municipality: "Palma De Mallorca".to_owned(),
-            origin_airport_name: "Palma de Mallorca Airport".to_owned(),
-            midpoint_airport_country_iso_name: None,
-            midpoint_airport_country_name: None,
-            midpoint_airport_elevation: None,
-            midpoint_airport_iata_code: None,
-            midpoint_airport_icao_code: None,
-            midpoint_airport_latitude: None,
-            midpoint_airport_longitude: None,
-            midpoint_airport_municipality: None,
-            midpoint_airport_name: None,
-            destination_airport_country_iso_name: "GB".to_owned(),
-            destination_airport_country_name: "United Kingdom".to_owned(),
-            destination_airport_elevation: 622,
-            destination_airport_iata_code: "BRS".to_owned(),
-            destination_airport_icao_code: "EGGD".to_owned(),
-            destination_airport_latitude: 51.382702,
-            destination_airport_longitude: -2.71909,
-            destination_airport_municipality: "Bristol".to_owned(),
-            destination_airport_name: "Bristol Airport".to_owned(),
+            origin: Airport {
+                country_iso_name: "ES".to_owned(),
+                country_name: "Spain".to_owned(),
+                elevation: 27,
+                iata_code: "PMI".to_owned(),
+                icao_code: "LEPA".to_owned(),
+                latitude: 39.551701,
+                longitude: 2.73881,
+                municipality: "Palma De Mallorca".to_owned(),
+                name: "Palma de Mallorca Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 622,
+                iata_code: "BRS".to_owned(),
+                icao_code: "EGGD".to_owned(),
+                latitude: 51.382702,
+                longitude: -2.71909,
+                municipality: "Bristol".to_owned(),
+                name: "Bristol Airport".to_owned(),
+            },
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        assert!(response.1.response.aircraft.is_none());
+    }
+
+    #[tokio::test]
+    async fn http_api_get_callsign_with_midpoint_ok() {
+        let callsign = "QFA031".to_owned();
+        let application_state = get_application_state().await;
+        let path = Callsign::new(callsign.clone()).unwrap();
+        let response = get_callsign(application_state.clone(), path).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.clone(),
+            origin: Airport {
+                country_iso_name: "AU".to_owned(),
+                country_name: "Australia".to_owned(),
+                elevation: 21,
+                iata_code: "SYD".to_owned(),
+                icao_code: "YSSY".to_owned(),
+                latitude: -33.94609832763672,
+                longitude: 151.177001953125,
+                municipality: "Sydney".to_owned(),
+                name: "Sydney Kingsford Smith International Airport".to_owned(),
+            },
+            midpoint: Some(Airport {
+                country_iso_name: "SG".to_owned(),
+                country_name: "Singapore".to_owned(),
+                elevation: 22,
+                iata_code: "SIN".to_owned(),
+                icao_code: "WSSS".to_owned(),
+                latitude: 1.35019,
+                longitude: 103.994003,
+                municipality: "Singapore".to_owned(),
+                name: "Singapore Changi Airport".to_owned(),
+            }),
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 83,
+                iata_code: "LHR".to_owned(),
+                icao_code: "EGLL".to_owned(),
+                latitude: 51.4706,
+                longitude: -0.461941,
+                municipality: "London".to_owned(),
+                name: "London Heathrow Airport".to_owned(),
+            },
         };
 
         match &response.1.response.flightroute {
@@ -494,9 +550,9 @@ mod tests {
         let callsign = "TOM35MR".to_owned();
         let application_state = get_application_state().await;
         let path = Callsign::new(callsign.clone()).unwrap();
-        let response = get_callsign(application_state.clone(), path).await.unwrap();
+        get_callsign(application_state.clone(), path).await.unwrap();
 
-        let key = RedisKey::Callsign(callsign);
+        let key = RedisKey::Callsign(callsign.clone());
         let result: Result<String, RedisError> = application_state
             .redis
             .lock()
@@ -504,9 +560,111 @@ mod tests {
             .get(key.to_string())
             .await;
         assert!(result.is_ok());
+        let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(result.callsign, callsign.clone());
+        assert_eq!(result.origin_airport_country_iso_name, "ES");
+        assert_eq!(result.origin_airport_country_name, "Spain");
+        assert_eq!(result.origin_airport_elevation, 27);
+        assert_eq!(result.origin_airport_iata_code, "PMI");
+        assert_eq!(result.origin_airport_icao_code, "LEPA");
+        assert_eq!(result.origin_airport_latitude, 39.551701);
+        assert_eq!(result.origin_airport_longitude, 2.73881);
+        assert_eq!(result.origin_airport_municipality, "Palma De Mallorca");
+        assert_eq!(result.origin_airport_name, "Palma de Mallorca Airport");
+        assert!(result.midpoint_airport_country_iso_name.is_none());
+        assert!(result.midpoint_airport_country_name.is_none());
+        assert!(result.midpoint_airport_elevation.is_none());
+        assert!(result.midpoint_airport_iata_code.is_none());
+        assert!(result.midpoint_airport_icao_code.is_none());
+        assert!(result.midpoint_airport_latitude.is_none());
+        assert!(result.midpoint_airport_longitude.is_none());
+        assert!(result.midpoint_airport_municipality.is_none());
+        assert!(result.midpoint_airport_name.is_none());
+        assert_eq!(result.destination_airport_country_iso_name, "GB");
+        assert_eq!(result.destination_airport_country_name, "United Kingdom");
+        assert_eq!(result.destination_airport_elevation, 622);
+        assert_eq!(result.destination_airport_iata_code, "BRS");
+        assert_eq!(result.destination_airport_icao_code, "EGGD");
+        assert_eq!(result.destination_airport_latitude, 51.382702);
+        assert_eq!(result.destination_airport_longitude, -2.71909);
+        assert_eq!(result.destination_airport_municipality, "Bristol");
+        assert_eq!(result.destination_airport_name, "Bristol Airport");
 
-        let result: ResponseFlightRoute = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(&result, response.1.response.flightroute.as_ref().unwrap());
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604800);
+    }
+
+    #[tokio::test]
+    // Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
+    async fn http_api_get_midpoint_callsign_cached() {
+        let callsign = "QFA031".to_owned();
+        let application_state = get_application_state().await;
+        let path = Callsign::new(callsign.clone()).unwrap();
+        get_callsign(application_state.clone(), path).await.unwrap();
+
+        let key = RedisKey::Callsign(callsign.clone());
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .get(key.to_string())
+            .await;
+        assert!(result.is_ok());
+        let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(result.callsign, callsign.clone());
+
+        assert_eq!(result.origin_airport_country_iso_name, "AU");
+        assert_eq!(result.origin_airport_country_name, "Australia");
+        assert_eq!(result.origin_airport_elevation, 21);
+        assert_eq!(result.origin_airport_iata_code, "SYD");
+        assert_eq!(result.origin_airport_icao_code, "YSSY");
+        assert_eq!(result.origin_airport_latitude, -33.94609832763672);
+        assert_eq!(result.origin_airport_longitude, 151.177001953125);
+        assert_eq!(result.origin_airport_municipality, "Sydney");
+        assert_eq!(
+            result.origin_airport_name,
+            "Sydney Kingsford Smith International Airport"
+        );
+
+        assert_eq!(
+            result.midpoint_airport_country_iso_name,
+            Some("SG".to_owned())
+        );
+        assert_eq!(
+            result.midpoint_airport_country_name,
+            Some("Singapore".to_owned())
+        );
+        assert_eq!(result.midpoint_airport_elevation, Some(22));
+        assert_eq!(result.midpoint_airport_iata_code, Some("SIN".to_owned()));
+        assert_eq!(result.midpoint_airport_icao_code, Some("WSSS".to_owned()));
+        assert_eq!(result.midpoint_airport_latitude, Some(1.35019));
+        assert_eq!(result.midpoint_airport_longitude, Some(103.994003));
+        assert_eq!(
+            result.midpoint_airport_municipality,
+            Some("Singapore".to_owned())
+        );
+        assert_eq!(
+            result.midpoint_airport_name,
+            Some("Singapore Changi Airport".to_owned())
+        );
+
+        assert_eq!(result.destination_airport_country_iso_name, "GB");
+        assert_eq!(result.destination_airport_country_name, "United Kingdom");
+        assert_eq!(result.destination_airport_elevation, 83);
+        assert_eq!(result.destination_airport_iata_code, "LHR");
+        assert_eq!(result.destination_airport_icao_code, "EGLL");
+        assert_eq!(result.destination_airport_latitude, 51.4706);
+        assert_eq!(result.destination_airport_longitude, -0.461941);
+        assert_eq!(result.destination_airport_municipality, "London");
+        assert_eq!(result.destination_airport_name, "London Heathrow Airport");
+
         let ttl: usize = application_state
             .redis
             .lock()
@@ -531,33 +689,30 @@ mod tests {
 
         let expected = ResponseFlightRoute {
             callsign: "ANA460".to_owned(),
-            origin_airport_country_iso_name: "JP".to_owned(),
-            origin_airport_country_name: "Japan".to_owned(),
-            origin_airport_elevation: 12,
-            origin_airport_iata_code: "OKA".to_owned(),
-            origin_airport_icao_code: "ROAH".to_owned(),
-            origin_airport_latitude: 26.195801,
-            origin_airport_longitude: 127.646004,
-            origin_airport_municipality: "Naha".to_owned(),
-            origin_airport_name: "Naha Airport / JASDF Naha Air Base".to_owned(),
-            midpoint_airport_country_iso_name: None,
-            midpoint_airport_country_name: None,
-            midpoint_airport_elevation: None,
-            midpoint_airport_iata_code: None,
-            midpoint_airport_icao_code: None,
-            midpoint_airport_latitude: None,
-            midpoint_airport_longitude: None,
-            midpoint_airport_municipality: None,
-            midpoint_airport_name: None,
-            destination_airport_country_iso_name: "JP".to_owned(),
-            destination_airport_country_name: "Japan".to_owned(),
-            destination_airport_elevation: 35,
-            destination_airport_iata_code: "HND".to_owned(),
-            destination_airport_icao_code: "RJTT".to_owned(),
-            destination_airport_latitude: 35.552299,
-            destination_airport_longitude: 139.779999,
-            destination_airport_municipality: "Tokyo".to_owned(),
-            destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
+
+            origin: Airport {
+                country_iso_name: "JP".to_owned(),
+                country_name: "Japan".to_owned(),
+                elevation: 12,
+                iata_code: "OKA".to_owned(),
+                icao_code: "ROAH".to_owned(),
+                latitude: 26.195801,
+                longitude: 127.646004,
+                municipality: "Naha".to_owned(),
+                name: "Naha Airport / JASDF Naha Air Base".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "JP".to_owned(),
+                country_name: "Japan".to_owned(),
+                elevation: 35,
+                iata_code: "HND".to_owned(),
+                icao_code: "RJTT".to_owned(),
+                latitude: 35.552299,
+                longitude: 139.779999,
+                municipality: "Tokyo".to_owned(),
+                name: "Tokyo Haneda International Airport".to_owned(),
+            },
         };
 
         match &response.1.response.flightroute {
@@ -650,33 +805,29 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.clone(),
-            origin_airport_country_iso_name: "ES".to_owned(),
-            origin_airport_country_name: "Spain".to_owned(),
-            origin_airport_elevation: 27,
-            origin_airport_iata_code: "PMI".to_owned(),
-            origin_airport_icao_code: "LEPA".to_owned(),
-            origin_airport_latitude: 39.551701,
-            origin_airport_longitude: 2.73881,
-            origin_airport_municipality: "Palma De Mallorca".to_owned(),
-            origin_airport_name: "Palma de Mallorca Airport".to_owned(),
-            midpoint_airport_country_iso_name: None,
-            midpoint_airport_country_name: None,
-            midpoint_airport_elevation: None,
-            midpoint_airport_iata_code: None,
-            midpoint_airport_icao_code: None,
-            midpoint_airport_latitude: None,
-            midpoint_airport_longitude: None,
-            midpoint_airport_municipality: None,
-            midpoint_airport_name: None,
-            destination_airport_country_iso_name: "GB".to_owned(),
-            destination_airport_country_name: "United Kingdom".to_owned(),
-            destination_airport_elevation: 622,
-            destination_airport_iata_code: "BRS".to_owned(),
-            destination_airport_icao_code: "EGGD".to_owned(),
-            destination_airport_latitude: 51.382702,
-            destination_airport_longitude: -2.71909,
-            destination_airport_municipality: "Bristol".to_owned(),
-            destination_airport_name: "Bristol Airport".to_owned(),
+            origin: Airport {
+                country_iso_name: "ES".to_owned(),
+                country_name: "Spain".to_owned(),
+                elevation: 27,
+                iata_code: "PMI".to_owned(),
+                icao_code: "LEPA".to_owned(),
+                latitude: 39.551701,
+                longitude: 2.73881,
+                municipality: "Palma De Mallorca".to_owned(),
+                name: "Palma de Mallorca Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 622,
+                iata_code: "BRS".to_owned(),
+                icao_code: "EGGD".to_owned(),
+                latitude: 51.382702,
+                longitude: -2.71909,
+                municipality: "Bristol".to_owned(),
+                name: "Bristol Airport".to_owned(),
+            },
         };
 
         let aircraft = ResponseAircraft {
@@ -728,33 +879,29 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.clone(),
-            origin_airport_country_iso_name: "ES".to_owned(),
-            origin_airport_country_name: "Spain".to_owned(),
-            origin_airport_elevation: 27,
-            origin_airport_iata_code: "PMI".to_owned(),
-            origin_airport_icao_code: "LEPA".to_owned(),
-            origin_airport_latitude: 39.551701,
-            origin_airport_longitude: 2.73881,
-            origin_airport_municipality: "Palma De Mallorca".to_owned(),
-            origin_airport_name: "Palma de Mallorca Airport".to_owned(),
-            midpoint_airport_country_iso_name: None,
-            midpoint_airport_country_name: None,
-            midpoint_airport_elevation: None,
-            midpoint_airport_iata_code: None,
-            midpoint_airport_icao_code: None,
-            midpoint_airport_latitude: None,
-            midpoint_airport_longitude: None,
-            midpoint_airport_municipality: None,
-            midpoint_airport_name: None,
-            destination_airport_country_iso_name: "GB".to_owned(),
-            destination_airport_country_name: "United Kingdom".to_owned(),
-            destination_airport_elevation: 622,
-            destination_airport_iata_code: "BRS".to_owned(),
-            destination_airport_icao_code: "EGGD".to_owned(),
-            destination_airport_latitude: 51.382702,
-            destination_airport_longitude: -2.71909,
-            destination_airport_municipality: "Bristol".to_owned(),
-            destination_airport_name: "Bristol Airport".to_owned(),
+            origin: Airport {
+                country_iso_name: "ES".to_owned(),
+                country_name: "Spain".to_owned(),
+                elevation: 27,
+                iata_code: "PMI".to_owned(),
+                icao_code: "LEPA".to_owned(),
+                latitude: 39.551701,
+                longitude: 2.73881,
+                municipality: "Palma De Mallorca".to_owned(),
+                name: "Palma de Mallorca Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 622,
+                iata_code: "BRS".to_owned(),
+                icao_code: "EGGD".to_owned(),
+                latitude: 51.382702,
+                longitude: -2.71909,
+                municipality: "Bristol".to_owned(),
+                name: "Bristol Airport".to_owned(),
+            },
         };
 
         let aircraft = ResponseAircraft {

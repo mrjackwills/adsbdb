@@ -102,18 +102,19 @@ WHERE
         };
 
         let query = Self::get_query();
-        Ok(sqlx::query_as::<_, Self>(query)
+        let abc = sqlx::query_as::<_, Self>(query)
             .bind(&mode_s.to_string())
             .bind(n_number)
             .bind(prefix)
             .fetch_optional(db)
-            .await?)
+            .await;
+        Ok(abc.unwrap())
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
     pub async fn insert_photo(
         db: &PgPool,
-        photo: PhotoData,
+        photo: &PhotoData,
         aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
@@ -125,15 +126,15 @@ WHERE
     /// Transaction to insert a new flightroute
     async fn photo_transaction(
         transaction: &mut Transaction<'_, Postgres>,
-        photo: PhotoData,
+        photo: &PhotoData,
         aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
-
         let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
-            .bind(photo.image)
+            .bind(photo.image.to_owned())
             .fetch_one(&mut *transaction)
-            .await?;
+            .await
+            .unwrap();
 
         let query = r#"
 UPDATE
@@ -195,7 +196,7 @@ mod tests {
             url_photo_thumbnail: None,
         };
 
-        ModelAircraft::photo_transaction(&mut transaction, photodata.clone(), &test_aircraft)
+        ModelAircraft::photo_transaction(&mut transaction, &photodata, &test_aircraft)
             .await
             .unwrap();
 

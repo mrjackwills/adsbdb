@@ -94,6 +94,7 @@ fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr
 // Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting<B>(req: Request<B>, next: Next<B>) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
+    // TODO if some else internal error
     let state: &ApplicationState = req.extensions().get().unwrap();
     let ip = get_ip(req.headers(), addr);
     let rate_limit_key = RedisKey::RateLimit(ip);
@@ -288,7 +289,7 @@ mod tests {
     }
 
     #[derive(Debug, Serialize, Deserialize)]
-    struct PostResponse {
+    struct TestResponse {
         response: Value,
     }
 
@@ -299,6 +300,7 @@ mod tests {
     }
 
     #[tokio::test]
+    // test midpoint
     async fn http_mod_get_callsign() {
         start_server().await;
         let callsign = "TOM35MR";
@@ -311,47 +313,89 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         let result = result.get("flightroute").unwrap();
 
         assert!(result.get("aircraft").is_none());
 
         assert_eq!(result["callsign"], callsign.to_uppercase());
-        assert_eq!(
-            result["origin_airport_country_iso_name"],
-            "ES".to_uppercase()
+        assert_eq!(result["origin"]["country_iso_name"], "ES".to_uppercase());
+        assert_eq!(result["origin"]["country_name"], "Spain");
+        assert_eq!(result["origin"]["elevation"], 27);
+        assert_eq!(result["origin"]["country_iso_name"], "ES");
+        assert_eq!(result["origin"]["country_name"], "Spain");
+        assert_eq!(result["origin"]["elevation"], 27);
+        assert_eq!(result["origin"]["iata_code"], "PMI");
+        assert_eq!(result["origin"]["icao_code"], "LEPA");
+        assert_eq!(result["origin"]["latitude"], 39.551701);
+        assert_eq!(result["origin"]["longitude"], 2.73881);
+        assert_eq!(result["origin"]["municipality"], "Palma De Mallorca");
+        assert_eq!(result["origin"]["name"], "Palma de Mallorca Airport");
+
+        assert!(result.get("midpoint").is_none());
+
+        assert_eq!(result["destination"]["country_iso_name"], "GB");
+        assert_eq!(result["destination"]["country_name"], "United Kingdom");
+        assert_eq!(result["destination"]["elevation"], 622);
+        assert_eq!(result["destination"]["iata_code"], "BRS");
+        assert_eq!(result["destination"]["icao_code"], "EGGD");
+        assert_eq!(result["destination"]["latitude"], 51.382702);
+        assert_eq!(result["destination"]["longitude"], -2.71909);
+        assert_eq!(result["destination"]["municipality"], "Bristol");
+        assert_eq!(result["destination"]["name"], "Bristol Airport");
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_callsign_with_midpoint() {
+        start_server().await;
+        let callsign = "QFA031";
+        let url = format!(
+            "http://127.0.0.1:8100{}/callsign/{}",
+            get_api_version(),
+            callsign
         );
-        assert_eq!(result["origin_airport_country_name"], "Spain");
-        assert_eq!(result["origin_airport_elevation"], 27);
-        assert_eq!(result["origin_airport_country_iso_name"], "ES");
-        assert_eq!(result["origin_airport_country_name"], "Spain");
-        assert_eq!(result["origin_airport_elevation"], 27);
-        assert_eq!(result["origin_airport_iata_code"], "PMI");
-        assert_eq!(result["origin_airport_icao_code"], "LEPA");
-        assert_eq!(result["origin_airport_latitude"], 39.551701);
-        assert_eq!(result["origin_airport_longitude"], 2.73881);
-        assert_eq!(result["origin_airport_municipality"], "Palma De Mallorca");
-        assert_eq!(result["origin_airport_name"], "Palma de Mallorca Airport");
+        let resp = reqwest::get(url).await.unwrap();
 
-        assert!(result.get("midpoint_airport_country_iso_name").is_none());
-        assert!(result.get("midpoint_airport_country_name").is_none());
-        assert!(result.get("midpoint_airport_elevation").is_none());
-        assert!(result.get("midpoint_airport_iata_code").is_none());
-        assert!(result.get("midpoint_airport_icao_code").is_none());
-        assert!(result.get("midpoint_airport_latitude").is_none());
-        assert!(result.get("midpoint_airport_longitude").is_none());
-        assert!(result.get("midpoint_airport_municipality").is_none());
-        assert!(result.get("midpoint_airport_name").is_none());
+        assert_eq!(resp.status(), StatusCode::OK);
 
-        assert_eq!(result["destination_airport_country_iso_name"], "GB");
-        assert_eq!(result["destination_airport_country_name"], "United Kingdom");
-        assert_eq!(result["destination_airport_elevation"], 622);
-        assert_eq!(result["destination_airport_iata_code"], "BRS");
-        assert_eq!(result["destination_airport_icao_code"], "EGGD");
-        assert_eq!(result["destination_airport_latitude"], 51.382702);
-        assert_eq!(result["destination_airport_longitude"], -2.71909);
-        assert_eq!(result["destination_airport_municipality"], "Bristol");
-        assert_eq!(result["destination_airport_name"], "Bristol Airport");
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = result.get("flightroute").unwrap();
+
+        assert!(result.get("aircraft").is_none());
+
+        assert_eq!(result["callsign"], callsign.to_uppercase());
+        assert_eq!(result["origin"]["country_iso_name"], "AU".to_uppercase());
+        assert_eq!(result["origin"]["country_name"], "Australia");
+        assert_eq!(result["origin"]["elevation"], 21);
+        assert_eq!(result["origin"]["iata_code"], "SYD");
+        assert_eq!(result["origin"]["icao_code"], "YSSY");
+        assert_eq!(result["origin"]["latitude"], -33.94609832763672);
+        assert_eq!(result["origin"]["longitude"], 151.177001953125);
+        assert_eq!(result["origin"]["municipality"], "Sydney");
+        assert_eq!(
+            result["origin"]["name"],
+            "Sydney Kingsford Smith International Airport"
+        );
+
+        assert_eq!(result["midpoint"]["country_iso_name"], "SG".to_uppercase());
+        assert_eq!(result["midpoint"]["country_name"], "Singapore");
+        assert_eq!(result["midpoint"]["elevation"], 22);
+        assert_eq!(result["midpoint"]["iata_code"], "SIN");
+        assert_eq!(result["midpoint"]["icao_code"], "WSSS");
+        assert_eq!(result["midpoint"]["latitude"], 1.35019);
+        assert_eq!(result["midpoint"]["longitude"], 103.994003);
+        assert_eq!(result["midpoint"]["municipality"], "Singapore");
+        assert_eq!(result["midpoint"]["name"], "Singapore Changi Airport");
+
+        assert_eq!(result["destination"]["country_iso_name"], "GB");
+        assert_eq!(result["destination"]["country_name"], "United Kingdom");
+        assert_eq!(result["destination"]["elevation"], 83);
+        assert_eq!(result["destination"]["iata_code"], "LHR");
+        assert_eq!(result["destination"]["icao_code"], "EGLL");
+        assert_eq!(result["destination"]["latitude"], 51.4706);
+        assert_eq!(result["destination"]["longitude"], -0.461941);
+        assert_eq!(result["destination"]["municipality"], "London");
+        assert_eq!(result["destination"]["name"], "London Heathrow Airport");
     }
 
     #[tokio::test]
@@ -365,7 +409,7 @@ mod tests {
         );
         let response = reqwest::get(url).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        let result = response.json::<PostResponse>().await.unwrap().response;
+        let result = response.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
     }
 
@@ -382,7 +426,7 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
 
         assert!(result.get("flightroute").is_none());
         let result = result.get("aircraft").unwrap();
@@ -415,7 +459,7 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
 
         let aircraft_result = result.get("aircraft").unwrap();
 
@@ -435,83 +479,133 @@ mod tests {
         );
         assert_eq!(aircraft_result["type"], "CRJ 700 702");
 
-        let flightroute_result = result.get("flightroute").unwrap();
-
+        let flightroute_result = result.get("flightroute");
+        assert!(flightroute_result.is_some());
+        let flightroute_result = flightroute_result.unwrap();
         assert_eq!(flightroute_result["callsign"], callsign.to_uppercase());
         assert_eq!(
-            flightroute_result["origin_airport_country_iso_name"],
+            flightroute_result["origin"]["country_iso_name"],
             "ES".to_uppercase()
         );
-        assert_eq!(flightroute_result["origin_airport_country_name"], "Spain");
-        assert_eq!(flightroute_result["origin_airport_elevation"], 27);
-        assert_eq!(flightroute_result["origin_airport_country_iso_name"], "ES");
-        assert_eq!(flightroute_result["origin_airport_country_name"], "Spain");
-        assert_eq!(flightroute_result["origin_airport_elevation"], 27);
-        assert_eq!(flightroute_result["origin_airport_iata_code"], "PMI");
-        assert_eq!(flightroute_result["origin_airport_icao_code"], "LEPA");
-        assert_eq!(flightroute_result["origin_airport_latitude"], 39.551701);
-        assert_eq!(flightroute_result["origin_airport_longitude"], 2.73881);
+        assert_eq!(flightroute_result["origin"]["country_name"], "Spain");
+        assert_eq!(flightroute_result["origin"]["elevation"], 27);
+        assert_eq!(flightroute_result["origin"]["country_iso_name"], "ES");
+        assert_eq!(flightroute_result["origin"]["country_name"], "Spain");
+        assert_eq!(flightroute_result["origin"]["elevation"], 27);
+        assert_eq!(flightroute_result["origin"]["iata_code"], "PMI");
+        assert_eq!(flightroute_result["origin"]["icao_code"], "LEPA");
+        assert_eq!(flightroute_result["origin"]["latitude"], 39.551701);
+        assert_eq!(flightroute_result["origin"]["longitude"], 2.73881);
         assert_eq!(
-            flightroute_result["origin_airport_municipality"],
+            flightroute_result["origin"]["municipality"],
             "Palma De Mallorca"
         );
         assert_eq!(
-            flightroute_result["origin_airport_name"],
+            flightroute_result["origin"]["name"],
             "Palma de Mallorca Airport"
         );
 
-        assert!(flightroute_result
-            .get("midpoint_airport_country_iso_name")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_country_name")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_elevation")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_iata_code")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_icao_code")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_latitude")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_longitude")
-            .is_none());
-        assert!(flightroute_result
-            .get("midpoint_airport_municipality")
-            .is_none());
-        assert!(flightroute_result.get("midpoint_airport_name").is_none());
+        assert!(result.get("midpoint").is_none());
 
+        assert_eq!(flightroute_result["destination"]["country_iso_name"], "GB");
         assert_eq!(
-            flightroute_result["destination_airport_country_iso_name"],
-            "GB"
-        );
-        assert_eq!(
-            flightroute_result["destination_airport_country_name"],
+            flightroute_result["destination"]["country_name"],
             "United Kingdom"
         );
-        assert_eq!(flightroute_result["destination_airport_elevation"], 622);
-        assert_eq!(flightroute_result["destination_airport_iata_code"], "BRS");
-        assert_eq!(flightroute_result["destination_airport_icao_code"], "EGGD");
+        assert_eq!(flightroute_result["destination"]["elevation"], 622);
+        assert_eq!(flightroute_result["destination"]["iata_code"], "BRS");
+        assert_eq!(flightroute_result["destination"]["icao_code"], "EGGD");
+        assert_eq!(flightroute_result["destination"]["latitude"], 51.382702);
+        assert_eq!(flightroute_result["destination"]["longitude"], -2.71909);
+        assert_eq!(flightroute_result["destination"]["municipality"], "Bristol");
+        assert_eq!(flightroute_result["destination"]["name"], "Bristol Airport");
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_aircraft_and_midpoint_callsign() {
+        start_server().await;
+        let mode_s = "A6D27B";
+        let callsign = "QFA031";
+        let url = format!(
+            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            get_api_version(),
+            mode_s,
+            callsign
+        );
+        let resp = reqwest::get(url).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        let aircraft_result = result.get("aircraft").unwrap();
+
+        assert_eq!(aircraft_result["icao_type"], "CRJ7");
+        assert_eq!(aircraft_result["manufacturer"], "Bombardier");
+        assert_eq!(aircraft_result["mode_s"], mode_s);
+        assert_eq!(aircraft_result["n_number"], "N539GJ");
+        assert_eq!(aircraft_result["registered_owner"], "United Express");
+        assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
         assert_eq!(
-            flightroute_result["destination_airport_latitude"],
-            51.382702
+            aircraft_result["registered_owner_country_name"],
+            "United States"
         );
         assert_eq!(
-            flightroute_result["destination_airport_longitude"],
-            -2.71909
+            aircraft_result["registered_owner_operator_flag_code"],
+            "GJS"
         );
+        assert_eq!(aircraft_result["type"], "CRJ 700 702");
+
+        let flightroute_result = result.get("flightroute");
+        assert!(flightroute_result.is_some());
+        let flightroute_result = flightroute_result.unwrap();
+        assert_eq!(flightroute_result["callsign"], callsign.to_uppercase());
         assert_eq!(
-            flightroute_result["destination_airport_municipality"],
-            "Bristol"
+            flightroute_result["origin"]["country_iso_name"],
+            "AU".to_uppercase()
         );
+        assert_eq!(flightroute_result["origin"]["country_name"], "Australia");
+        assert_eq!(flightroute_result["origin"]["elevation"], 21);
+        assert_eq!(flightroute_result["origin"]["iata_code"], "SYD");
+        assert_eq!(flightroute_result["origin"]["icao_code"], "YSSY");
+        assert_eq!(flightroute_result["origin"]["latitude"], -33.94609832763672);
+        assert_eq!(flightroute_result["origin"]["longitude"], 151.177001953125);
+        assert_eq!(flightroute_result["origin"]["municipality"], "Sydney");
         assert_eq!(
-            flightroute_result["destination_airport_name"],
-            "Bristol Airport"
+            flightroute_result["origin"]["name"],
+            "Sydney Kingsford Smith International Airport"
+        );
+
+        assert_eq!(
+            flightroute_result["midpoint"]["country_iso_name"],
+            "SG".to_uppercase()
+        );
+        assert_eq!(flightroute_result["midpoint"]["country_name"], "Singapore");
+        assert_eq!(flightroute_result["midpoint"]["elevation"], 22);
+        assert_eq!(flightroute_result["midpoint"]["iata_code"], "SIN");
+        assert_eq!(flightroute_result["midpoint"]["icao_code"], "WSSS");
+        assert_eq!(flightroute_result["midpoint"]["latitude"], 1.35019);
+        assert_eq!(flightroute_result["midpoint"]["longitude"], 103.994003);
+        assert_eq!(flightroute_result["midpoint"]["municipality"], "Singapore");
+        assert_eq!(
+            flightroute_result["midpoint"]["name"],
+            "Singapore Changi Airport"
+        );
+
+        assert_eq!(flightroute_result["destination"]["country_iso_name"], "GB");
+        assert_eq!(
+            flightroute_result["destination"]["country_name"],
+            "United Kingdom"
+        );
+        assert_eq!(flightroute_result["destination"]["elevation"], 83);
+        assert_eq!(flightroute_result["destination"]["iata_code"], "LHR");
+        assert_eq!(flightroute_result["destination"]["icao_code"], "EGLL");
+        assert_eq!(flightroute_result["destination"]["latitude"], 51.4706);
+        assert_eq!(flightroute_result["destination"]["longitude"], -0.461941);
+        assert_eq!(flightroute_result["destination"]["municipality"], "London");
+        assert_eq!(
+            flightroute_result["destination"]["name"],
+            "London Heathrow Airport"
         );
     }
 
@@ -526,7 +620,7 @@ mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
     }
 
@@ -541,7 +635,7 @@ mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "A061E4");
     }
 
@@ -556,7 +650,7 @@ mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid n_number: A1235F");
     }
 
@@ -571,7 +665,7 @@ mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "N925XJ");
     }
 
@@ -586,7 +680,7 @@ mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "");
     }
 
@@ -601,7 +695,7 @@ mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid modeS: JCD2D3");
     }
 
@@ -613,7 +707,7 @@ mod tests {
         let resp = reqwest::get(url).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(result["uptime"], 1);
     }
@@ -630,7 +724,7 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
 
         assert_eq!(
             result,
@@ -650,14 +744,14 @@ mod tests {
         // 119 request is fine
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert!(result.get("uptime").is_some());
 
         // 120+ request is rate limited
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
     }
 
@@ -673,13 +767,13 @@ mod tests {
         // 239th request is rate limited
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 59 seconds");
 
         // 240+ request is rate limited for 300 seconds
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<PostResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
     }
 }

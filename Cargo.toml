@@ -1,6 +1,6 @@
 [package]
 name = "adsbdb"
-version = "0.0.8"
+version = "0.0.9"
 edition = "2021"
 authors = ["Jack Wills <email@mrjackwills.com>"]
 description = "aircraft & flightroute api"
@@ -10,8 +10,8 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0"
-async-trait = "0.1.53"
-axum ="0.5.6"
+async-trait = "0.1.56"
+axum ="0.5.7"
 dotenv = "0.15.0"
 openssl = { version = '0.10', features = ["vendored"] }
 lazy_static = "1.4.0"

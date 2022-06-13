@@ -21,7 +21,7 @@ jobs:
           use-cross: true
           command: build
           args: --target x86_64-unknown-linux-musl --release
-      - name: compress aarch64 binary
+      - name: compress x86_64-unknown-linux-musl binary
         run: tar -C target/x86_64-unknown-linux-musl/release -czf ./adsbdb_linux_x86_64_musl.tar.gz adsbdb
 
       - name: Release

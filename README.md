@@ -31,7 +31,10 @@
 		The flight route data is the work of David Taylor, Edinburgh and Jim Mason, Glasgow, and may not be copied, published, or incorporated into other databases without the explicit permission of David J Taylor, Edinburgh.
 	</li>
 	<li>
-	<a href="https://github.com/guillaumemichel/icao-nnumber_converter" target='_blank' rel='noopener noreferrer'>Guillaume Michel</a>, for the icao to n-number conversion 
+		<a href="https://github.com/guillaumemichel/icao-nnumber_converter" target='_blank' rel='noopener noreferrer'>Guillaume Michel</a>, for the icao to n-number conversion 
+	</li>
+	<li>
+		<a href='https://www.airport-data.com' target='_blank' rel='noopener noreferrer'>airport-data</a> for aircraft photographs
 	</li>
 </p>
 <hr>
@@ -93,25 +96,30 @@ Convert from N-Number string to Mode_S string
 	"response": {
 		"flightroute":{
 			"callsign": string,
-			"origin_airport_country_iso_name": string,
-			"origin_airport_country_name": string,
-			"origin_airport_elevation": number,
-			"origin_airport_iata_code": string,
-			"origin_airport_icao_code": string,
-			"origin_airport_latitude": number,
-			"origin_airport_longitude": number,
-			"origin_airport_municipality": string,
-			"origin_airport_name": string,
 
-			"destination_airport_country_iso_name": string,
-			"destination_airport_country_name": string,
-			"destination_airport_elevation": number,
-			"destination_airport_iata_code": string,
-			"destination_airport_icao_code": string,
-			"destination_airport_latitude": number,
-			"destination_airport_longitude": number,
-			"destination_airport_municipality": string,
-			"destination_airport_name": string
+			"origin": {
+				"country_iso_name": string,
+				"country_name": string,
+				"elevation": number,
+				"iata_code": string,
+				"icao_code": string,
+				"latitude": number,
+				"longitude": number,
+				"municipality": string,
+				"name": string,
+			},
+
+			"destination": {
+				"country_iso_name": string,
+				"country_name": string,
+				"elevation": number,
+				"iata_code": string,
+				"icao_code": string,
+				"latitude": number,
+				"longitude": number,
+				"municipality": string,
+				"name": string,
+			}
 		}
 	}
 }
@@ -119,17 +127,19 @@ Convert from N-Number string to Mode_S string
 
 For a small number of flightroutes, midpoints are also included
 ```json
-{
-	"midpoint_airport_country_iso_name": string,
-	"midpoint_airport_country_name": string,
-	"midpoint_airport_elevation": number,
-	"midpoint_airport_iata_code": string,
-	"midpoint_airport_icao_code": string,
-	"midpoint_airport_latitude": number,
-	"midpoint_airport_longitude": number,
-	"midpoint_airport_municipality": string,
-	"midpoint_airport_name": string
-}
+	{
+		"midpoint": {
+				"country_iso_name": string,
+				"country_name": string,
+				"elevation": number,
+				"iata_code": string,
+				"icao_code": string,
+				"latitude": number,
+				"longitude": number,
+				"municipality": string,
+				"name": string,
+			}
+	}
 ```
 
 Unknown callsign return status 404 with
@@ -143,6 +153,7 @@ Unknown callsign return status 404 with
 ```json
 {
 	"response": {
+		
 		"aircraft":{
 			"type": string,
 			"icao_type": string,
@@ -156,26 +167,33 @@ Unknown callsign return status 404 with
 			"url_photo":string || null,
 			"url_photo_thumbnail":string || null
 		},
+
 		"flightroute":{
 			"callsign": string,
-			"origin_airport_country_iso_name": string,
-			"origin_airport_country_name": string,
-			"origin_airport_elevation": number,
-			"origin_airport_iata_code": string,
-			"origin_airport_icao_code": string,
-			"origin_airport_latitude": number,
-			"origin_airport_longitude": number,
-			"origin_airport_municipality": string,
-			"origin_airport_name": string,
-			"destination_airport_country_iso_name": string,
-			"destination_airport_country_name": string,
-			"destination_airport_elevation": number,
-			"destination_airport_iata_code": string,
-			"destination_airport_icao_code": string,
-			"destination_airport_latitude": number,
-			"destination_airport_longitude": number,
-			"destination_airport_municipality": string,
-			"destination_airport_name": string
+
+			"origin": {
+				"country_iso_name": string,
+				"country_name": string,
+				"elevation": number,
+				"iata_code": string,
+				"icao_code": string,
+				"latitude": number,
+				"longitude": number,
+				"municipality": string,
+				"name": string,
+			},
+
+			"destination": {
+				"country_iso_name": string,
+				"country_name": string,
+				"elevation": number,
+				"iata_code": string,
+				"icao_code": string,
+				"latitude": number,
+				"longitude": number,
+				"municipality": string,
+				"name": string,
+			}
 		}
 	}
 }
