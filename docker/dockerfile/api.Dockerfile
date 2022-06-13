@@ -20,14 +20,16 @@ RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
 WORKDIR /app
 
 # Download latest release from github
+RUN wget https://www.github.com/mrjackwills/adsbdb/releases/latest/download/adsbdb_linux_x86_64_musl.tar.gz \
+	&& tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm adsbdb_linux_x86_64_musl.tar.gz \
+	&& mkdir /healthcheck \
+	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb
 
-RUN wget https://www.github.com/mrjackwills/adsbdb/releases/latest/download/adsbdb_linux_x86_64_musl.tar.gz && tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm xzvf adsbdb_linux_x86_64_musl.tar.gz &&  mkdir /healthcheck
-
-COPY --chown=${DOCKER_APP_USER} docker/healthcheck/health_api.sh /healthcheck/
-
+# Setup api healthcheck
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_api.sh /healthcheck/
 RUN chmod +x /healthcheck/health_api.sh
 
-# Use an unprivileged user.
+# Use an unprivileged user
 USER ${DOCKER_APP_USER}
 
 CMD ["/app/adsbdb"]
