@@ -549,8 +549,8 @@ mod tests {
     async fn http_api_get_callsign_cached() {
         let callsign = "TOM35MR".to_owned();
         let application_state = get_application_state().await;
-		let path = Callsign::new(callsign.clone()).unwrap();
-		get_callsign(application_state.clone(), path).await.unwrap();
+        let path = Callsign::new(callsign.clone()).unwrap();
+        get_callsign(application_state.clone(), path).await.unwrap();
 
         let key = RedisKey::Callsign(callsign.clone());
         let result: Result<String, RedisError> = application_state
@@ -600,13 +600,13 @@ mod tests {
         assert_eq!(ttl, 604800);
     }
 
-	#[tokio::test]
+    #[tokio::test]
     // Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
     async fn http_api_get_midpoint_callsign_cached() {
         let callsign = "QFA031".to_owned();
         let application_state = get_application_state().await;
-		let path = Callsign::new(callsign.clone()).unwrap();
-		get_callsign(application_state.clone(), path).await.unwrap();
+        let path = Callsign::new(callsign.clone()).unwrap();
+        get_callsign(application_state.clone(), path).await.unwrap();
 
         let key = RedisKey::Callsign(callsign.clone());
         let result: Result<String, RedisError> = application_state
@@ -622,25 +622,40 @@ mod tests {
 
         assert_eq!(result.origin_airport_country_iso_name, "AU");
         assert_eq!(result.origin_airport_country_name, "Australia");
-        assert_eq!(result.origin_airport_elevation,21);
+        assert_eq!(result.origin_airport_elevation, 21);
         assert_eq!(result.origin_airport_iata_code, "SYD");
         assert_eq!(result.origin_airport_icao_code, "YSSY");
-        assert_eq!(result.origin_airport_latitude,-33.94609832763672);
+        assert_eq!(result.origin_airport_latitude, -33.94609832763672);
         assert_eq!(result.origin_airport_longitude, 151.177001953125);
         assert_eq!(result.origin_airport_municipality, "Sydney");
-        assert_eq!(result.origin_airport_name, "Sydney Kingsford Smith International Airport");
+        assert_eq!(
+            result.origin_airport_name,
+            "Sydney Kingsford Smith International Airport"
+        );
 
-		assert_eq!(result.midpoint_airport_country_iso_name, Some("SG".to_owned()));
-        assert_eq!(result.midpoint_airport_country_name, Some("Singapore".to_owned()));
+        assert_eq!(
+            result.midpoint_airport_country_iso_name,
+            Some("SG".to_owned())
+        );
+        assert_eq!(
+            result.midpoint_airport_country_name,
+            Some("Singapore".to_owned())
+        );
         assert_eq!(result.midpoint_airport_elevation, Some(22));
         assert_eq!(result.midpoint_airport_iata_code, Some("SIN".to_owned()));
         assert_eq!(result.midpoint_airport_icao_code, Some("WSSS".to_owned()));
         assert_eq!(result.midpoint_airport_latitude, Some(1.35019));
         assert_eq!(result.midpoint_airport_longitude, Some(103.994003));
-        assert_eq!(result.midpoint_airport_municipality, Some("Singapore".to_owned()));
-        assert_eq!(result.midpoint_airport_name, Some("Singapore Changi Airport".to_owned()));
+        assert_eq!(
+            result.midpoint_airport_municipality,
+            Some("Singapore".to_owned())
+        );
+        assert_eq!(
+            result.midpoint_airport_name,
+            Some("Singapore Changi Airport".to_owned())
+        );
 
-		assert_eq!(result.destination_airport_country_iso_name, "GB");
+        assert_eq!(result.destination_airport_country_iso_name, "GB");
         assert_eq!(result.destination_airport_country_name, "United Kingdom");
         assert_eq!(result.destination_airport_elevation, 83);
         assert_eq!(result.destination_airport_iata_code, "LHR");

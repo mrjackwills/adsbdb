@@ -108,7 +108,7 @@ WHERE
             .bind(prefix)
             .fetch_optional(db)
             .await;
-		Ok(abc.unwrap())
+        Ok(abc.unwrap())
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
@@ -133,7 +133,8 @@ WHERE
         let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
             .bind(photo.image.to_owned())
             .fetch_one(&mut *transaction)
-            .await.unwrap();
+            .await
+            .unwrap();
 
         let query = r#"
 UPDATE
