@@ -1,53 +1,33 @@
-###########
-# Builder #
-###########
-
-FROM rust:latest AS builder
-
-RUN rustup target add x86_64-unknown-linux-musl
-RUN apt-get update && apt-get install -y musl-tools musl-dev
-RUN update-ca-certificates
-
-ENV DOCKER_APP_USER=adsbdb
-ENV UID=10001
-
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    "${DOCKER_APP_USER}"
-
-WORKDIR /adsbdb
-
-COPY Cargo.* ./
-COPY ./src ./src
-
-RUN cargo build --target x86_64-unknown-linux-musl --release
-
-############
-# App only #
-############
-
 FROM alpine:3.16
 
-# Import from builder.
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
+ARG DOCKER_GUID=1000 \
+	DOCKER_UID=1000 \
+	DOCKER_TIME_CONT=America \
+	DOCKER_TIME_CITY=New_York \
+	DOCKER_APP_USER=app_user \
+	DOCKER_APP_GROUP=app_group
 
-WORKDIR /adsbdb
+ENV VIRT=".build_packages"
+ENV TZ=${DOCKER_TIME_CONT}/${DOCKER_TIME_CITY}
 
-RUN mkdir /healthcheck
+RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
+	&& adduser -u ${DOCKER_UID} -S -G ${DOCKER_APP_GROUP} ${DOCKER_APP_USER} \
+	&& apk --no-cache add --virtual ${VIRT} tzdata \
+	&& cp /usr/share/zoneinfo/${TZ} /etc/localtime \
+	&& echo ${TZ} > /etc/timezone \
+	&& apk del ${VIRT}
+
+WORKDIR /app
+
+# Download latest release from github
+
+RUN wget https://www.github.com/mrjackwills/adsbdb/releases/latest/download/adsbdb_linux_x86_64_musl.tar.gz && tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm xzvf adsbdb_linux_x86_64_musl.tar.gz &&  mkdir /healthcheck
 
 COPY --chown=${DOCKER_APP_USER} docker/healthcheck/health_api.sh /healthcheck/
+
 RUN chmod +x /healthcheck/health_api.sh
 
-# Copy our build
-COPY --from=builder /adsbdb/target/x86_64-unknown-linux-musl/release/adsbdb ./
-
 # Use an unprivileged user.
-USER ${DOCKER_APP_USER}:${DOCKER_APP_USER}
+USER ${DOCKER_APP_USER}
 
-CMD ["/adsbdb/adsbdb"]
+CMD ["/app/adsbdb"]
