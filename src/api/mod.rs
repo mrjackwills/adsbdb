@@ -94,12 +94,18 @@ fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr
 // Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting<B>(req: Request<B>, next: Next<B>) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
-    // TODO if some else internal error
-    let state: &ApplicationState = req.extensions().get().unwrap();
-    let ip = get_ip(req.headers(), addr);
-    let rate_limit_key = RedisKey::RateLimit(ip);
-    check_rate_limit(&state.redis, rate_limit_key).await?;
-    Ok(next.run(req).await)
+    match req.extensions().get::<ApplicationState>() {
+		Some(state) => {
+			let ip = get_ip(req.headers(), addr);
+			let rate_limit_key = RedisKey::RateLimit(ip);
+			check_rate_limit(&state.redis, rate_limit_key).await?;
+			Ok(next.run(req).await)
+		}
+		None => {
+			Err(AppError::Internal("Unable to get application_state".to_owned()))
+
+		}
+	}
 }
 
 /// Create a /v[x] prefix for all api routes, where x is the current major version
@@ -252,7 +258,7 @@ impl IntoResponse for AppError {
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     use crate::db_postgres;
@@ -278,7 +284,7 @@ mod tests {
     }
 
     // Get basic api params, also flushes all redis keys
-    async fn setup() -> TestSetup {
+    pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = db_redis::get_connection(&app_env).await.unwrap();
@@ -296,7 +302,7 @@ mod tests {
     }
 
     async fn start_server() -> TestSetup {
-        let setup = setup().await;
+        let setup = test_setup().await;
 
         let redis = Arc::clone(&setup.redis);
         let postgres = setup.postgres.clone();
