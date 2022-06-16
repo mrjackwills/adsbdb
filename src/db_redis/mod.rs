@@ -4,7 +4,7 @@ use redis::{
     RedisConnectionInfo, RedisError, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fmt, net::IpAddr, sync::Arc};
+use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
@@ -99,8 +99,10 @@ pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
         addr: ConnectionAddr::Tcp(app_env.redis_host.to_owned(), app_env.redis_port),
     };
     let client = redis::Client::open(connection_info)?;
-    let con = client.get_async_connection().await?;
-    Ok(con)
+    match tokio::time::timeout(Duration::from_secs(10), client.get_async_connection()).await {
+        Ok(con) => Ok(con?),
+        Err(_) => Err(AppError::Internal("Unable to connect to redis".to_owned())),
+    }
 }
 
 #[derive(Debug, Clone)]
