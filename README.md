@@ -20,6 +20,11 @@
 </p>
 
 <hr>
+
+<p align="center">
+	check <a href='https://twitter.com/adsbdb' target='_blank' rel='noopener noreferrer'>adsbdb twitter</a> for any status updates
+</p>
+
 <p>
 	Please report any incorrect data to the <a href="https://github.com/mrjackwills/adsbdb/issues/new/choose" target='_blank' rel='noopener noreferrer'>issues page</a>, with the <strong>Data</strong> tag.<br>
 	<br>
