@@ -95,17 +95,16 @@ fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr
 async fn rate_limiting<B>(req: Request<B>, next: Next<B>) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
     match req.extensions().get::<ApplicationState>() {
-		Some(state) => {
-			let ip = get_ip(req.headers(), addr);
-			let rate_limit_key = RedisKey::RateLimit(ip);
-			check_rate_limit(&state.redis, rate_limit_key).await?;
-			Ok(next.run(req).await)
-		}
-		None => {
-			Err(AppError::Internal("Unable to get application_state".to_owned()))
-
-		}
-	}
+        Some(state) => {
+            let ip = get_ip(req.headers(), addr);
+            let rate_limit_key = RedisKey::RateLimit(ip);
+            check_rate_limit(&state.redis, rate_limit_key).await?;
+            Ok(next.run(req).await)
+        }
+        None => Err(AppError::Internal(
+            "Unable to get application_state".to_owned(),
+        )),
+    }
 }
 
 /// Create a /v[x] prefix for all api routes, where x is the current major version

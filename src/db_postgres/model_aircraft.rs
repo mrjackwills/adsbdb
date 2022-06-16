@@ -147,10 +147,9 @@ WHERE
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
 mod tests {
-    use crate::{api::tests::test_setup};
-	use super::*;
+    use super::*;
+    use crate::api::tests::test_setup;
 
-  
     #[tokio::test]
     async fn model_aircraft_photo_transaction() {
         let test_setup = test_setup().await;
@@ -213,7 +212,7 @@ mod tests {
 
         // Cancel transaction, so can continually re-test with this route
         transaction.rollback().await.unwrap();
-		
-		test_setup.finish().await;
+
+        test_setup.finish().await;
     }
 }

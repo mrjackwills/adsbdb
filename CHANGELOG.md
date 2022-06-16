@@ -2,7 +2,7 @@
 + Add twitter links to Readme.md & site, [904259a21018e34e5b73696758af574a2e17f768]
 
 ### Features
-+ Return Result<(), E> in main, [8ca3ad3e3ffb0dc8dd4962042c3989902b7dbb68]
++ Return Result<(), AppError> in main(), [8ca3ad3e3ffb0dc8dd4962042c3989902b7dbb68]
 + Use match in ratelimit middleware, to remove unwrap(), [2ea55d12d733be51d210cdceb2a8ef82d1a7bea6]
 + Add connection timeouts to postgres & redis, [5e242efa7883329efe95b7659a4cf81a63e3a8d3]
 + create_release.sh update api.Dockerfile to download latest build from github, [9f29591d0018a499a982e380738bdff676dff456]
