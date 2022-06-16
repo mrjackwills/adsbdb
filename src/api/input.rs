@@ -83,7 +83,7 @@ impl NNumber {
     }
 }
 impl Validate for NNumber {
-    /// Make sure that input is an uppercase valid n_number string, validitiy is N[a-z0-9 (but not I or O)]{1-5}
+    /// Make sure that input is an uppercase valid n_number string, validitiy is N[0-9 a-z (but not I or O)]{1-5}
     fn validate(input: String) -> Result<String, AppError> {
         let input = input.to_uppercase();
         if input.starts_with('N')

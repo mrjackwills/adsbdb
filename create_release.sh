@@ -141,6 +141,9 @@ update_version_number_in_files () {
 
 	# update endpoint in website html
 	sed -i -r -E "s=https://api.adsbdb.com/v[0-9]+=https://api.adsbdb.com/v${MAJOR}=g" ./site/index.html
+
+	# Update version number on api dockerfile, to download latest release from github
+	sed -i -r -E "s=download/v[0-9]+.[0-9]+.[0-9]+=download/v${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dockerfile/api.Dockerfile
 }
 
 # Work out the current version, based on git tags

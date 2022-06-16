@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
-#[allow(unused)]
+#[cfg(not(test))]
 use tracing::error;
 
 use crate::{

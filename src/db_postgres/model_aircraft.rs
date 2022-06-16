@@ -31,16 +31,6 @@ struct AircraftPhoto {
     aircraft_photo_id: i64,
 }
 
-// Enable conversion from redis string into struct
-// Need to re-look at it, as issues with Option<Option<T>>
-// impl FromRedisValue for ModelAircraft {
-//     fn from_redis_value(v: &Value) -> RedisResult<Self> {
-//         let value: String = from_redis_value(v)?;
-//         let aircraft: ModelAircraft = serde_json::from_str(&value).unwrap();
-//         Ok(aircraft)
-//     }
-// }
-
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
     fn get_query() -> &'static str {
@@ -102,13 +92,12 @@ WHERE
         };
 
         let query = Self::get_query();
-        let abc = sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(query)
             .bind(&mode_s.to_string())
             .bind(n_number)
             .bind(prefix)
             .fetch_optional(db)
-            .await;
-        Ok(abc.unwrap())
+            .await?)
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
@@ -158,20 +147,14 @@ WHERE
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
 mod tests {
-    use crate::{db_postgres, parse_env::AppEnv};
-
-    async fn setup() -> (AppEnv, PgPool) {
-        let app_env = AppEnv::get_env();
-        let db = db_postgres::db_pool(&app_env).await.unwrap();
-        (app_env, db)
-    }
-
     use super::*;
+    use crate::api::tests::test_setup;
+
     #[tokio::test]
     async fn model_aircraft_photo_transaction() {
-        let setup = setup().await;
+        let test_setup = test_setup().await;
 
-        let mut transaction = setup.1.begin().await.unwrap();
+        let mut transaction = test_setup.postgres.begin().await.unwrap();
 
         let photodata = PhotoData {
             image: "example.jpg".to_owned(),
@@ -229,5 +212,7 @@ mod tests {
 
         // Cancel transaction, so can continually re-test with this route
         transaction.rollback().await.unwrap();
+
+        test_setup.finish().await;
     }
 }

@@ -49,16 +49,6 @@ pub struct ModelFlightroute {
     pub destination_airport_name: String,
 }
 
-// Disabled due to issues when using Option<Option<T>>, look back into at a later date
-// Enable conversion from redis string into struct
-// impl FromRedisValue for ModelFlightroute {
-//     fn from_redis_value(v: &Value) -> RedisResult<Self> {
-//         let value: String = from_redis_value(v)?;
-//         let aircraft: ModelFlightroute = serde_json::from_str(&value).unwrap();
-//         Ok(aircraft)
-//     }
-// }
-
 #[async_trait]
 impl Model<Self> for ModelFlightroute {
     async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {

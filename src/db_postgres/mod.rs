@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::{ConnectOptions, PgPool};
@@ -30,7 +32,14 @@ pub async fn db_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
         options.disable_statement_logging();
     }
 
-    let pool = sqlx::PgPool::connect_with(options).await?;
-    migrations::migrations(&pool).await?;
-    Ok(pool)
+    match tokio::time::timeout(Duration::from_secs(10), sqlx::PgPool::connect_with(options)).await {
+        Ok(con) => {
+            let pool = con?;
+            migrations::migrations(&pool).await?;
+            Ok(pool)
+        }
+        Err(_) => Err(AppError::Internal(
+            "Unable to connect to postgres".to_owned(),
+        )),
+    }
 }
