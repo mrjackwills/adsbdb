@@ -20,7 +20,8 @@ RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
 WORKDIR /app
 
 # Download latest release from github
-RUN wget https://www.github.com/mrjackwills/adsbdb/releases/latest/download/adsbdb_linux_x86_64_musl.tar.gz \
+# This is maybe a bad idea?
+RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.9/adsbdb_linux_x86_64_musl.tar.gz \
 	&& tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm adsbdb_linux_x86_64_musl.tar.gz \
 	&& mkdir /healthcheck \
 	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb
