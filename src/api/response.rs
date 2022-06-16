@@ -71,7 +71,7 @@ pub struct Airport {
 }
 
 impl Airport {
-    fn from(flightroute: &ModelFlightroute) -> (Self, Option<Self>, Self) {
+    fn from_model(flightroute: &ModelFlightroute) -> (Self, Option<Self>, Self) {
         let origin = Self {
             name: flightroute.origin_airport_name.to_owned(),
             country_iso_name: flightroute.origin_airport_country_iso_name.to_owned(),
@@ -144,11 +144,11 @@ pub struct ResponseFlightRoute {
 }
 
 impl ResponseFlightRoute {
-    pub fn from(op_fl: Option<ModelFlightroute>) -> Option<Self> {
-        if let Some(fl) = op_fl {
-            let airports = Airport::from(&fl);
+    pub fn from_model(op_flightroute: Option<ModelFlightroute>) -> Option<Self> {
+        if let Some(flightroute) = op_flightroute.as_ref() {
+            let airports = Airport::from_model(flightroute);
             Some(Self {
-                callsign: fl.callsign,
+                callsign: flightroute.callsign.to_owned(),
                 origin: airports.0,
                 midpoint: airports.1,
                 destination: airports.2,

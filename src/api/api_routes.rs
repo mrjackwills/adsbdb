@@ -98,7 +98,7 @@ pub async fn aircraft_get(
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: Some(ResponseAircraft::from(a)),
-                    flightroute: ResponseFlightRoute::from(flightroute),
+                    flightroute: ResponseFlightRoute::from_model(flightroute),
                 }),
             ))
         } else {
@@ -132,7 +132,7 @@ pub async fn callsign_get(
             axum::http::StatusCode::OK,
             ResponseJson::new(AircraftAndRoute {
                 aircraft: None,
-                flightroute: ResponseFlightRoute::from(Some(a)),
+                flightroute: ResponseFlightRoute::from_model(Some(a)),
             }),
         ))
     } else {
