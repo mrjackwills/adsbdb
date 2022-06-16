@@ -102,13 +102,12 @@ WHERE
         };
 
         let query = Self::get_query();
-        let abc = sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(query)
             .bind(&mode_s.to_string())
             .bind(n_number)
             .bind(prefix)
             .fetch_optional(db)
-            .await;
-        Ok(abc.unwrap())
+            .await?)
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
