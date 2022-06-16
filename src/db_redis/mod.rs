@@ -9,29 +9,14 @@ use tokio::sync::Mutex;
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 
-// See if give value is in cache, if so, extend ttl, and deserialize into T
-// pub async fn get_cache<T: DeserializeOwned + FromRedisValue>(
-//     con: &Arc<Mutex<Connection>>,
-//     key: &RedisKey,
-// ) -> Result<Option<T>, AppError> {
-//     let p: Option<T> = con.lock().await.get(key.to_string()).await?;
-//     if let Some(result) = p {
-//         // extend ttl if cache exists
-//         con.lock().await.expire(key.to_string(), ONE_WEEK).await?;
-//         Ok(Some(result))
-//     } else {
-//         Ok(None)
-//     }
-// }
-
 // Convert a redis string result into a struct/None
-// If the value is nil, returns as Some("none")
+// If the value is null, returns as Some("none")
 fn optional_null<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
     let valid: Result<String, RedisError> = from_redis_value(v);
     match valid {
         Ok(valid_string) => {
             let data: T = serde_json::from_str(&valid_string)?;
-            // This can be either "null" or a Model
+            // This can be either "null" or a Model struct
             Ok(Some(data))
         }
         Err(e) => match e.kind() {
@@ -48,7 +33,7 @@ pub async fn get_cache<T: DeserializeOwned>(
 ) -> Result<Option<T>, AppError> {
     let value: Value = con.lock().await.get(key.to_string()).await?;
     let serialized_data: Option<T> = optional_null(&value)?;
-    // Can either by "null" or a model struct,
+    // Can either by "null" or a Model struct,
     if serialized_data.is_some() {
         con.lock().await.expire(key.to_string(), ONE_WEEK).await?;
     }

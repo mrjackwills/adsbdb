@@ -181,9 +181,6 @@ mod tests {
 
     const CALLSIGN: &str = "ANA460";
 
-    // with midpoint
-
-    // Also flushed redis of all keys!
     async fn get_application_state() -> Extension<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
