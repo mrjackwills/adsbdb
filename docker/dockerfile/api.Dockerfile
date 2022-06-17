@@ -21,7 +21,7 @@ WORKDIR /app
 
 # Download latest release from github
 # This is maybe a bad idea?
-RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.10/adsbdb_linux_x86_64_musl.tar.gz \
+RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.11/adsbdb_linux_x86_64_musl.tar.gz \
 	&& tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm adsbdb_linux_x86_64_musl.tar.gz \
 	&& mkdir /healthcheck \
 	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb
