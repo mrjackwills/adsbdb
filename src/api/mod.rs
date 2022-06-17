@@ -1,14 +1,19 @@
 use ::redis::{aio::Connection, RedisError};
+use http_body::Limited;
 use reqwest::Method;
 use sqlx::PgPool;
 use thiserror::Error;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    limit::RequestBodyLimitLayer,
+};
 
 use axum::{
-    extract::{ConnectInfo, ContentLengthLimit},
+    body::Body,
+    extract::ConnectInfo,
     handler::Handler,
     http::{HeaderMap, Request},
-    middleware::{self, from_extractor, Next},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
     Extension, Router,
@@ -142,7 +147,7 @@ impl fmt::Display for Routes {
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connection>>) {
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
-    let api_routes = Router::new()
+    let api_routes: Router<Limited<Body>> = Router::new()
         .route(&Routes::Aircraft.to_string(), get(api_routes::aircraft_get))
         .route(&Routes::Callsign.to_string(), get(api_routes::callsign_get))
         .route(&Routes::Online.to_string(), get(api_routes::online_get))
@@ -160,8 +165,8 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connectio
         .fallback(api_routes::fallback.into_service())
         .layer(
             ServiceBuilder::new()
+                .layer(RequestBodyLimitLayer::new(1024))
                 .layer(cors)
-                .layer(from_extractor::<ContentLengthLimit<(), 1024>>())
                 .layer(Extension(application_state))
                 .layer(middleware::from_fn(rate_limiting)),
         );
@@ -276,12 +281,6 @@ pub mod tests {
         pub redis: Arc<Mutex<Connection>>,
     }
 
-    impl TestSetup {
-        pub async fn finish(&self) {
-            self.postgres.close().await;
-        }
-    }
-
     // Get basic api params, also flushes all redis keys
     pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
@@ -333,7 +332,7 @@ pub mod tests {
     #[tokio::test]
     // test midpoint
     async fn http_mod_get_callsign() {
-        let test_setup = start_server().await;
+        start_server().await;
         let callsign = "TOM35MR";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
@@ -374,13 +373,11 @@ pub mod tests {
         assert_eq!(result["destination"]["longitude"], -2.71909);
         assert_eq!(result["destination"]["municipality"], "Bristol");
         assert_eq!(result["destination"]["name"], "Bristol Airport");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_callsign_with_midpoint() {
-        let test_setup = start_server().await;
+        start_server().await;
         let callsign = "QFA031";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
@@ -429,13 +426,11 @@ pub mod tests {
         assert_eq!(result["destination"]["longitude"], -0.461941);
         assert_eq!(result["destination"]["municipality"], "London");
         assert_eq!(result["destination"]["name"], "London Heathrow Airport");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_callsign_unknown() {
-        let test_setup = start_server().await;
+        start_server().await;
         let callsign = "ABABAB";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
@@ -446,13 +441,11 @@ pub mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let result = response.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "A6D27B";
         let url = format!(
             "http://127.0.0.1:8100{}/aircraft/{}",
@@ -479,13 +472,11 @@ pub mod tests {
         assert_eq!(result["type"], "CRJ 700 702");
         assert_eq!(result["url_photo"].to_string(), "null");
         assert_eq!(result["url_photo_thumbnail"].to_string(), "null");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft_and_callsign() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "A6D27B";
         let callsign = "TOM35MR";
         let url = format!(
@@ -558,13 +549,11 @@ pub mod tests {
         assert_eq!(flightroute_result["destination"]["longitude"], -2.71909);
         assert_eq!(flightroute_result["destination"]["municipality"], "Bristol");
         assert_eq!(flightroute_result["destination"]["name"], "Bristol Airport");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft_and_midpoint_callsign() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "A6D27B";
         let callsign = "QFA031";
         let url = format!(
@@ -648,13 +637,11 @@ pub mod tests {
             flightroute_result["destination"]["name"],
             "London Heathrow Airport"
         );
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft_unknown() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "ABABAB";
         let url = format!(
             "http://127.0.0.1:8100{}/aircraft/{}",
@@ -665,13 +652,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_n_number_ok() {
-        let test_setup = start_server().await;
+        start_server().await;
         let n_number = "n1235f";
         let url = format!(
             "http://127.0.0.1:8100{}/n-number/{}",
@@ -682,13 +667,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "A061E4");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_n_number_err() {
-        let test_setup = start_server().await;
+        start_server().await;
         let n_number = "a1235f";
         let url = format!(
             "http://127.0.0.1:8100{}/n-number/{}",
@@ -699,13 +682,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid n_number: A1235F");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_mode_s_ok() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "ACD2D3";
         let url = format!(
             "http://127.0.0.1:8100{}/mode-s/{}",
@@ -716,13 +697,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "N925XJ");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_mode_s_ok_empty() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "CCD2D3";
         let url = format!(
             "http://127.0.0.1:8100{}/mode-s/{}",
@@ -733,13 +712,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_mode_s_err() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "JCD2D3";
         let url = format!(
             "http://127.0.0.1:8100{}/mode-s/{}",
@@ -750,13 +727,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid modeS: JCD2D3");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_get_online() {
-        let test_setup = start_server().await;
+        start_server().await;
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         sleep(1000).await;
         let resp = reqwest::get(url).await.unwrap();
@@ -765,14 +740,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(result["uptime"], 1);
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     // 404 response
     async fn http_mod_get_unknown() {
-        let test_setup = start_server().await;
+        start_server().await;
 
         let version = get_api_version();
         let rand_route = "asdasjkaj9ahsddasdasd";
@@ -787,13 +760,11 @@ pub mod tests {
             result,
             format!("unknown endpoint: {}/{}", version, rand_route)
         );
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_rate_limit_small() {
-        let test_setup = start_server().await;
+        start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         for _ in 0..=118 {
@@ -812,13 +783,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
-
-        test_setup.finish().await;
     }
 
     #[tokio::test]
     async fn http_mod_rate_limit_big() {
-        let test_setup = start_server().await;
+        start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         for _ in 0..=238 {
@@ -836,7 +805,5 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
-
-        test_setup.finish().await;
     }
 }
