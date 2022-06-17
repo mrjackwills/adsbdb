@@ -1,3 +1,6 @@
+### Chores
++ Update sqlx to v0.6.0, [2a944a817cdea71291fb82f529e34c1977efc11e]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.10'>v0.0.10</a>
 ### 2022-06-16
 
