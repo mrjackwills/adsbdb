@@ -1,14 +1,19 @@
 use ::redis::{aio::Connection, RedisError};
+use http_body::Limited;
 use reqwest::Method;
 use sqlx::PgPool;
 use thiserror::Error;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    limit::RequestBodyLimitLayer,
+};
 
 use axum::{
-    extract::{ConnectInfo, ContentLengthLimit},
+    body::Body,
+    extract::ConnectInfo,
     handler::Handler,
     http::{HeaderMap, Request},
-    middleware::{self, from_extractor, Next},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
     Extension, Router,
@@ -142,7 +147,7 @@ impl fmt::Display for Routes {
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connection>>) {
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
-    let api_routes = Router::new()
+    let api_routes: Router<Limited<Body>> = Router::new()
         .route(&Routes::Aircraft.to_string(), get(api_routes::aircraft_get))
         .route(&Routes::Callsign.to_string(), get(api_routes::callsign_get))
         .route(&Routes::Online.to_string(), get(api_routes::online_get))
@@ -160,8 +165,8 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connectio
         .fallback(api_routes::fallback.into_service())
         .layer(
             ServiceBuilder::new()
+                .layer(RequestBodyLimitLayer::new(1024))
                 .layer(cors)
-                .layer(from_extractor::<ContentLengthLimit<(), 1024>>())
                 .layer(Extension(application_state))
                 .layer(middleware::from_fn(rate_limiting)),
         );
@@ -368,8 +373,6 @@ pub mod tests {
         assert_eq!(result["destination"]["longitude"], -2.71909);
         assert_eq!(result["destination"]["municipality"], "Bristol");
         assert_eq!(result["destination"]["name"], "Bristol Airport");
-
-        
     }
 
     #[tokio::test]
@@ -423,8 +426,6 @@ pub mod tests {
         assert_eq!(result["destination"]["longitude"], -0.461941);
         assert_eq!(result["destination"]["municipality"], "London");
         assert_eq!(result["destination"]["name"], "London Heathrow Airport");
-
-        
     }
 
     #[tokio::test]
@@ -440,8 +441,6 @@ pub mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let result = response.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
-
-        
     }
 
     #[tokio::test]
@@ -473,8 +472,6 @@ pub mod tests {
         assert_eq!(result["type"], "CRJ 700 702");
         assert_eq!(result["url_photo"].to_string(), "null");
         assert_eq!(result["url_photo_thumbnail"].to_string(), "null");
-
-        
     }
 
     #[tokio::test]
@@ -552,8 +549,6 @@ pub mod tests {
         assert_eq!(flightroute_result["destination"]["longitude"], -2.71909);
         assert_eq!(flightroute_result["destination"]["municipality"], "Bristol");
         assert_eq!(flightroute_result["destination"]["name"], "Bristol Airport");
-
-        
     }
 
     #[tokio::test]
@@ -642,8 +637,6 @@ pub mod tests {
             flightroute_result["destination"]["name"],
             "London Heathrow Airport"
         );
-
-        
     }
 
     #[tokio::test]
@@ -659,8 +652,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
-
-        
     }
 
     #[tokio::test]
@@ -676,8 +667,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "A061E4");
-
-        
     }
 
     #[tokio::test]
@@ -693,8 +682,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid n_number: A1235F");
-
-        
     }
 
     #[tokio::test]
@@ -710,8 +697,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "N925XJ");
-
-        
     }
 
     #[tokio::test]
@@ -727,8 +712,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "");
-
-        
     }
 
     #[tokio::test]
@@ -744,8 +727,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid modeS: JCD2D3");
-
-        
     }
 
     #[tokio::test]
@@ -759,8 +740,6 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(result["uptime"], 1);
-
-        
     }
 
     #[tokio::test]
@@ -781,8 +760,6 @@ pub mod tests {
             result,
             format!("unknown endpoint: {}/{}", version, rand_route)
         );
-
-        
     }
 
     #[tokio::test]
@@ -806,8 +783,6 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
-
-        
     }
 
     #[tokio::test]
@@ -830,7 +805,5 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
-
-        
     }
 }
