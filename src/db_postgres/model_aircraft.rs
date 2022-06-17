@@ -213,6 +213,5 @@ mod tests {
         // Cancel transaction, so can continually re-test with this route
         transaction.rollback().await.unwrap();
 
-        test_setup.finish().await;
     }
 }

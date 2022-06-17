@@ -276,12 +276,6 @@ pub mod tests {
         pub redis: Arc<Mutex<Connection>>,
     }
 
-    impl TestSetup {
-        pub async fn finish(&self) {
-            self.postgres.close().await;
-        }
-    }
-
     // Get basic api params, also flushes all redis keys
     pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
@@ -333,7 +327,7 @@ pub mod tests {
     #[tokio::test]
     // test midpoint
     async fn http_mod_get_callsign() {
-        let test_setup = start_server().await;
+        start_server().await;
         let callsign = "TOM35MR";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
@@ -375,12 +369,12 @@ pub mod tests {
         assert_eq!(result["destination"]["municipality"], "Bristol");
         assert_eq!(result["destination"]["name"], "Bristol Airport");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_callsign_with_midpoint() {
-        let test_setup = start_server().await;
+        start_server().await;
         let callsign = "QFA031";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
@@ -430,12 +424,12 @@ pub mod tests {
         assert_eq!(result["destination"]["municipality"], "London");
         assert_eq!(result["destination"]["name"], "London Heathrow Airport");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_callsign_unknown() {
-        let test_setup = start_server().await;
+        start_server().await;
         let callsign = "ABABAB";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
@@ -447,12 +441,12 @@ pub mod tests {
         let result = response.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "A6D27B";
         let url = format!(
             "http://127.0.0.1:8100{}/aircraft/{}",
@@ -480,12 +474,12 @@ pub mod tests {
         assert_eq!(result["url_photo"].to_string(), "null");
         assert_eq!(result["url_photo_thumbnail"].to_string(), "null");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft_and_callsign() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "A6D27B";
         let callsign = "TOM35MR";
         let url = format!(
@@ -559,12 +553,12 @@ pub mod tests {
         assert_eq!(flightroute_result["destination"]["municipality"], "Bristol");
         assert_eq!(flightroute_result["destination"]["name"], "Bristol Airport");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft_and_midpoint_callsign() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "A6D27B";
         let callsign = "QFA031";
         let url = format!(
@@ -649,12 +643,12 @@ pub mod tests {
             "London Heathrow Airport"
         );
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_aircraft_unknown() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "ABABAB";
         let url = format!(
             "http://127.0.0.1:8100{}/aircraft/{}",
@@ -666,12 +660,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_n_number_ok() {
-        let test_setup = start_server().await;
+        start_server().await;
         let n_number = "n1235f";
         let url = format!(
             "http://127.0.0.1:8100{}/n-number/{}",
@@ -683,12 +677,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "A061E4");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_n_number_err() {
-        let test_setup = start_server().await;
+        start_server().await;
         let n_number = "a1235f";
         let url = format!(
             "http://127.0.0.1:8100{}/n-number/{}",
@@ -700,12 +694,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid n_number: A1235F");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_mode_s_ok() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "ACD2D3";
         let url = format!(
             "http://127.0.0.1:8100{}/mode-s/{}",
@@ -717,12 +711,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "N925XJ");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_mode_s_ok_empty() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "CCD2D3";
         let url = format!(
             "http://127.0.0.1:8100{}/mode-s/{}",
@@ -734,12 +728,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_mode_s_err() {
-        let test_setup = start_server().await;
+        start_server().await;
         let mode_s = "JCD2D3";
         let url = format!(
             "http://127.0.0.1:8100{}/mode-s/{}",
@@ -751,12 +745,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "invalid modeS: JCD2D3");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_get_online() {
-        let test_setup = start_server().await;
+        start_server().await;
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         sleep(1000).await;
         let resp = reqwest::get(url).await.unwrap();
@@ -766,13 +760,13 @@ pub mod tests {
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(result["uptime"], 1);
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     // 404 response
     async fn http_mod_get_unknown() {
-        let test_setup = start_server().await;
+        start_server().await;
 
         let version = get_api_version();
         let rand_route = "asdasjkaj9ahsddasdasd";
@@ -788,12 +782,12 @@ pub mod tests {
             format!("unknown endpoint: {}/{}", version, rand_route)
         );
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_rate_limit_small() {
-        let test_setup = start_server().await;
+        start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         for _ in 0..=118 {
@@ -813,12 +807,12 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
 
-        test_setup.finish().await;
+        
     }
 
     #[tokio::test]
     async fn http_mod_rate_limit_big() {
-        let test_setup = start_server().await;
+        start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         for _ in 0..=238 {
@@ -837,6 +831,6 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
 
-        test_setup.finish().await;
+        
     }
 }
