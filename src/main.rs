@@ -22,7 +22,7 @@ fn setup_tracing(app_envs: &AppEnv) {
         Level::INFO
     };
 
-	let logfile = tracing_appender::rolling::never(&app_envs.location_logs, "api.log");
+    let logfile = tracing_appender::rolling::never(&app_envs.location_logs, "api.log");
     let stdout = std::io::stdout.with_max_level(level);
 
     tracing_subscriber::fmt()
