@@ -20,14 +20,14 @@ use axum::{
 };
 use std::{
     fmt,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs},
     num::ParseIntError,
     sync::Arc,
     time::Instant,
 };
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
-use tracing::info;
+use tracing::{error, info};
 
 mod api_routes;
 mod input;
@@ -144,7 +144,11 @@ impl fmt::Display for Routes {
     }
 }
 
-pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connection>>) {
+pub async fn serve(
+    app_env: AppEnv,
+    postgres: PgPool,
+    redis: Arc<Mutex<Connection>>,
+) -> Result<(), AppError> {
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
     let api_routes: Router<Limited<Body>> = Router::new()
@@ -171,16 +175,26 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connectio
                 .layer(middleware::from_fn(rate_limiting)),
         );
 
-    let addr = format!("{}:{}", app_env.api_host, app_env.api_port);
+    let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
+        Ok(i) => {
+            let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
+            if let Some(addr) = vec_i.get(0) {
+                Ok(addr.to_owned())
+            } else {
+                Err(AppError::Internal("No addr".to_string()))
+            }
+        }
+        Err(e) => Err(AppError::Internal(e.to_string())),
+    }?;
 
     let starting = format!("starting server @ {}", addr);
     info!(%starting);
 
-    axum::Server::bind(&addr.parse().unwrap())
+    let _ = axum::Server::bind(&addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(signal_shutdown())
-        .await
-        .unwrap();
+        .await;
+    Ok(())
 }
 
 async fn signal_shutdown() {
@@ -306,7 +320,7 @@ pub mod tests {
         let postgres = setup.postgres.clone();
         let app_env = setup.app_env.clone();
         let handle = tokio::spawn(async {
-            serve(app_env, postgres, redis).await;
+            serve(app_env, postgres, redis).await.unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
         sleep(1).await;

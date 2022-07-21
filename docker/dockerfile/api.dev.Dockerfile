@@ -19,13 +19,12 @@ RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
 
 WORKDIR /app
 
-RUN mkdir /healthcheck /logs
+RUN mkdir /healthcheck /logs && chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /logs
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_api.sh /healthcheck
+# Copy from local cross target destination
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} target/x86_64-unknown-linux-musl/release/adsbdb /app/
 
-# Download latest release from github
-RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.12/adsbdb_linux_x86_64_musl.tar.gz \
-	&& tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm adsbdb_linux_x86_64_musl.tar.gz \
-	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb /logs \
+RUN chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb \
 	&& chmod +x /healthcheck/health_api.sh
 
 # Use an unprivileged user

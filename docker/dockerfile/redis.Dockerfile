@@ -24,10 +24,10 @@ WORKDIR /
 USER ${DOCKER_APP_USER}
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./init/redis_init.sh ./confs/redis.conf /init/
-RUN chmod +x /init/redis_init.sh
+# RUN chmod +x /init/redis_init.sh
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./healthcheck/health_redis.sh /healthcheck/
-RUN chmod +x /healthcheck/health_redis.sh
+RUN chmod +x /healthcheck/health_redis.sh /init/redis_init.sh
 
 ENTRYPOINT [ "/init/redis_init.sh" ]
 

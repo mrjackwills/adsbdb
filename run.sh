@@ -3,7 +3,7 @@
 # v0.0.5
 
 # CHANGE
-MONO_NAME='adsbdb'
+APP_NAME='adsbdb'
 
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
@@ -18,39 +18,11 @@ DOCKER_TIME_CITY="New_York"
 PRO=production
 DEV=dev
 
+
 error_close() {
 	echo -e "\n${RED}ERROR - EXITED: ${YELLOW}$1${RESET}\n";
 	exit 1
 }
-
-# $1 any variable name
-# $2 variable name
-check_variable() {
-	if [ -z "$1" ]
-	then
-		error_close "Missing variable $2"
-	fi
-}
-
-check_variable "$MONO_NAME" "\$MONO_NAME"
-
-if ! [ -x "$(command -v dialog)" ]; then
-	error_close "dialog is not installed"
-fi
-
-set_base_dir() {
-	local workspace="/workspaces/${MONO_NAME}"
-	local server="$HOME/${MONO_NAME}"
-	if [[ -d "$workspace" ]]
-	then
-		BASE_DIR="${workspace}"
-	else 
-		BASE_DIR="${server}"
-	fi
-}
-
-set_base_dir
-
 
 # $1 string - question to ask
 ask_yn () {
@@ -63,54 +35,79 @@ user_input() {
 	echo "$data"
 }
 
+
+# $1 any variable name
+# $2 variable name
+check_variable() {
+	if [ -z "$1" ]
+	then
+		error_close "Missing variable $2"
+	fi
+}
+
+check_variable "$APP_NAME" "\$APP_NAME"
+
+if ! [ -x "$(command -v dialog)" ]; then
+	error_close "dialog is not installed"
+fi
+
+set_base_dir() {
+	local workspace="/workspaces"
+	if [[ -d "$workspace" ]]
+	then
+		BASE_DIR="${workspace}"
+	else 
+		BASE_DIR=$HOME
+	fi
+}
+
+set_base_dir
+
+APP_DIR="${BASE_DIR}/${APP_NAME}"
+DOCKER_DIR="${APP_DIR}/docker"
+
 # Containers
-API="${MONO_NAME}_api"
-BACKUP_CONTAINER="${MONO_NAME}_postgres_backup"
-BASE_CONTAINERS=("${MONO_NAME}_postgres" "${MONO_NAME}_redis")
+API="${APP_NAME}_api"
+BACKUP_CONTAINER="${APP_NAME}_postgres_backup"
+BASE_CONTAINERS=("${APP_NAME}_postgres" "${APP_NAME}_redis")
 ALL=("${BASE_CONTAINERS[@]}" "${API}"  "${BACKUP_CONTAINER}")
 TO_RUN=("${BASE_CONTAINERS[@]}")
 
-
 make_db_data () {
 	cd "${BASE_DIR}" || error_close "${BASE_DIR} doesn't exist"
-	local db_data="${BASE_DIR}/db_data"
-	local pg_data="${db_data}/pg_data"
-	local redis_data="${db_data}/redis_data"
-	local backups="${db_data}/backups"
+	local pg_data="${BASE_DIR}/databases/${APP_NAME}/pg_data"
+	local redis_data="${BASE_DIR}/databases/${APP_NAME}/redis_data"
+	local backups="${BASE_DIR}/databases/${APP_NAME}/backups"
 
-	for DIRECTORY in $db_data $pg_data $redis_data $backups
+	for DIRECTORY in $pg_data $redis_data $backups
 	do
 	if [[ ! -d "$DIRECTORY" ]]
 	then
-		mkdir "$DIRECTORY"
+		mkdir -p "$DIRECTORY"
 	fi
 	done
-	cd "${BASE_DIR}/docker" || error_close "${BASE_DIR}/docker doesn't exist"
+	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 
 }
 
-# make_logs_directories () {
-# 	cd "${BASE_DIR}" || error_close "${BASE_DIR} doesn't exist"
-# 	local logs_dir="${BASE_DIR}/logs"
-
-# 	for DIRECTORY in "${ALL_APPS[@]}"
-# 	do
-# 	if [[ ! -d "${logs_dir}/$DIRECTORY" ]]
-# 	then
-# 		mkdir "${logs_dir}/$DIRECTORY"
-# 	fi
-# 	done
-# 	cd "${BASE_DIR}/docker" || error_close "${BASE_DIR}/docker doesn't exist"
-# }
+make_logs_directories () {
+	cd "${BASE_DIR}" || error_close "${BASE_DIR} doesn't exist"
+	local logs_dir="${BASE_DIR}/logs/${APP_NAME}"
+	if [[ ! -d "$logs_dir" ]]
+	then
+		mkdir -p "$logs_dir"
+	fi
+	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
+}
 
 make_all_directories() {
 	make_db_data
-	# make_logs_directories
+	make_logs_directories
 }
 
 dev_up () {
-	make_all_directories
-	cd "${BASE_DIR}/docker" || error_close "${BASE_DIR} doesn't exist"
+	# make_all_directories
+	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	echo "starting containers: ${TO_RUN[*]}"
 	DOCKER_GUID=${DOCKER_GUID} \
 	DOCKER_UID=${DOCKER_UID} \
@@ -120,7 +117,7 @@ dev_up () {
 }
 
 dev_down () {
-	cd "${BASE_DIR}/docker" || error_close "${BASE_DIR} doesn't exist"
+	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	DOCKER_GUID=${DOCKER_GUID} \
 	DOCKER_UID=${DOCKER_UID} \
 	DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
@@ -129,11 +126,11 @@ dev_down () {
 }
 
 production_up () {
-	ask_yn "added crontab \"15 3 * * *  docker restart ${MONO_NAME}_postgres_backup\""
+	ask_yn "added crontab \"15 3 * * *  docker restart ${APP_NAME}_postgres_backup\""
 	if [[ "$(user_input)" =~ ^y$ ]] 
 	then
 		make_all_directories
-		cd "${BASE_DIR}/docker" || error_close "${BASE_DIR} doesn't exist"
+		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		DOCKER_GUID=${DOCKER_GUID} \
 		DOCKER_UID=${DOCKER_UID} \
 		DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
@@ -146,11 +143,11 @@ production_up () {
 }
 
 production_rebuild () {
-	ask_yn "added crontab \"15 3 * * *  docker restart ${MONO_NAME}_postgres_backup\""
+	ask_yn "added crontab \"15 3 * * *  docker restart ${APP_NAME}_postgres_backup\""
 	if [[ "$(user_input)" =~ ^y$ ]] 
 	then
 		make_all_directories
-		cd "${BASE_DIR}/docker" || error_close "${BASE_DIR} doesn't exist"
+		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		DOCKER_GUID=${DOCKER_GUID} \
 		DOCKER_UID=${DOCKER_UID} \
 		DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
@@ -163,7 +160,7 @@ production_rebuild () {
 }
 
 production_down () {
-	cd "${BASE_DIR}/docker" || error_close "${BASE_DIR} doesn't exist"
+	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	DOCKER_GUID=${DOCKER_GUID} \
 	DOCKER_UID=${DOCKER_UID} \
 	DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
@@ -202,7 +199,7 @@ select_containers() {
 
 main() {
 	echo "in main"
-	cmd=(dialog --backtitle "Start ${MONO_NAME} containers" --radiolist "choose environment" 14 80 16)
+	cmd=(dialog --backtitle "Start ${APP_NAME} containers" --radiolist "choose environment" 14 80 16)
 	options=(
 		1 "${DEV} up" off
 		2 "${DEV} down" off

@@ -25,12 +25,10 @@ COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./data/pg_dump.tar /init/
 # COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./init/init_db.sql ./data/aircraft.csv ./data/airport.csv ./data/country.csv ./data/flightroute_iata.csv ./data/flightroute_icao.csv /init/
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./init/postgres_init.sh /docker-entrypoint-initdb.d/
-RUN chmod +x /docker-entrypoint-initdb.d/postgres_init.sh
-
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./confs/.psqlrc /home/app_user/
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./healthcheck/health_postgres.sh /healthcheck/
-RUN chmod +x /healthcheck/health_postgres.sh
+RUN chmod +x /healthcheck/health_postgres.sh /docker-entrypoint-initdb.d/postgres_init.sh
 
 
 USER ${DOCKER_APP_USER}

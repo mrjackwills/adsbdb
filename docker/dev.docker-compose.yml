@@ -4,7 +4,7 @@ networks:
     name: dev-adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.0.11
+    image: adsbdb_postgres:0.0.12
     container_name: adsbdb_postgres
     build:
       context: .
@@ -45,7 +45,7 @@ services:
           memory: 256M
 
   adsbdb_redis:
-    image: adsbdb_redis:0.0.11
+    image: adsbdb_redis:0.0.12
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -83,7 +83,7 @@ services:
         limits:
           memory: 32MB
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.0.11
+    image: adsbdb_postgres_backup:0.0.12
     container_name: adsbdb_postgres_backup
     build:
       context: .
@@ -118,20 +118,20 @@ services:
         limits:
           memory: 32M
   adsbdb_api:
-    image: adsbdb_api:0.0.11
+    image: adsbdb_api:0.0.12
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
       context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/api.Dockerfile
+      dockerfile: /workspaces/adsbdb/docker/dockerfile/api.dev.Dockerfile
       args:
         - DOCKER_UID=${DOCKER_UID}
         - DOCKER_GUID=${DOCKER_GUID}
         - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
         - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
-    env_file: /workspaces/adsbdb/docker/env/.api.env
     volumes:
-      - $HOME/adsbdb/logs/api:/logs
+      - /workspaces/adsbdb/logs:/logs
+      - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8100:8100"
     cap_drop:

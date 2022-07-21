@@ -8,6 +8,9 @@
 
 n-number*
 
+/logs
+api.log
+
 db_data
 backups
 nginx_confs
