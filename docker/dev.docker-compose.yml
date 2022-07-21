@@ -123,15 +123,15 @@ services:
     hostname: adsbdb_api
     build:
       context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/api.Dockerfile
+      dockerfile: /workspaces/adsbdb/docker/dockerfile/api.dev.Dockerfile
       args:
         - DOCKER_UID=${DOCKER_UID}
         - DOCKER_GUID=${DOCKER_GUID}
         - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
         - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
-    env_file: /workspaces/adsbdb/docker/env/.api.env
     volumes:
-      - $HOME/adsbdb/logs/api:/logs
+      - /workspaces/adsbdb/logs:/logs
+      - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8100:8100"
     cap_drop:
