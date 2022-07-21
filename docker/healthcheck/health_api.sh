@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
 
-# Automatically updated via create-release.sh, if major bump
-wget -nv -t1 --spider "${API_HOST}:${API_PORT}/v0/online" || exit 1
+API_PORT=$(grep "API_PORT" /app_env/.api.env | cut -c 10-13)
+URL="adsbdb_api:${API_PORT}/v1/incognito/online"
+wget -nv -t1 --spider "${URL}" || exit 1
