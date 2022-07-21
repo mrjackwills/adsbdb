@@ -124,7 +124,7 @@ services:
       - $HOME/logs/adsbdb:/logs
       - $HOME/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
     ports:
-      - "127.0.0.1:8100:8100"
+      - "127.0.0.1:8282:8282"
     cap_drop:
       - all
     security_opt:
