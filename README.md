@@ -227,6 +227,15 @@ Operate docker compose containers via
 ./run.sh
 ```
 
+
+### Build
+
+Build using <a href='https://github.com/cross-rs/cross' target='_blank' rel='noopener noreferrer'>cross</a>, for x86_64 linux musl targets, in order to run in an Alpine based container
+
+```bash
+cross build --target x86_64-unknown-linux-musl --release
+```
+
 ## Tests
 
 Requires postgres & redis to both be operational and seeded with valid data
