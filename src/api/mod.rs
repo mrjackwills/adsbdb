@@ -27,7 +27,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
-use tracing::{info, error};
+use tracing::{error, info};
 
 mod api_routes;
 mod input;
@@ -144,7 +144,11 @@ impl fmt::Display for Routes {
     }
 }
 
-pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connection>>) -> Result<(), AppError> {
+pub async fn serve(
+    app_env: AppEnv,
+    postgres: PgPool,
+    redis: Arc<Mutex<Connection>>,
+) -> Result<(), AppError> {
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
     let api_routes: Router<Limited<Body>> = Router::new()
@@ -171,7 +175,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connectio
                 .layer(middleware::from_fn(rate_limiting)),
         );
 
-	let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
+    let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
         Ok(i) => {
             let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
             if let Some(addr) = vec_i.get(0) {
@@ -190,7 +194,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Arc<Mutex<Connectio
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(signal_shutdown())
         .await;
-	Ok(())
+    Ok(())
 }
 
 async fn signal_shutdown() {

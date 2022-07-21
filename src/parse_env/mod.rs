@@ -14,7 +14,7 @@ pub struct AppEnv {
     pub api_host: String,
     pub api_port: u16,
     pub debug: bool,
-	pub location_logs: String,
+    pub location_logs: String,
     pub domain: String,
     pub pg_database: String,
     pub pg_host: String,
@@ -73,7 +73,7 @@ impl AppEnv {
             api_port: Self::parse_number("API_PORT", &env_map)?,
             debug: Self::parse_boolean("DEBUG", &env_map),
             domain: Self::parse_string("API_HOST", &env_map)?,
-			location_logs: Self::parse_string("LOCATION_LOGS", &env_map)?,
+            location_logs: Self::parse_string("LOCATION_LOGS", &env_map)?,
             pg_database: Self::parse_string("PG_DATABASE", &env_map)?,
             pg_host: Self::parse_string("PG_HOST", &env_map)?,
             pg_pass: Self::parse_string("PG_PASS", &env_map)?,
@@ -91,7 +91,7 @@ impl AppEnv {
         })
     }
 
-	pub fn get_env() -> Self {
+    pub fn get_env() -> Self {
         let local_env = ".env";
         let app_env = "/app_env/.api.env";
 

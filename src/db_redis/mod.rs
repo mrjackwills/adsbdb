@@ -65,17 +65,17 @@ pub async fn check_rate_limit(con: &Arc<Mutex<Connection>>, key: RedisKey) -> Re
             let ttl: usize = con.lock().await.ttl(key.to_string()).await?;
             return Err(AppError::RateLimited(ttl));
         }
-		if i > 120 {
-			let ttl: usize = con.lock().await.ttl(key.to_string()).await?;
-			return Err(AppError::RateLimited(ttl));
-		};
-		if i == 120 {
-			con.lock().await.expire(key.to_string(), 60).await?;
-			return Err(AppError::RateLimited(60));
-		}
-    } else{
-		con.lock().await.expire(key.to_string(), 60).await?;
-	}
+        if i > 120 {
+            let ttl: usize = con.lock().await.ttl(key.to_string()).await?;
+            return Err(AppError::RateLimited(ttl));
+        };
+        if i == 120 {
+            con.lock().await.expire(key.to_string(), 60).await?;
+            return Err(AppError::RateLimited(60));
+        }
+    } else {
+        con.lock().await.expire(key.to_string(), 60).await?;
+    }
     Ok(())
 }
 
