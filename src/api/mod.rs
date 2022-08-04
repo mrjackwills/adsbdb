@@ -25,7 +25,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, signal};
 use tower::ServiceBuilder;
 use tracing::{error, info};
 
@@ -190,18 +190,41 @@ pub async fn serve(
     let starting = format!("starting server @ {}", addr);
     info!(%starting);
 
-    let _ = axum::Server::bind(&addr)
+    match axum::Server::bind(&addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(signal_shutdown())
-        .await;
-    Ok(())
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(_) => Err(AppError::Internal("api_server".to_owned())),
+    }
 }
 
-async fn signal_shutdown() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("expect tokio signal ctrl-c");
-    info!("ctrl+c signal shutdown received");
+#[allow(clippy::expect_used)]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    println!("signal received, starting graceful shutdown");
 }
 
 #[derive(Debug, Error)]
@@ -276,6 +299,7 @@ impl IntoResponse for AppError {
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 pub mod tests {
     use super::*;
 

@@ -223,6 +223,7 @@ impl Scrapper {
 ///
 /// cargo watch -q -c -w src/ -x 'test scraper_ '
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::ModeS;

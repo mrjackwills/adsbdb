@@ -58,6 +58,7 @@ async fn find_aircraft(
     }
 }
 
+#[allow(clippy::unused_async)]
 pub async fn n_number_get(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
@@ -68,6 +69,7 @@ pub async fn n_number_get(
     Ok((axum::http::StatusCode::OK, ResponseJson::new(mode_s)))
 }
 
+#[allow(clippy::unused_async)]
 pub async fn mode_s_get(
     mode_s: ModeS,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
@@ -141,6 +143,7 @@ pub async fn callsign_get(
 }
 
 /// Return a simple online status response
+#[allow(clippy::unused_async)]
 pub async fn online_get(
     Extension(state): Extension<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
@@ -154,6 +157,7 @@ pub async fn online_get(
 }
 
 /// return a unknown endpoint response
+#[allow(clippy::unused_async)]
 pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRes<String>) {
     (
         axum::http::StatusCode::NOT_FOUND,
@@ -164,6 +168,7 @@ pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRe
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use std::sync::Arc;
 

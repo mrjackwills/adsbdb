@@ -161,6 +161,7 @@ VALUES (
 ///
 /// cargo watch -q -c -w src/ -x 'test model_flightroute '
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::{db_postgres, parse_env::AppEnv};
 

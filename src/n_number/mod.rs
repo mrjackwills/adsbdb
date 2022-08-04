@@ -87,6 +87,7 @@ impl Bucket {
 /// Reverse function of suffix_shift()
 /// 0 -> ''
 /// 1 -> 'A'
+#[allow(clippy::unwrap_used)]
 fn get_suffix(offset: usize) -> Result<String, AppError> {
     if offset == 0 {
         return Ok(String::new());
@@ -108,6 +109,7 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
     }
 }
 
+#[allow(clippy::unwrap_used)]
 fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
     let second_char = offset.chars().nth(index).unwrap();
     if let Some(index) = ICAO_CHARSET.chars().position(|c| c == second_char) {
@@ -266,6 +268,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

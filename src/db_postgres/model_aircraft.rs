@@ -122,8 +122,7 @@ WHERE
         let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
             .bind(photo.image.to_owned())
             .fetch_one(&mut *transaction)
-            .await
-            .unwrap();
+            .await?;
 
         let query = r#"
 UPDATE
@@ -146,6 +145,7 @@ WHERE
 //
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::tests::test_setup;

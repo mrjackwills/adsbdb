@@ -152,6 +152,7 @@ where
 
 /// cargo watch -q -c -w src/ -x 'test mod_api_input -- --nocapture'
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
