@@ -282,7 +282,10 @@ mod tests {
 
         let app_env = AppEnv::get_env();
         let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-    	redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, ()>(&mut redis)
+            .await
+            .unwrap();
     }
 
     #[test]

@@ -108,13 +108,15 @@ pub async fn aircraft_get(
         }
     } else {
         let aircraft = find_aircraft(&path, state).await?;
-        aircraft.map_or(Err(AppError::UnknownInDb("aircraft")), |a| Ok((
+        aircraft.map_or(Err(AppError::UnknownInDb("aircraft")), |a| {
+            Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: Some(ResponseAircraft::from(a)),
                     flightroute: None,
                 }),
-            )))
+            ))
+        })
     }
 }
 
@@ -125,13 +127,15 @@ pub async fn callsign_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     let flightroute = find_flightroute(&path, state).await?;
 
-    flightroute.map_or(Err(AppError::UnknownInDb("callsign")), |a| Ok((
+    flightroute.map_or(Err(AppError::UnknownInDb("callsign")), |a| {
+        Ok((
             axum::http::StatusCode::OK,
             ResponseJson::new(AircraftAndRoute {
                 aircraft: None,
                 flightroute: ResponseFlightRoute::from_model(&Some(a)),
             }),
-        )))
+        ))
+    })
 }
 
 /// Return a simple online status response
@@ -182,7 +186,10 @@ mod tests {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
-        redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, ()>(&mut redis)
+            .await
+            .unwrap();
         Extension(ApplicationState::new(
             postgres,
             Arc::new(Mutex::new(redis)),
@@ -201,7 +208,10 @@ mod tests {
         sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
         let app_env = parse_env::AppEnv::get_env();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
-		redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, ()>(&mut redis)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

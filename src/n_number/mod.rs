@@ -112,7 +112,10 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
 #[allow(clippy::unwrap_used)]
 fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
     let second_char = offset.chars().nth(index).unwrap();
-    ICAO_CHARSET.chars().position(|c| c == second_char).map_or_else(|| Err(NError::GetIndex.error()), Ok)
+    ICAO_CHARSET
+        .chars()
+        .position(|c| c == second_char)
+        .map_or_else(|| Err(NError::GetIndex.error()), Ok)
 }
 
 /// Compute the offset corresponding to the given alphabetical suffix
@@ -177,34 +180,53 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
                 return NNumber::new(output);
             }
         } else {
-                        rem = calc_rem(&mut output, rem, bucket);
-                        if rem < SUFFIX_SIZE {
-                            return NNumber::new(format!("{}{}", output, get_suffix(rem)?));
-                        }
-                        rem -= SUFFIX_SIZE;
-                    }
+            rem = calc_rem(&mut output, rem, bucket);
+            if rem < SUFFIX_SIZE {
+                return NNumber::new(format!("{}{}", output, get_suffix(rem)?));
+            }
+            rem -= SUFFIX_SIZE;
+        }
     }
 
-    ALLCHARS.chars().nth(rem - 1).map_or_else(|| Err(NError::FinalChar.error()), |final_char| {
-        output.push(final_char);
-        NNumber::new(output)
-    })
+    ALLCHARS.chars().nth(rem - 1).map_or_else(
+        || Err(NError::FinalChar.error()),
+        |final_char| {
+            output.push(final_char);
+            NNumber::new(output)
+        },
+    )
 }
 
 fn n_number_index(n_number: &str, index: usize) -> Result<char, AppError> {
-    n_number.chars().nth(index).map_or_else(|| Err(NError::CharToDigit.error()), Ok)
+    n_number
+        .chars()
+        .nth(index)
+        .map_or_else(|| Err(NError::CharToDigit.error()), Ok)
 }
 
 fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<usize, AppError> {
     let char = n_number_index(n_number, index)?;
-    bucket.map_or_else(|| ALLCHARS.chars().position(|x| x == char).map_or_else(|| Err(NError::GetIndex.error()), |pos| Ok(pos + 1)), |bucket| char.to_digit(10).map_or_else(|| Err(NError::CharToDigit.error()), |mut value| {
-            value -= bucket.extra() as u32;
-            let output = match bucket {
-                Bucket::One => value as usize * bucket.get(),
-                _ => value as usize * bucket.get() + SUFFIX_SIZE,
-            };
-            Ok(output)
-        }))
+    bucket.map_or_else(
+        || {
+            ALLCHARS
+                .chars()
+                .position(|x| x == char)
+                .map_or_else(|| Err(NError::GetIndex.error()), |pos| Ok(pos + 1))
+        },
+        |bucket| {
+            char.to_digit(10).map_or_else(
+                || Err(NError::CharToDigit.error()),
+                |mut value| {
+                    value -= bucket.extra() as u32;
+                    let output = match bucket {
+                        Bucket::One => value as usize * bucket.get(),
+                        _ => value as usize * bucket.get() + SUFFIX_SIZE,
+                    };
+                    Ok(output)
+                },
+            )
+        },
+    )
 }
 
 /// Convert a Tail Number (N-Number) to the corresponding ICAO address

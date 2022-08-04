@@ -25,7 +25,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::{sync::Mutex, signal};
+use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
 use tracing::{error, info};
 
@@ -87,11 +87,24 @@ fn maybe_x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 /// if neither headers work, use the optional socket address from axum
 /// but if for some nothing works, return ipv4 255.255.255.255
 fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr {
-    maybe_x_forwarded_for(headers).or_else(|| maybe_x_real_ip(headers)).map_or_else(|| addr.map_or_else(|| IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255)), |ip| ip.0.ip()), |ip_addr| ip_addr)
+    maybe_x_forwarded_for(headers)
+        .or_else(|| maybe_x_real_ip(headers))
+        .map_or_else(
+            || {
+                addr.map_or_else(
+                    || IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255)),
+                    |ip| ip.0.ip(),
+                )
+            },
+            |ip_addr| ip_addr,
+        )
 }
 
 // Limit the users request based on ip address, using redis as mem store
-async fn rate_limiting<B: Send + Sync>(req: Request<B>, next: Next<B>) -> Result<Response, AppError> {
+async fn rate_limiting<B: Send + Sync>(
+    req: Request<B>,
+    next: Next<B>,
+) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
@@ -172,7 +185,10 @@ pub async fn serve(
     let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
         Ok(i) => {
             let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
-            vec_i.get(0).map_or_else(|| Err(AppError::Internal("No addr".to_string())), |addr| Ok(*addr))
+            vec_i.get(0).map_or_else(
+                || Err(AppError::Internal("No addr".to_string())),
+                |addr| Ok(*addr),
+            )
         }
         Err(e) => Err(AppError::Internal(e.to_string())),
     }?;
@@ -302,7 +318,10 @@ pub mod tests {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-        redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, ()>(&mut redis)
+            .await
+            .unwrap();
         TestSetup {
             handle: None,
             app_env,
@@ -614,8 +633,14 @@ pub mod tests {
         assert_eq!(flightroute_result["origin"]["elevation"], 21);
         assert_eq!(flightroute_result["origin"]["iata_code"], "SYD");
         assert_eq!(flightroute_result["origin"]["icao_code"], "YSSY");
-        assert_eq!(flightroute_result["origin"]["latitude"], -33.946_098_327_636_72);
-        assert_eq!(flightroute_result["origin"]["longitude"], 151.177_001_953_125);
+        assert_eq!(
+            flightroute_result["origin"]["latitude"],
+            -33.946_098_327_636_72
+        );
+        assert_eq!(
+            flightroute_result["origin"]["longitude"],
+            151.177_001_953_125
+        );
         assert_eq!(flightroute_result["origin"]["municipality"], "Sydney");
         assert_eq!(
             flightroute_result["origin"]["name"],

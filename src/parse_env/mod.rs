@@ -51,10 +51,13 @@ impl AppEnv {
     /// Parse string to u32, else return 1
     fn parse_number(key: &str, map: &EnvHashMap) -> Result<u16, EnvError> {
         let default = 1;
-        map.get(key).map_or_else(|| Err(EnvError::NotFound(key.into())), |data| match data.parse::<u16>() {
+        map.get(key).map_or_else(
+            || Err(EnvError::NotFound(key.into())),
+            |data| match data.parse::<u16>() {
                 Ok(d) => Ok(d),
                 Err(_) => Ok(default),
-            })
+            },
+        )
     }
 
     /// Load, and parse .env file, return AppEnv

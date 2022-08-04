@@ -62,6 +62,7 @@ impl Model<Self> for ModelFlightroute {
 
 impl ModelFlightroute {
     /// Seperated out, so can use in tests with a transaction
+    /// Could also just be a const str
     const fn get_query() -> &'static str {
         r#"
 		SELECT
@@ -117,6 +118,7 @@ impl ModelFlightroute {
 		WHERE 
 			flc.callsign = $1"#
     }
+
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
     pub async fn insert_scraped_flightroute(
         db: &PgPool,
