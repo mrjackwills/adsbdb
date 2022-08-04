@@ -11,7 +11,7 @@ pub struct ResponseJson<T> {
 }
 
 impl<T> ResponseJson<T> {
-    pub fn new(response: T) -> Json<ResponseJson<T>> {
+    pub const fn new(response: T) -> Json<Self> {
         Json(Self { response })
     }
 }
@@ -145,17 +145,15 @@ pub struct ResponseFlightRoute {
 
 impl ResponseFlightRoute {
     pub fn from_model(op_flightroute: &Option<ModelFlightroute>) -> Option<Self> {
-        if let Some(flightroute) = op_flightroute.as_ref() {
+        op_flightroute.as_ref().map(|flightroute| {
             let airports = Airport::from_model(flightroute);
-            Some(Self {
+            Self {
                 callsign: flightroute.callsign.clone(),
                 origin: airports.0,
                 midpoint: airports.1,
                 destination: airports.2,
-            })
-        } else {
-            None
-        }
+            }
+        })
     }
 }
 

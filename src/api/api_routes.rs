@@ -108,17 +108,13 @@ pub async fn aircraft_get(
         }
     } else {
         let aircraft = find_aircraft(&path, state).await?;
-        if let Some(a) = aircraft {
-            Ok((
+        aircraft.map_or(Err(AppError::UnknownInDb("aircraft")), |a| Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: Some(ResponseAircraft::from(a)),
                     flightroute: None,
                 }),
-            ))
-        } else {
-            Err(AppError::UnknownInDb("aircraft"))
-        }
+            )))
     }
 }
 
@@ -129,17 +125,13 @@ pub async fn callsign_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     let flightroute = find_flightroute(&path, state).await?;
 
-    if let Some(a) = flightroute {
-        Ok((
+    flightroute.map_or(Err(AppError::UnknownInDb("callsign")), |a| Ok((
             axum::http::StatusCode::OK,
             ResponseJson::new(AircraftAndRoute {
                 aircraft: None,
                 flightroute: ResponseFlightRoute::from_model(&Some(a)),
             }),
-        ))
-    } else {
-        Err(AppError::UnknownInDb("callsign"))
-    }
+        )))
 }
 
 /// Return a simple online status response

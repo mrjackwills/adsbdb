@@ -27,7 +27,7 @@ fn optional_null<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> 
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<T: DeserializeOwned>(
+pub async fn get_cache<T: DeserializeOwned + Send>(
     con: &Arc<Mutex<Connection>>,
     key: &RedisKey,
 ) -> Result<Option<T>, AppError> {
@@ -40,7 +40,7 @@ pub async fn get_cache<T: DeserializeOwned>(
     Ok(serialized_data)
 }
 
-pub async fn insert_cache<T: Serialize>(
+pub async fn insert_cache<T: Serialize + Send + Sync>(
     con: &Arc<Mutex<Connection>>,
     to_insert: &T,
     key: &RedisKey,

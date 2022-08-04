@@ -62,7 +62,7 @@ impl Model<Self> for ModelFlightroute {
 
 impl ModelFlightroute {
     /// Seperated out, so can use in tests with a transaction
-    fn get_query() -> &'static str {
+    const fn get_query() -> &'static str {
         r#"
 		SELECT
 			$1 as callsign,

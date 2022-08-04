@@ -194,8 +194,8 @@ impl Scrapper {
         let photo_response = self.request_photo(aircraft).await?;
 
         if let Some(photo) = photo_response {
-            if let Some(data) = photo.data.as_ref() {
-                ModelAircraft::insert_photo(db, &data[0], aircraft).await?;
+            if let Some([data_0, ..]) = photo.data.as_ref() {
+                ModelAircraft::insert_photo(db, data_0, aircraft).await?;
             }
         }
         Ok(())

@@ -33,7 +33,8 @@ struct AircraftPhoto {
 
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
-    fn get_query() -> &'static str {
+	/// Could also just be a static const
+    const fn get_query() -> &'static str {
         r#"
 SELECT
 	aa.aircraft_id,
@@ -104,7 +105,7 @@ WHERE
     pub async fn insert_photo(
         db: &PgPool,
         photo: &PhotoData,
-        aircraft: &ModelAircraft,
+        aircraft: &Self,
     ) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
         Self::photo_transaction(&mut transaction, photo, aircraft).await?;
@@ -116,7 +117,7 @@ WHERE
     async fn photo_transaction(
         transaction: &mut Transaction<'_, Postgres>,
         photo: &PhotoData,
-        aircraft: &ModelAircraft,
+        aircraft: &Self,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
         let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
