@@ -23,7 +23,7 @@ RUN mkdir /healthcheck /logs
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_api.sh /healthcheck
 
 # Download latest release from github
-RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.12/adsbdb_linux_x86_64_musl.tar.gz \
+RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.13/adsbdb_linux_x86_64_musl.tar.gz \
 	&& tar xzvf adsbdb_linux_x86_64_musl.tar.gz adsbdb && rm adsbdb_linux_x86_64_musl.tar.gz \
 	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb /logs \
 	&& chmod +x /healthcheck/health_api.sh
