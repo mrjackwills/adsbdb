@@ -25,7 +25,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::sync::Mutex;
+use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
 use tracing::{error, info};
 
@@ -58,7 +58,7 @@ impl ApplicationState {
             redis,
             uptime: Instant::now(),
             scraper: Scrapper::new(app_env),
-            url_prefix: app_env.url_photo_prefix.to_owned(),
+            url_prefix: app_env.url_photo_prefix.clone(),
         }
     }
 }
@@ -87,17 +87,24 @@ fn maybe_x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 /// if neither headers work, use the optional socket address from axum
 /// but if for some nothing works, return ipv4 255.255.255.255
 fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr {
-    if let Some(ip_addr) = maybe_x_forwarded_for(headers).or_else(|| maybe_x_real_ip(headers)) {
-        ip_addr
-    } else if let Some(ip) = addr {
-        ip.0.ip()
-    } else {
-        IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255))
-    }
+    maybe_x_forwarded_for(headers)
+        .or_else(|| maybe_x_real_ip(headers))
+        .map_or_else(
+            || {
+                addr.map_or_else(
+                    || IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255)),
+                    |ip| ip.0.ip(),
+                )
+            },
+            |ip_addr| ip_addr,
+        )
 }
 
 // Limit the users request based on ip address, using redis as mem store
-async fn rate_limiting<B>(req: Request<B>, next: Next<B>) -> Result<Response, AppError> {
+async fn rate_limiting<B: Send + Sync>(
+    req: Request<B>,
+    next: Next<B>,
+) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
@@ -178,11 +185,10 @@ pub async fn serve(
     let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
         Ok(i) => {
             let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
-            if let Some(addr) = vec_i.get(0) {
-                Ok(addr.to_owned())
-            } else {
-                Err(AppError::Internal("No addr".to_string()))
-            }
+            vec_i.get(0).map_or_else(
+                || Err(AppError::Internal("No addr".to_string())),
+                |addr| Ok(*addr),
+            )
         }
         Err(e) => Err(AppError::Internal(e.to_string())),
     }?;
@@ -190,18 +196,41 @@ pub async fn serve(
     let starting = format!("starting server @ {}", addr);
     info!(%starting);
 
-    let _ = axum::Server::bind(&addr)
+    match axum::Server::bind(&addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(signal_shutdown())
-        .await;
-    Ok(())
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(_) => Err(AppError::Internal("api_server".to_owned())),
+    }
 }
 
-async fn signal_shutdown() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("expect tokio signal ctrl-c");
-    info!("ctrl+c signal shutdown received");
+#[allow(clippy::expect_used)]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    println!("signal received, starting graceful shutdown");
 }
 
 #[derive(Debug, Error)]
@@ -232,11 +261,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let prefix = self.to_string();
         let (status, body) = match self {
-            Self::Callsign(err) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
-            Self::NNumber(err) => (
+            Self::Callsign(err) | Self::NNumber(err) | Self::ModeS(err) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
@@ -244,18 +269,10 @@ impl IntoResponse for AppError {
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-            Self::ParseInt(_) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(prefix),
-            ),
-            Self::ModeS(err) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
             Self::SqlxError(_) | Self::RedisError(_) => {
                 (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
             }
-            Self::SerdeJson(_) => (
+            Self::SerdeJson(_) | Self::ParseInt(_) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(prefix),
             ),
@@ -276,6 +293,7 @@ impl IntoResponse for AppError {
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 pub mod tests {
     use super::*;
 
@@ -300,7 +318,10 @@ pub mod tests {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, ()>(&mut redis)
+            .await
+            .unwrap();
         TestSetup {
             handle: None,
             app_env,
@@ -310,7 +331,7 @@ pub mod tests {
     }
 
     async fn sleep(ms: u64) {
-        tokio::time::sleep(std::time::Duration::from_millis(ms)).await
+        tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
     }
 
     async fn start_server() -> TestSetup {
@@ -371,8 +392,8 @@ pub mod tests {
         assert_eq!(result["origin"]["elevation"], 27);
         assert_eq!(result["origin"]["iata_code"], "PMI");
         assert_eq!(result["origin"]["icao_code"], "LEPA");
-        assert_eq!(result["origin"]["latitude"], 39.551701);
-        assert_eq!(result["origin"]["longitude"], 2.73881);
+        assert_eq!(result["origin"]["latitude"], 39.551_701);
+        assert_eq!(result["origin"]["longitude"], 2.738_81);
         assert_eq!(result["origin"]["municipality"], "Palma De Mallorca");
         assert_eq!(result["origin"]["name"], "Palma de Mallorca Airport");
 
@@ -383,8 +404,8 @@ pub mod tests {
         assert_eq!(result["destination"]["elevation"], 622);
         assert_eq!(result["destination"]["iata_code"], "BRS");
         assert_eq!(result["destination"]["icao_code"], "EGGD");
-        assert_eq!(result["destination"]["latitude"], 51.382702);
-        assert_eq!(result["destination"]["longitude"], -2.71909);
+        assert_eq!(result["destination"]["latitude"], 51.382_702);
+        assert_eq!(result["destination"]["longitude"], -2.719_09);
         assert_eq!(result["destination"]["municipality"], "Bristol");
         assert_eq!(result["destination"]["name"], "Bristol Airport");
     }
@@ -413,8 +434,8 @@ pub mod tests {
         assert_eq!(result["origin"]["elevation"], 21);
         assert_eq!(result["origin"]["iata_code"], "SYD");
         assert_eq!(result["origin"]["icao_code"], "YSSY");
-        assert_eq!(result["origin"]["latitude"], -33.94609832763672);
-        assert_eq!(result["origin"]["longitude"], 151.177001953125);
+        assert_eq!(result["origin"]["latitude"], -33.946_098_327_636_72);
+        assert_eq!(result["origin"]["longitude"], 151.177_001_953_125);
         assert_eq!(result["origin"]["municipality"], "Sydney");
         assert_eq!(
             result["origin"]["name"],
@@ -427,7 +448,7 @@ pub mod tests {
         assert_eq!(result["midpoint"]["iata_code"], "SIN");
         assert_eq!(result["midpoint"]["icao_code"], "WSSS");
         assert_eq!(result["midpoint"]["latitude"], 1.35019);
-        assert_eq!(result["midpoint"]["longitude"], 103.994003);
+        assert_eq!(result["midpoint"]["longitude"], 103.994_003);
         assert_eq!(result["midpoint"]["municipality"], "Singapore");
         assert_eq!(result["midpoint"]["name"], "Singapore Changi Airport");
 
@@ -437,7 +458,7 @@ pub mod tests {
         assert_eq!(result["destination"]["iata_code"], "LHR");
         assert_eq!(result["destination"]["icao_code"], "EGLL");
         assert_eq!(result["destination"]["latitude"], 51.4706);
-        assert_eq!(result["destination"]["longitude"], -0.461941);
+        assert_eq!(result["destination"]["longitude"], -0.461_941);
         assert_eq!(result["destination"]["municipality"], "London");
         assert_eq!(result["destination"]["name"], "London Heathrow Airport");
     }
@@ -538,7 +559,7 @@ pub mod tests {
         assert_eq!(flightroute_result["origin"]["elevation"], 27);
         assert_eq!(flightroute_result["origin"]["iata_code"], "PMI");
         assert_eq!(flightroute_result["origin"]["icao_code"], "LEPA");
-        assert_eq!(flightroute_result["origin"]["latitude"], 39.551701);
+        assert_eq!(flightroute_result["origin"]["latitude"], 39.551_701);
         assert_eq!(flightroute_result["origin"]["longitude"], 2.73881);
         assert_eq!(
             flightroute_result["origin"]["municipality"],
@@ -559,7 +580,7 @@ pub mod tests {
         assert_eq!(flightroute_result["destination"]["elevation"], 622);
         assert_eq!(flightroute_result["destination"]["iata_code"], "BRS");
         assert_eq!(flightroute_result["destination"]["icao_code"], "EGGD");
-        assert_eq!(flightroute_result["destination"]["latitude"], 51.382702);
+        assert_eq!(flightroute_result["destination"]["latitude"], 51.382_702);
         assert_eq!(flightroute_result["destination"]["longitude"], -2.71909);
         assert_eq!(flightroute_result["destination"]["municipality"], "Bristol");
         assert_eq!(flightroute_result["destination"]["name"], "Bristol Airport");
@@ -612,8 +633,14 @@ pub mod tests {
         assert_eq!(flightroute_result["origin"]["elevation"], 21);
         assert_eq!(flightroute_result["origin"]["iata_code"], "SYD");
         assert_eq!(flightroute_result["origin"]["icao_code"], "YSSY");
-        assert_eq!(flightroute_result["origin"]["latitude"], -33.94609832763672);
-        assert_eq!(flightroute_result["origin"]["longitude"], 151.177001953125);
+        assert_eq!(
+            flightroute_result["origin"]["latitude"],
+            -33.946_098_327_636_72
+        );
+        assert_eq!(
+            flightroute_result["origin"]["longitude"],
+            151.177_001_953_125
+        );
         assert_eq!(flightroute_result["origin"]["municipality"], "Sydney");
         assert_eq!(
             flightroute_result["origin"]["name"],
@@ -629,7 +656,7 @@ pub mod tests {
         assert_eq!(flightroute_result["midpoint"]["iata_code"], "SIN");
         assert_eq!(flightroute_result["midpoint"]["icao_code"], "WSSS");
         assert_eq!(flightroute_result["midpoint"]["latitude"], 1.35019);
-        assert_eq!(flightroute_result["midpoint"]["longitude"], 103.994003);
+        assert_eq!(flightroute_result["midpoint"]["longitude"], 103.994_003);
         assert_eq!(flightroute_result["midpoint"]["municipality"], "Singapore");
         assert_eq!(
             flightroute_result["midpoint"]["name"],

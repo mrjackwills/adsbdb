@@ -58,7 +58,7 @@ where
     type Rejection = AppError;
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         match axum::extract::Path::<String>::from_request(req).await {
-            Ok(value) => Ok(ModeS::new(value.0)?),
+            Ok(value) => Ok(Self::new(value.0)?),
             Err(_) => Err(AppError::ModeS(String::from("invalid"))),
         }
     }
@@ -105,7 +105,7 @@ where
     type Rejection = AppError;
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         match axum::extract::Path::<String>::from_request(req).await {
-            Ok(value) => Ok(NNumber::new(value.0)?),
+            Ok(value) => Ok(Self::new(value.0)?),
             Err(_) => Err(AppError::NNumber(String::from("invalid"))),
         }
     }
@@ -144,7 +144,7 @@ where
     type Rejection = AppError;
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         match axum::extract::Path::<String>::from_request(req).await {
-            Ok(value) => Ok(Callsign::new(value.0)?),
+            Ok(value) => Ok(Self::new(value.0)?),
             Err(_) => Err(AppError::ModeS(String::from("invalid"))),
         }
     }
@@ -152,6 +152,7 @@ where
 
 /// cargo watch -q -c -w src/ -x 'test mod_api_input -- --nocapture'
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
