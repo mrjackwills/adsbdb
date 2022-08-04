@@ -202,11 +202,19 @@ cargo_test () {
 	ask_continue
 }
 
+# build for production, imitate GitHub workflow
+cargo_build () {
+	cargo install cross
+	cross build --target x86_64-unknown-linux-musl --release
+	ask_continue
+}
+
 # Full flow to create a new release
 release_flow() {
 	check_git
 	get_git_remote_url
 	cargo_test
+	cargo_build
 	cd "${CWD}" || error_close "Can't find ${CWD}"
 	check_tag
 	

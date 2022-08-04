@@ -27,7 +27,7 @@ fn optional_null<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> 
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<T: DeserializeOwned>(
+pub async fn get_cache<T: DeserializeOwned + Send>(
     con: &Arc<Mutex<Connection>>,
     key: &RedisKey,
 ) -> Result<Option<T>, AppError> {
@@ -40,7 +40,7 @@ pub async fn get_cache<T: DeserializeOwned>(
     Ok(serialized_data)
 }
 
-pub async fn insert_cache<T: Serialize>(
+pub async fn insert_cache<T: Serialize + Send + Sync>(
     con: &Arc<Mutex<Connection>>,
     to_insert: &T,
     key: &RedisKey,
@@ -82,11 +82,11 @@ pub async fn check_rate_limit(con: &Arc<Mutex<Connection>>, key: RedisKey) -> Re
 pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
     let connection_info = ConnectionInfo {
         redis: RedisConnectionInfo {
-            db: app_env.redis_database as i64,
-            password: Some(app_env.redis_password.to_owned()),
+            db: i64::from(app_env.redis_database),
+            password: Some(app_env.redis_password.clone()),
             username: None,
         },
-        addr: ConnectionAddr::Tcp(app_env.redis_host.to_owned(), app_env.redis_port),
+        addr: ConnectionAddr::Tcp(app_env.redis_host.clone(), app_env.redis_port),
     };
     let client = redis::Client::open(connection_info)?;
     match tokio::time::timeout(Duration::from_secs(10), client.get_async_connection()).await {

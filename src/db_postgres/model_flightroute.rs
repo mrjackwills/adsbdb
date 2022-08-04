@@ -62,7 +62,8 @@ impl Model<Self> for ModelFlightroute {
 
 impl ModelFlightroute {
     /// Seperated out, so can use in tests with a transaction
-    fn get_query() -> &'static str {
+    /// Could also just be a const str
+    const fn get_query() -> &'static str {
         r#"
 		SELECT
 			$1 as callsign,
@@ -117,6 +118,7 @@ impl ModelFlightroute {
 		WHERE 
 			flc.callsign = $1"#
     }
+
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
     pub async fn insert_scraped_flightroute(
         db: &PgPool,
@@ -161,6 +163,7 @@ VALUES (
 ///
 /// cargo watch -q -c -w src/ -x 'test model_flightroute '
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::{db_postgres, parse_env::AppEnv};
 
@@ -205,8 +208,8 @@ mod tests {
             origin_airport_elevation: 12,
             origin_airport_iata_code: "OKA".to_owned(),
             origin_airport_icao_code: "ROAH".to_owned(),
-            origin_airport_latitude: 26.195801,
-            origin_airport_longitude: 127.646004,
+            origin_airport_latitude: 26.195_801,
+            origin_airport_longitude: 127.646_004,
             origin_airport_municipality: "Naha".to_owned(),
             origin_airport_name: "Naha Airport / JASDF Naha Air Base".to_owned(),
             midpoint_airport_country_iso_name: None,
@@ -223,8 +226,8 @@ mod tests {
             destination_airport_elevation: 35,
             destination_airport_iata_code: "HND".to_owned(),
             destination_airport_icao_code: "RJTT".to_owned(),
-            destination_airport_latitude: 35.552299,
-            destination_airport_longitude: 139.779999,
+            destination_airport_latitude: 35.552_299,
+            destination_airport_longitude: 139.779_999,
             destination_airport_municipality: "Tokyo".to_owned(),
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };

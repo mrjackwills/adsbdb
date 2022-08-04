@@ -53,8 +53,8 @@ where
 impl Scrapper {
     pub fn new(app_env: &AppEnv) -> Self {
         Self {
-            flight_scrape_url: app_env.url_callsign.to_owned(),
-            photo_url: app_env.url_aircraft_photo.to_owned(),
+            flight_scrape_url: app_env.url_callsign.clone(),
+            photo_url: app_env.url_aircraft_photo.clone(),
         }
     }
 
@@ -85,8 +85,8 @@ impl Scrapper {
         if output.len() >= 2 {
             Some(ScrapedFlightroute {
                 callsign: callsign.to_owned(),
-                origin: output[0].to_owned(),
-                destination: output[1].to_owned(),
+                origin: output[0].clone(),
+                destination: output[1].clone(),
             })
         } else {
             None
@@ -194,8 +194,8 @@ impl Scrapper {
         let photo_response = self.request_photo(aircraft).await?;
 
         if let Some(photo) = photo_response {
-            if let Some(data) = photo.data.as_ref() {
-                ModelAircraft::insert_photo(db, &data[0], aircraft).await?;
+            if let Some([data_0, ..]) = photo.data.as_ref() {
+                ModelAircraft::insert_photo(db, data_0, aircraft).await?;
             }
         }
         Ok(())
@@ -223,6 +223,7 @@ impl Scrapper {
 ///
 /// cargo watch -q -c -w src/ -x 'test scraper_ '
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::ModeS;
@@ -281,7 +282,10 @@ mod tests {
 
         let app_env = AppEnv::get_env();
         let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, ()>(&mut redis)
+            .await
+            .unwrap();
     }
 
     #[test]
