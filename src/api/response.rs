@@ -73,15 +73,15 @@ pub struct Airport {
 impl Airport {
     fn from_model(flightroute: &ModelFlightroute) -> (Self, Option<Self>, Self) {
         let origin = Self {
-            name: flightroute.origin_airport_name.to_owned(),
-            country_iso_name: flightroute.origin_airport_country_iso_name.to_owned(),
-            country_name: flightroute.origin_airport_country_name.to_owned(),
+            name: flightroute.origin_airport_name.clone(),
+            country_iso_name: flightroute.origin_airport_country_iso_name.clone(),
+            country_name: flightroute.origin_airport_country_name.clone(),
             elevation: flightroute.origin_airport_elevation,
-            iata_code: flightroute.origin_airport_iata_code.to_owned(),
-            icao_code: flightroute.origin_airport_icao_code.to_owned(),
+            iata_code: flightroute.origin_airport_iata_code.clone(),
+            icao_code: flightroute.origin_airport_icao_code.clone(),
             latitude: flightroute.origin_airport_latitude,
             longitude: flightroute.origin_airport_longitude,
-            municipality: flightroute.origin_airport_municipality.to_owned(),
+            municipality: flightroute.origin_airport_municipality.clone(),
         };
 
         let mut midpoint = None;
@@ -91,44 +91,44 @@ impl Airport {
             midpoint = Some(Self {
                 name: flightroute
                     .midpoint_airport_name
-                    .to_owned()
+                    .clone()
                     .unwrap_or_default(),
                 country_iso_name: flightroute
                     .midpoint_airport_country_iso_name
-                    .to_owned()
+                    .clone()
                     .unwrap_or_default(),
                 country_name: flightroute
                     .midpoint_airport_country_name
-                    .to_owned()
+                    .clone()
                     .unwrap_or_default(),
                 elevation: flightroute.midpoint_airport_elevation.unwrap_or_default(),
                 iata_code: flightroute
                     .midpoint_airport_iata_code
-                    .to_owned()
+                    .clone()
                     .unwrap_or_default(),
                 icao_code: flightroute
                     .midpoint_airport_icao_code
-                    .to_owned()
+                    .clone()
                     .unwrap_or_default(),
                 latitude: flightroute.midpoint_airport_latitude.unwrap_or_default(),
                 longitude: flightroute.midpoint_airport_longitude.unwrap_or_default(),
                 municipality: flightroute
                     .midpoint_airport_municipality
-                    .to_owned()
+                    .clone()
                     .unwrap_or_default(),
             });
         }
 
         let destination = Self {
-            name: flightroute.destination_airport_name.to_owned(),
-            country_iso_name: flightroute.destination_airport_country_iso_name.to_owned(),
-            country_name: flightroute.destination_airport_country_name.to_owned(),
+            name: flightroute.destination_airport_name.clone(),
+            country_iso_name: flightroute.destination_airport_country_iso_name.clone(),
+            country_name: flightroute.destination_airport_country_name.clone(),
             elevation: flightroute.destination_airport_elevation,
-            iata_code: flightroute.destination_airport_iata_code.to_owned(),
-            icao_code: flightroute.destination_airport_icao_code.to_owned(),
+            iata_code: flightroute.destination_airport_iata_code.clone(),
+            icao_code: flightroute.destination_airport_icao_code.clone(),
             latitude: flightroute.destination_airport_latitude,
             longitude: flightroute.destination_airport_longitude,
-            municipality: flightroute.destination_airport_municipality.to_owned(),
+            municipality: flightroute.destination_airport_municipality.clone(),
         };
         (origin, midpoint, destination)
     }
@@ -144,11 +144,11 @@ pub struct ResponseFlightRoute {
 }
 
 impl ResponseFlightRoute {
-    pub fn from_model(op_flightroute: Option<ModelFlightroute>) -> Option<Self> {
+    pub fn from_model(op_flightroute: &Option<ModelFlightroute>) -> Option<Self> {
         if let Some(flightroute) = op_flightroute.as_ref() {
             let airports = Airport::from_model(flightroute);
             Some(Self {
-                callsign: flightroute.callsign.to_owned(),
+                callsign: flightroute.callsign.clone(),
                 origin: airports.0,
                 midpoint: airports.1,
                 destination: airports.2,

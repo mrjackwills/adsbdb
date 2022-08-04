@@ -17,7 +17,7 @@ async fn find_flightroute(
     path: &Callsign,
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
-    let redis_key = RedisKey::Callsign(path.callsign.to_owned());
+    let redis_key = RedisKey::Callsign(path.callsign.clone());
     let cache: Option<Option<ModelFlightroute>> = get_cache(&state.redis, &redis_key).await?;
     if let Some(flightroute) = cache {
         Ok(flightroute)
@@ -28,7 +28,7 @@ async fn find_flightroute(
             flightroute = state
                 .scraper
                 .scrape_flightroute(&state.postgres, &path.callsign)
-                .await?
+                .await?;
         }
         insert_cache(&state.redis, &flightroute, &redis_key).await?;
         Ok(flightroute)
@@ -89,7 +89,7 @@ pub async fn aircraft_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
-        let callsign = Callsign::new(query_param.to_owned())?;
+        let callsign = Callsign::new(query_param.clone())?;
         let (aircraft, flightroute) = tokio::join!(
             find_aircraft(&path, state.clone()),
             find_flightroute(&callsign, state)
@@ -100,7 +100,7 @@ pub async fn aircraft_get(
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: Some(ResponseAircraft::from(a)),
-                    flightroute: ResponseFlightRoute::from_model(flightroute),
+                    flightroute: ResponseFlightRoute::from_model(&flightroute),
                 }),
             ))
         } else {
@@ -134,7 +134,7 @@ pub async fn callsign_get(
             axum::http::StatusCode::OK,
             ResponseJson::new(AircraftAndRoute {
                 aircraft: None,
-                flightroute: ResponseFlightRoute::from_model(Some(a)),
+                flightroute: ResponseFlightRoute::from_model(&Some(a)),
             }),
         ))
     } else {
@@ -190,7 +190,7 @@ mod tests {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+        redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
         Extension(ApplicationState::new(
             postgres,
             Arc::new(Mutex::new(redis)),
@@ -199,7 +199,7 @@ mod tests {
     }
 
     async fn sleep(ms: u64) {
-        tokio::time::sleep(std::time::Duration::from_millis(ms)).await
+        tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
     }
 
     async fn remove_scraped_flightroute(db: &PgPool) {
@@ -209,7 +209,7 @@ mod tests {
         sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
         let app_env = parse_env::AppEnv::get_env();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+		redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
     }
 
     #[tokio::test]
@@ -348,7 +348,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
     }
 
     #[tokio::test]
@@ -381,7 +381,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
     }
 
     #[tokio::test]
@@ -418,7 +418,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
 
         sleep(1000).await;
 
@@ -449,7 +449,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
     }
 
     #[tokio::test]
@@ -470,7 +470,7 @@ mod tests {
                 elevation: 27,
                 iata_code: "PMI".to_owned(),
                 icao_code: "LEPA".to_owned(),
-                latitude: 39.551701,
+                latitude: 39.551_701,
                 longitude: 2.73881,
                 municipality: "Palma De Mallorca".to_owned(),
                 name: "Palma de Mallorca Airport".to_owned(),
@@ -482,7 +482,7 @@ mod tests {
                 elevation: 622,
                 iata_code: "BRS".to_owned(),
                 icao_code: "EGGD".to_owned(),
-                latitude: 51.382702,
+                latitude: 51.382_702,
                 longitude: -2.71909,
                 municipality: "Bristol".to_owned(),
                 name: "Bristol Airport".to_owned(),
@@ -516,8 +516,8 @@ mod tests {
                 elevation: 21,
                 iata_code: "SYD".to_owned(),
                 icao_code: "YSSY".to_owned(),
-                latitude: -33.94609832763672,
-                longitude: 151.177001953125,
+                latitude: -33.946_098_327_636_72,
+                longitude: 151.177_001_953_125,
                 municipality: "Sydney".to_owned(),
                 name: "Sydney Kingsford Smith International Airport".to_owned(),
             },
@@ -528,7 +528,7 @@ mod tests {
                 iata_code: "SIN".to_owned(),
                 icao_code: "WSSS".to_owned(),
                 latitude: 1.35019,
-                longitude: 103.994003,
+                longitude: 103.994_003,
                 municipality: "Singapore".to_owned(),
                 name: "Singapore Changi Airport".to_owned(),
             }),
@@ -539,7 +539,7 @@ mod tests {
                 iata_code: "LHR".to_owned(),
                 icao_code: "EGLL".to_owned(),
                 latitude: 51.4706,
-                longitude: -0.461941,
+                longitude: -0.461_941,
                 municipality: "London".to_owned(),
                 name: "London Heathrow Airport".to_owned(),
             },
@@ -576,7 +576,7 @@ mod tests {
         assert_eq!(result.origin_airport_elevation, 27);
         assert_eq!(result.origin_airport_iata_code, "PMI");
         assert_eq!(result.origin_airport_icao_code, "LEPA");
-        assert_eq!(result.origin_airport_latitude, 39.551701);
+        assert_eq!(result.origin_airport_latitude, 39.551_701);
         assert_eq!(result.origin_airport_longitude, 2.73881);
         assert_eq!(result.origin_airport_municipality, "Palma De Mallorca");
         assert_eq!(result.origin_airport_name, "Palma de Mallorca Airport");
@@ -594,8 +594,8 @@ mod tests {
         assert_eq!(result.destination_airport_elevation, 622);
         assert_eq!(result.destination_airport_iata_code, "BRS");
         assert_eq!(result.destination_airport_icao_code, "EGGD");
-        assert_eq!(result.destination_airport_latitude, 51.382702);
-        assert_eq!(result.destination_airport_longitude, -2.71909);
+        assert_eq!(result.destination_airport_latitude, 51.382_702);
+        assert_eq!(result.destination_airport_longitude, -2.719_09);
         assert_eq!(result.destination_airport_municipality, "Bristol");
         assert_eq!(result.destination_airport_name, "Bristol Airport");
 
@@ -606,7 +606,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
     }
 
     #[tokio::test]
@@ -634,8 +634,8 @@ mod tests {
         assert_eq!(result.origin_airport_elevation, 21);
         assert_eq!(result.origin_airport_iata_code, "SYD");
         assert_eq!(result.origin_airport_icao_code, "YSSY");
-        assert_eq!(result.origin_airport_latitude, -33.94609832763672);
-        assert_eq!(result.origin_airport_longitude, 151.177001953125);
+        assert_eq!(result.origin_airport_latitude, -33.946_098_327_636_72);
+        assert_eq!(result.origin_airport_longitude, 151.177_001_953_125);
         assert_eq!(result.origin_airport_municipality, "Sydney");
         assert_eq!(
             result.origin_airport_name,
@@ -654,7 +654,7 @@ mod tests {
         assert_eq!(result.midpoint_airport_iata_code, Some("SIN".to_owned()));
         assert_eq!(result.midpoint_airport_icao_code, Some("WSSS".to_owned()));
         assert_eq!(result.midpoint_airport_latitude, Some(1.35019));
-        assert_eq!(result.midpoint_airport_longitude, Some(103.994003));
+        assert_eq!(result.midpoint_airport_longitude, Some(103.994_003));
         assert_eq!(
             result.midpoint_airport_municipality,
             Some("Singapore".to_owned())
@@ -670,7 +670,7 @@ mod tests {
         assert_eq!(result.destination_airport_iata_code, "LHR");
         assert_eq!(result.destination_airport_icao_code, "EGLL");
         assert_eq!(result.destination_airport_latitude, 51.4706);
-        assert_eq!(result.destination_airport_longitude, -0.461941);
+        assert_eq!(result.destination_airport_longitude, -0.461_941);
         assert_eq!(result.destination_airport_municipality, "London");
         assert_eq!(result.destination_airport_name, "London Heathrow Airport");
 
@@ -681,7 +681,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
     }
 
     #[tokio::test]
@@ -705,8 +705,8 @@ mod tests {
                 elevation: 12,
                 iata_code: "OKA".to_owned(),
                 icao_code: "ROAH".to_owned(),
-                latitude: 26.195801,
-                longitude: 127.646004,
+                latitude: 26.195_801,
+                longitude: 127.646_004,
                 municipality: "Naha".to_owned(),
                 name: "Naha Airport / JASDF Naha Air Base".to_owned(),
             },
@@ -717,8 +717,8 @@ mod tests {
                 elevation: 35,
                 iata_code: "HND".to_owned(),
                 icao_code: "RJTT".to_owned(),
-                latitude: 35.552299,
-                longitude: 139.779999,
+                latitude: 35.552_299,
+                longitude: 139.779_999,
                 municipality: "Tokyo".to_owned(),
                 name: "Tokyo Haneda International Airport".to_owned(),
             },
@@ -763,7 +763,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
 
         sleep(1000).await;
 
@@ -794,7 +794,7 @@ mod tests {
             .ttl(key.to_string())
             .await
             .unwrap();
-        assert_eq!(ttl, 604800);
+        assert_eq!(ttl, 604_800);
     }
 
     #[tokio::test]
@@ -820,7 +820,7 @@ mod tests {
                 elevation: 27,
                 iata_code: "PMI".to_owned(),
                 icao_code: "LEPA".to_owned(),
-                latitude: 39.551701,
+                latitude: 39.551_701,
                 longitude: 2.73881,
                 municipality: "Palma De Mallorca".to_owned(),
                 name: "Palma de Mallorca Airport".to_owned(),
@@ -832,7 +832,7 @@ mod tests {
                 elevation: 622,
                 iata_code: "BRS".to_owned(),
                 icao_code: "EGGD".to_owned(),
-                latitude: 51.382702,
+                latitude: 51.382_702,
                 longitude: -2.71909,
                 municipality: "Bristol".to_owned(),
                 name: "Bristol Airport".to_owned(),
@@ -894,7 +894,7 @@ mod tests {
                 elevation: 27,
                 iata_code: "PMI".to_owned(),
                 icao_code: "LEPA".to_owned(),
-                latitude: 39.551701,
+                latitude: 39.551_701,
                 longitude: 2.73881,
                 municipality: "Palma De Mallorca".to_owned(),
                 name: "Palma de Mallorca Airport".to_owned(),
@@ -906,7 +906,7 @@ mod tests {
                 elevation: 622,
                 iata_code: "BRS".to_owned(),
                 icao_code: "EGGD".to_owned(),
-                latitude: 51.382702,
+                latitude: 51.382_702,
                 longitude: -2.71909,
                 municipality: "Bristol".to_owned(),
                 name: "Bristol Airport".to_owned(),

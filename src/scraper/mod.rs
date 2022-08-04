@@ -53,8 +53,8 @@ where
 impl Scrapper {
     pub fn new(app_env: &AppEnv) -> Self {
         Self {
-            flight_scrape_url: app_env.url_callsign.to_owned(),
-            photo_url: app_env.url_aircraft_photo.to_owned(),
+            flight_scrape_url: app_env.url_callsign.clone(),
+            photo_url: app_env.url_aircraft_photo.clone(),
         }
     }
 
@@ -85,8 +85,8 @@ impl Scrapper {
         if output.len() >= 2 {
             Some(ScrapedFlightroute {
                 callsign: callsign.to_owned(),
-                origin: output[0].to_owned(),
-                destination: output[1].to_owned(),
+                origin: output[0].clone(),
+                destination: output[1].clone(),
             })
         } else {
             None
@@ -282,7 +282,7 @@ mod tests {
 
         let app_env = AppEnv::get_env();
         let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-        let _: () = redis::cmd("FLUSHDB").query_async(&mut redis).await.unwrap();
+    	redis::cmd("FLUSHDB").query_async::<_, ()>(&mut redis).await.unwrap();
     }
 
     #[test]

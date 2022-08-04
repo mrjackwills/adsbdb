@@ -175,21 +175,18 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     };
 
     for bucket in [Bucket::One, Bucket::Two, Bucket::Three, Bucket::Four] {
-        match bucket {
-            Bucket::Four => {
-                rem = calc_rem(&mut output, rem, Bucket::Four);
-                if rem == 0 {
-                    return NNumber::new(output);
-                }
+        if let Bucket::Four = bucket {
+            rem = calc_rem(&mut output, rem, Bucket::Four);
+            if rem == 0 {
+                return NNumber::new(output);
             }
-            _ => {
-                rem = calc_rem(&mut output, rem, bucket);
-                if rem < SUFFIX_SIZE {
-                    return NNumber::new(format!("{}{}", output, get_suffix(rem)?));
-                }
-                rem -= SUFFIX_SIZE;
-            }
-        }
+        } else {
+                        rem = calc_rem(&mut output, rem, bucket);
+                        if rem < SUFFIX_SIZE {
+                            return NNumber::new(format!("{}{}", output, get_suffix(rem)?));
+                        }
+                        rem -= SUFFIX_SIZE;
+                    }
     }
 
     if let Some(final_char) = ALLCHARS.chars().nth(rem - 1) {

@@ -120,7 +120,7 @@ WHERE
     ) -> Result<(), AppError> {
         let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
         let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
-            .bind(photo.image.to_owned())
+            .bind(photo.image.clone())
             .fetch_one(&mut *transaction)
             .await?;
 
