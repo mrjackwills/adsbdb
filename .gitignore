@@ -31,3 +31,5 @@ pg_dump.tar
 # local env files
 **/.env*
 **/*.env*
+
+Cargo.lock
