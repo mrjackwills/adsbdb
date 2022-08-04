@@ -1,8 +1,12 @@
+### Chores
++ aggressive linting nursery, pedantic, and unused_unwraps, [b6716880fc7e5c5b168d9aeafc9288ef9dc542c8], [7a87c3864702ae7a2cbb2e7b5fc7602cd11df6fd], [13e30b0a0179c47f14474f824fcdb78612495479]
++ dependencies updated, [ce1ef872fe81501dc473b71def7710bd2141fdbd]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.12'>v0.0.12</a>
 ### 2022-07-21
 
 ### Chores
-+  dependancies updated, [81334ac9](https://github.com/mrjackwills/adsbdb/commit/81334ac97569d011613e81a366aa42eb28efc0fc),
++ dependencies updated, [81334ac9](https://github.com/mrjackwills/adsbdb/commit/81334ac97569d011613e81a366aa42eb28efc0fc),
 
 ### Features
 + parse server bind_address from env.host_name & env.port, [1f66fb84](https://github.com/mrjackwills/adsbdb/commit/1f66fb84a4825d2ba9e17a9e16fdded0f33ebdc0),
@@ -54,7 +58,7 @@
 ### 2022-06-13
 
 ### Chores
-+ Cargo.lock dependancies updated, [630d810c](https://github.com/mrjackwills/adsbdb/commit/630d810c8f6678fd31dab2f0a5f76647b4e84e8a),
++ Cargo.lock dependencies updated, [630d810c](https://github.com/mrjackwills/adsbdb/commit/630d810c8f6678fd31dab2f0a5f76647b4e84e8a),
 
 ### Fixes
 + create_release.sh sed fix, removed hard-coded value, [d3dac1b9](https://github.com/mrjackwills/adsbdb/commit/d3dac1b94a576d8aa5d4ab704f04fb4f9e2a1f53),
