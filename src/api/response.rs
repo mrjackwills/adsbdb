@@ -40,8 +40,8 @@ pub struct ResponseAircraft {
 }
 
 impl From<ModelAircraft> for ResponseAircraft {
-	fn from(model: ModelAircraft) -> Self{
-		Self {
+    fn from(model: ModelAircraft) -> Self {
+        Self {
             aircraft_type: model.aircraft_type,
             icao_type: model.icao_type,
             manufacturer: model.manufacturer,
@@ -54,8 +54,7 @@ impl From<ModelAircraft> for ResponseAircraft {
             url_photo: model.url_photo,
             url_photo_thumbnail: model.url_photo_thumbnail,
         }
-
-	}
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -87,7 +86,7 @@ impl Airport {
 
         // This is a messy way to do it, but it works
         // If midpoint_airport_name is_some, then all midpoint values are some
-		let midpoint = if flightroute.midpoint_airport_name.is_some() {
+        let midpoint = if flightroute.midpoint_airport_name.is_some() {
             Some(Self {
                 name: flightroute
                     .midpoint_airport_name
@@ -117,9 +116,9 @@ impl Airport {
                     .clone()
                     .unwrap_or_default(),
             })
-        }else{
-			None
-		};
+        } else {
+            None
+        };
 
         let destination = Self {
             name: flightroute.destination_airport_name.clone(),

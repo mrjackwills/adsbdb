@@ -21,9 +21,12 @@ use api::AppError;
 use parse_env::AppEnv;
 use tokio::sync::Mutex;
 use tracing::Level;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::{
+    fmt::{self, format},
+    prelude::__tracing_subscriber_SubscriberExt,
+};
 
-fn setup_tracing(app_envs: &AppEnv) {
+fn setup_tracing(app_envs: &AppEnv) -> Result<(), AppError> {
     let level = if app_envs.trace {
         Level::TRACE
     } else if app_envs.debug {
@@ -31,22 +34,32 @@ fn setup_tracing(app_envs: &AppEnv) {
     } else {
         Level::INFO
     };
-
     let logfile = tracing_appender::rolling::never(&app_envs.location_logs, "api.log");
-    let stdout = std::io::stdout.with_max_level(level);
 
-    tracing_subscriber::fmt()
-        .with_max_level(level)
-        .with_file(true)
-        .with_line_number(true)
-        .with_writer(logfile.and(stdout))
-        .init();
+    let log_fmt = fmt::Layer::default()
+        .event_format(format().json().flatten_event(true))
+        .with_writer(logfile);
+
+    match tracing::subscriber::set_global_default(
+        fmt::Subscriber::builder()
+            .with_file(true)
+            .with_line_number(true)
+            .with_max_level(level)
+            .finish()
+            .with(log_fmt),
+    ) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            println!("{:?}", e);
+            Err(AppError::Internal("Unable to start tracing".to_owned()))
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     let app_env = parse_env::AppEnv::get_env();
-    setup_tracing(&app_env);
+    setup_tracing(&app_env)?;
     let postgres = db_postgres::db_pool(&app_env).await?;
     let redis = db_redis::get_connection(&app_env).await?;
     api::serve(app_env, postgres, Arc::new(Mutex::new(redis))).await?;

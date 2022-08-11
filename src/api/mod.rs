@@ -839,7 +839,7 @@ pub mod tests {
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
-		let responses = ["rate limited for 59 seconds", "rate limited for 58 seconds"];
+        let responses = ["rate limited for 59 seconds", "rate limited for 58 seconds"];
         assert!(responses.contains(&result.as_str().unwrap()));
 
         // 240+ request is rate limited for 300 seconds
