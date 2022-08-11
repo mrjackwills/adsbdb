@@ -204,8 +204,7 @@ cargo_test () {
 
 # build for production, imitate GitHub workflow
 cargo_build () {
-	cargo install cross
-	cross build --target x86_64-unknown-linux-musl --release
+	cargo build --release
 	ask_continue
 }
 

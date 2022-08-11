@@ -33,7 +33,6 @@ struct AircraftPhoto {
 
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
-    /// Could also just be a static const
     const fn get_query() -> &'static str {
         r#"
 SELECT

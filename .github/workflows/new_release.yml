@@ -5,24 +5,18 @@ on:
       - 'v*.*.*'
 jobs:
   deploy:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       
-      # Build for linux x86_64 musl
-      - name: build release x86_64_musl
-        uses: actions-rs/toolchain@v1
+       # Build for linux x86_64
+      - name: build release linux_x86_64
+        uses: actions-rs/cargo@v1
         with:
-          toolchain: stable
-          target: aarch64-unknown-linux-musl
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
           command: build
-          args: --target x86_64-unknown-linux-musl --release
-      - name: compress x86_64-unknown-linux-musl binary
-        run: tar -C target/x86_64-unknown-linux-musl/release -czf ./adsbdb_linux_x86_64_musl.tar.gz adsbdb
+          args: --release
+      - name: compress adsbdb_linux_x86_64 binary
+        run: tar -C target/release -czf ./adsbdb_linux_x86_64.tar.gz adsbdb
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -32,6 +26,6 @@ jobs:
           body_path: ".github/release-body.md"
           draft: false
           files: |
-             adsbdb_linux_x86_64_musl.tar.gz
+             adsbdb_linux_x86_64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
