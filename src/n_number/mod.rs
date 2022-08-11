@@ -66,7 +66,7 @@ enum Bucket {
 impl Bucket {
     const fn get(&self) -> usize {
         match self {
-            Self::One => 101711,
+            Self::One => 101_711,
             Self::Two => 10111,
             Self::Three => 951,
             Self::Four => 35,
@@ -276,7 +276,7 @@ mod tests {
     // This will create every valid American, as in starts with 'A', mode_s
     fn gen_all_mode_s() -> Vec<ModeS> {
         let mut output = vec![];
-        for i in 1..=915399 {
+        for i in 1..=915_399 {
             let mode_s = format_mode_s("a", i).unwrap();
             output.push(mode_s);
         }
