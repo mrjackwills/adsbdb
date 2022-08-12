@@ -1,6 +1,6 @@
 ### Chores
 + aggressive linting, [0fa03c922b0dedeb1c2a35ea8d49f7e456d06dc7]
-+ dev docker container updated, [95faeef0ab6888b423cb2fba33126f4367149f9b]
++ dev docker container updated, [95faeef0ab6888b423cb2fba33126f4367149f9b], [ae77cb62039cdbd1321604df5b60530c7378f7fa]
 + dependencies updated, [7b82d9d7a609e00674d59f158da497fdd74b3422]
 
 ### Docs
@@ -11,7 +11,7 @@
 + log to file as json, [47b769e1959b973957dea89cda2eed5b97487de4]
 
 ### Fixes
-+ impl From<T> for ResponseAircraft, [6079d32de505b63b04fa0d9bf0adb1c2ab702dfc]
++ impl From\<ModelAircraft> for ResponseAircraft, [6079d32de505b63b04fa0d9bf0adb1c2ab702dfc]
 + untrack Cargo.lock, [9bf63802cefcb9c903e836fd279a0e8c81fe9d62]
 
 

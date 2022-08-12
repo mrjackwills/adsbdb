@@ -19,7 +19,7 @@ use parse_env::AppEnv;
 use tokio::sync::Mutex;
 use tracing::Level;
 use tracing_subscriber::{
-    fmt::{self, format},
+    fmt,
     prelude::__tracing_subscriber_SubscriberExt,
 };
 
@@ -34,7 +34,8 @@ fn setup_tracing(app_envs: &AppEnv) -> Result<(), AppError> {
     let logfile = tracing_appender::rolling::never(&app_envs.location_logs, "api.log");
 
     let log_fmt = fmt::Layer::default()
-        .event_format(format().json().flatten_event(true))
+		.json()
+		.flatten_event(true)
         .with_writer(logfile);
 
     match tracing::subscriber::set_global_default(
