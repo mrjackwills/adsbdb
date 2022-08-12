@@ -11,7 +11,7 @@ use crate::db_postgres::{Model, ModelAircraft, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
-/// Get flightroute, refactored so can use in either get_mode_s (with a callsign query param), or get_callsign.
+/// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for aircraft (or 'none'), or hit postgres
 async fn find_flightroute(
     path: &Callsign,
@@ -164,7 +164,7 @@ pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRe
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use std::sync::Arc;
 

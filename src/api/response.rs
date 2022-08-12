@@ -5,7 +5,7 @@ use crate::db_postgres::{ModelAircraft, ModelFlightroute};
 
 pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, PartialOrd)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, PartialOrd)]
 pub struct ResponseJson<T> {
     pub response: T,
 }
@@ -23,7 +23,7 @@ pub struct Online {
     pub api_version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ResponseAircraft {
     #[serde(rename = "type")]
     pub aircraft_type: String,

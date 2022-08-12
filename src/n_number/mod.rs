@@ -5,7 +5,6 @@
 
 // Honestly don't truly understand what is happening in most of these functions
 // But it seems to work as expected, although probably inefficient
-
 use std::fmt;
 
 use crate::api::{AppError, ModeS, NNumber};
@@ -72,7 +71,7 @@ impl Bucket {
             Self::Four => 35,
         }
     }
-    const fn extra(&self) -> usize {
+    const fn extra(&self) -> u32 {
         match self {
             Self::One => 1,
             _ => 0,
@@ -87,7 +86,7 @@ impl Bucket {
 /// Reverse function of suffix_shift()
 /// 0 -> ''
 /// 1 -> 'A'
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 fn get_suffix(offset: usize) -> Result<String, AppError> {
     if offset == 0 {
         return Ok(String::new());
@@ -109,7 +108,7 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
     }
 }
 
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
     let second_char = offset.chars().nth(index).unwrap();
     ICAO_CHARSET
@@ -167,9 +166,9 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     let mut rem = usize::from_str_radix(&mode_s.to_string()[1..], 16)? - 1;
 
     let calc_rem = |output: &mut String, rem: usize, bucket: Bucket| -> usize {
-        let digit = rem / bucket.get() + bucket.extra();
+        let digit = rem / bucket.get() + bucket.extra() as usize;
         let rem = rem % bucket.get();
-        output.push_str(&format!("{}", digit));
+        output.push_str(&digit.to_string());
         rem
     };
 
@@ -269,7 +268,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

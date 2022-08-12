@@ -11,7 +11,7 @@ use crate::{
 
 const ICAO: &str = "\"icao\":";
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct PhotoData {
     #[serde(deserialize_with = "deserialize_url")]
     pub image: String,
@@ -31,7 +31,7 @@ pub struct Scrapper {
     photo_url: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScrapedFlightroute {
     pub callsign: String,
     pub origin: String,
@@ -223,7 +223,7 @@ impl Scrapper {
 ///
 /// cargo watch -q -c -w src/ -x 'test scraper_ '
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::ModeS;
@@ -429,8 +429,8 @@ mod tests {
             origin_airport_elevation: 12,
             origin_airport_iata_code: "OKA".to_owned(),
             origin_airport_icao_code: "ROAH".to_owned(),
-            origin_airport_latitude: 26.195801,
-            origin_airport_longitude: 127.646004,
+            origin_airport_latitude: 26.195_801,
+            origin_airport_longitude: 127.646_004,
             origin_airport_municipality: "Naha".to_owned(),
             origin_airport_name: "Naha Airport / JASDF Naha Air Base".to_owned(),
             midpoint_airport_country_iso_name: None,
@@ -447,8 +447,8 @@ mod tests {
             destination_airport_elevation: 35,
             destination_airport_iata_code: "HND".to_owned(),
             destination_airport_icao_code: "RJTT".to_owned(),
-            destination_airport_latitude: 35.552299,
-            destination_airport_longitude: 139.779999,
+            destination_airport_latitude: 35.552_299,
+            destination_airport_longitude: 139.779_999,
             destination_airport_municipality: "Tokyo".to_owned(),
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };

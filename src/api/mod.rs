@@ -293,7 +293,7 @@ impl IntoResponse for AppError {
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 pub mod tests {
     use super::*;
 
@@ -672,7 +672,7 @@ pub mod tests {
         assert_eq!(flightroute_result["destination"]["iata_code"], "LHR");
         assert_eq!(flightroute_result["destination"]["icao_code"], "EGLL");
         assert_eq!(flightroute_result["destination"]["latitude"], 51.4706);
-        assert_eq!(flightroute_result["destination"]["longitude"], -0.461941);
+        assert_eq!(flightroute_result["destination"]["longitude"], -0.461_941);
         assert_eq!(flightroute_result["destination"]["municipality"], "London");
         assert_eq!(
             flightroute_result["destination"]["name"],
