@@ -14,8 +14,6 @@
 + impl From\<ModelAircraft> for ResponseAircraft, [6079d32de505b63b04fa0d9bf0adb1c2ab702dfc]
 + untrack Cargo.lock, [9bf63802cefcb9c903e836fd279a0e8c81fe9d62]
 
-
-
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.13'>v0.0.13</a>
 ### 2022-08-04
 
