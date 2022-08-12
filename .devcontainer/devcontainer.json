@@ -26,7 +26,7 @@
 	},
 
 
-	"postCreateCommand": "curl --proto '=https' --tlsv1.2 -sSf curl https://sh.rustup.rs | sh -s -- -y && cargo install cargo-watch",
+	"postCreateCommand": "cargo install cargo-watch",
 	//  cross cargo-tarpaulin cargo-audit",
 	
 	// Add the IDs of extensions you want installed when the container is created.
