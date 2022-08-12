@@ -8,7 +8,7 @@
 
 ### Features
 + api.Dockerfile switch from Alpine to Debian Bullseye, [d8fa2c0747dee8e741137a7c711cf3b2a073890f], [e5b062d837f56db5f01b8a60e5dea04849e89b1a]
-+ log to file as json, [47b769e1959b973957dea89cda2eed5b97487de4]
++ log to file as json, [47b769e1959b973957dea89cda2eed5b97487de4], [669d6dc4d4251086397f3c2cdc1dced0fd95749c]
 
 ### Fixes
 + impl From\<ModelAircraft> for ResponseAircraft, [6079d32de505b63b04fa0d9bf0adb1c2ab702dfc]
