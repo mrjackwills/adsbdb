@@ -1,5 +1,11 @@
 #![forbid(unsafe_code)]
-#![warn(clippy::unused_async, clippy::unwrap_used, clippy::expect_used, clippy::pedantic, clippy::nursery)]
+#![warn(
+    clippy::unused_async,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::pedantic,
+    clippy::nursery
+)]
 #![allow(clippy::module_name_repetitions, clippy::doc_markdown)]
 
 // Only allow when debugging
@@ -18,10 +24,7 @@ use api::AppError;
 use parse_env::AppEnv;
 use tokio::sync::Mutex;
 use tracing::Level;
-use tracing_subscriber::{
-    fmt,
-    prelude::__tracing_subscriber_SubscriberExt,
-};
+use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
 
 fn setup_tracing(app_envs: &AppEnv) -> Result<(), AppError> {
     let level = if app_envs.trace {
@@ -34,8 +37,8 @@ fn setup_tracing(app_envs: &AppEnv) -> Result<(), AppError> {
     let logfile = tracing_appender::rolling::never(&app_envs.location_logs, "api.log");
 
     let log_fmt = fmt::Layer::default()
-		.json()
-		.flatten_event(true)
+        .json()
+        .flatten_event(true)
         .with_writer(logfile);
 
     match tracing::subscriber::set_global_default(
