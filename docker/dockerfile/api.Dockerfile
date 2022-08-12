@@ -10,7 +10,7 @@ ARG DOCKER_GUID=1000 \
 ENV TZ=${DOCKER_TIME_CONT}/${DOCKER_TIME_CITY}
 
 RUN apt-get update \
-	&& apt-get install -y ca-certificates \
+	&& apt-get install -y ca-certificates wget \
 	&& update-ca-certificates \
 	&& groupadd --gid ${DOCKER_GUID} ${DOCKER_APP_GROUP} \
 	&& useradd --no-create-home --no-log-init --uid ${DOCKER_UID} --gid ${DOCKER_GUID} ${DOCKER_APP_USER} \
@@ -19,7 +19,6 @@ RUN apt-get update \
 
 WORKDIR /app
 
-RUN mkdir /healthcheck /logs
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_api.sh /healthcheck
 
 # Download latest release from github
