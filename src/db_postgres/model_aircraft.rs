@@ -8,7 +8,7 @@ use crate::{
     scraper::PhotoData,
 };
 
-#[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAircraft {
     pub aircraft_id: i64,
     #[serde(rename = "type")]
@@ -33,7 +33,6 @@ struct AircraftPhoto {
 
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
-    /// Could also just be a static const
     const fn get_query() -> &'static str {
         r#"
 SELECT
@@ -146,7 +145,7 @@ WHERE
 //
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::tests::test_setup;

@@ -20,7 +20,7 @@ trait Validate {
     fn validate(x: String) -> Result<String, AppError>;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModeS {
     mode_s: String,
 }
@@ -64,7 +64,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NNumber {
     n_number: String,
 }
@@ -111,7 +111,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Callsign {
     pub callsign: String,
 }
@@ -152,7 +152,7 @@ where
 
 /// cargo watch -q -c -w src/ -x 'test mod_api_input -- --nocapture'
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

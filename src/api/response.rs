@@ -5,7 +5,7 @@ use crate::db_postgres::{ModelAircraft, ModelFlightroute};
 
 pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, PartialOrd)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, PartialOrd)]
 pub struct ResponseJson<T> {
     pub response: T,
 }
@@ -23,7 +23,7 @@ pub struct Online {
     pub api_version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ResponseAircraft {
     #[serde(rename = "type")]
     pub aircraft_type: String,
@@ -39,20 +39,20 @@ pub struct ResponseAircraft {
     pub url_photo_thumbnail: Option<String>,
 }
 
-impl ResponseAircraft {
-    pub fn from(a: ModelAircraft) -> Self {
+impl From<ModelAircraft> for ResponseAircraft {
+    fn from(model: ModelAircraft) -> Self {
         Self {
-            aircraft_type: a.aircraft_type,
-            icao_type: a.icao_type,
-            manufacturer: a.manufacturer,
-            mode_s: a.mode_s,
-            n_number: a.n_number,
-            registered_owner_country_iso_name: a.registered_owner_country_iso_name,
-            registered_owner_country_name: a.registered_owner_country_name,
-            registered_owner_operator_flag_code: a.registered_owner_operator_flag_code,
-            registered_owner: a.registered_owner,
-            url_photo: a.url_photo,
-            url_photo_thumbnail: a.url_photo_thumbnail,
+            aircraft_type: model.aircraft_type,
+            icao_type: model.icao_type,
+            manufacturer: model.manufacturer,
+            mode_s: model.mode_s,
+            n_number: model.n_number,
+            registered_owner_country_iso_name: model.registered_owner_country_iso_name,
+            registered_owner_country_name: model.registered_owner_country_name,
+            registered_owner_operator_flag_code: model.registered_owner_operator_flag_code,
+            registered_owner: model.registered_owner,
+            url_photo: model.url_photo,
+            url_photo_thumbnail: model.url_photo_thumbnail,
         }
     }
 }
@@ -84,11 +84,10 @@ impl Airport {
             municipality: flightroute.origin_airport_municipality.clone(),
         };
 
-        let mut midpoint = None;
         // This is a messy way to do it, but it works
         // If midpoint_airport_name is_some, then all midpoint values are some
-        if flightroute.midpoint_airport_name.is_some() {
-            midpoint = Some(Self {
+        let midpoint = if flightroute.midpoint_airport_name.is_some() {
+            Some(Self {
                 name: flightroute
                     .midpoint_airport_name
                     .clone()
@@ -116,8 +115,10 @@ impl Airport {
                     .midpoint_airport_municipality
                     .clone()
                     .unwrap_or_default(),
-            });
-        }
+            })
+        } else {
+            None
+        };
 
         let destination = Self {
             name: flightroute.destination_airport_name.clone(),
