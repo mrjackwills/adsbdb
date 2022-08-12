@@ -1,5 +1,4 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.217.4/containers/rust
 {
 	"name": "Rust",
 	"build": {
@@ -16,10 +15,6 @@
 		"seccomp=unconfined"
 	],
 
-	"mounts": [
-		"source=/dev/shm,target=/ramdrive,type=bind"
-	],
-
 	// Set *default* container specific settings.json values on container create.
 	"settings": {
 		"lldb.executable": "/usr/bin/lldb",
@@ -30,6 +25,10 @@
 		"rust-analyzer.checkOnSave.command": "clippy"
 	},
 
+
+	"postCreateCommand": "curl --proto '=https' --tlsv1.2 -sSf curl https://sh.rustup.rs | sh -s -- -y && cargo install cargo-watch",
+	//  cross cargo-tarpaulin cargo-audit",
+	
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": [
 		"vadimcn.vscode-lldb",
@@ -41,7 +40,7 @@
 		"ms-vscode.live-server",
 		"rangav.vscode-thunder-client",
 		"bmuskalla.vscode-tldr",
-		"rust-lang.rust-analyze"
+		"rust-lang.rust-analyzer"
 	],
 
 
