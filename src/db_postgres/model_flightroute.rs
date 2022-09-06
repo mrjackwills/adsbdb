@@ -52,8 +52,7 @@ pub struct ModelFlightroute {
 #[async_trait]
 impl Model<Self> for ModelFlightroute {
     async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {
-        let query = Self::get_query();
-        Ok(sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(callsign)
             .fetch_optional(db)
             .await?)
@@ -66,7 +65,7 @@ impl ModelFlightroute {
     const fn get_query() -> &'static str {
         r#"
 		SELECT
-			$1 as callsign,
+			$1 AS callsign,
 			fl.flightroute_id,
 			( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
 			( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,

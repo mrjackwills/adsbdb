@@ -43,7 +43,7 @@ SELECT
 	aof.operator_flag_code AS registered_owner_operator_flag_code,
 	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
 	am.manufacturer,
-	at.type as aircraft_type,
+	at.type AS aircraft_type,
 	ait.icao_type,
 	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, ap.url_photo) ELSE NULL END as url_photo,
 	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, 'thumbnails/', ap.url_photo) ELSE NULL END as url_photo_thumbnail
@@ -91,8 +91,7 @@ WHERE
             Err(_) => String::from(""),
         };
 
-        let query = Self::get_query();
-        Ok(sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(&mode_s.to_string())
             .bind(n_number)
             .bind(prefix)
