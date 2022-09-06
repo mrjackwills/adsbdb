@@ -8,7 +8,6 @@
 use std::fmt;
 
 use crate::api::{AppError, ModeS, NNumber};
-use anyhow::Result;
 use lazy_static::lazy_static;
 
 const ICAO_SIZE: usize = 6;

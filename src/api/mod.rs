@@ -269,17 +269,17 @@ impl IntoResponse for AppError {
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
+			Self::RateLimited(limit) => (
+                axum::http::StatusCode::TOO_MANY_REQUESTS,
+                ResponseJson::new(format!("{} {} seconds", prefix, limit)),
+            ),
             Self::SqlxError(_) | Self::RedisError(_) => {
                 (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
             }
             Self::SerdeJson(_) | Self::ParseInt(_) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(prefix),
-            ),
-            Self::RateLimited(limit) => (
-                axum::http::StatusCode::TOO_MANY_REQUESTS,
-                ResponseJson::new(format!("{} {} seconds", prefix, limit)),
-            ),
+            ),         
             Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{} {}", prefix, variety)),
