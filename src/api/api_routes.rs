@@ -335,7 +335,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
 
@@ -368,7 +368,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
 
@@ -408,7 +408,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
@@ -439,7 +439,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
@@ -568,7 +568,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
@@ -624,7 +624,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
@@ -753,7 +753,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
@@ -784,7 +784,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
