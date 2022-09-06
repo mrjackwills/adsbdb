@@ -1,4 +1,4 @@
-ARG VARIANT="buster"
+ARG VARIANT="bullseye"
 FROM mcr.microsoft.com/vscode/devcontainers/base:0-${VARIANT}
 
 ENV PATH="/home/vscode/.cargo/bin:${PATH}"
