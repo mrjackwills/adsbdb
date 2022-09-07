@@ -65,7 +65,7 @@ impl Bucket {
     const fn get(&self) -> usize {
         match self {
             Self::One => 101_711,
-            Self::Two => 10111,
+            Self::Two => 10_111,
             Self::Three => 951,
             Self::Four => 35,
         }
@@ -85,7 +85,6 @@ impl Bucket {
 /// Reverse function of suffix_shift()
 /// 0 -> ''
 /// 1 -> 'A'
-#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 fn get_suffix(offset: usize) -> Result<String, AppError> {
     if offset == 0 {
         return Ok(String::new());
@@ -95,25 +94,29 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
     if let Some(first_char) = ICAO_CHARSET.chars().nth(index) {
         let rem = (offset - 1) % (CHARSET_LEN + 1);
         if rem == 0 {
-            return Ok(String::from(first_char));
+            return Ok(first_char.to_string());
         }
-        Ok(format!(
-            "{}{}",
-            first_char,
-            ICAO_CHARSET.chars().nth(rem - 1).unwrap()
-        ))
+        ICAO_CHARSET
+            .chars()
+            .nth(rem - 1)
+            .map_or(Err(NError::GetSuffix.error()), |c| {
+                Ok(format!("{}{}", first_char, c))
+            })
     } else {
         Err(NError::GetSuffix.error())
     }
 }
 
-#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
-    let second_char = offset.chars().nth(index).unwrap();
-    ICAO_CHARSET
+    offset
         .chars()
-        .position(|c| c == second_char)
-        .map_or_else(|| Err(NError::GetIndex.error()), Ok)
+        .nth(index)
+        .map_or(Err(NError::GetIndex.error()), |second_char| {
+            ICAO_CHARSET
+                .chars()
+                .position(|c| c == second_char)
+                .map_or_else(|| Err(NError::GetIndex.error()), Ok)
+        })
 }
 
 /// Compute the offset corresponding to the given alphabetical suffix
@@ -128,8 +131,7 @@ fn suffix_offset(offset: &str) -> Result<usize, AppError> {
     if offset_len > 2 || !offset.chars().all(|x| ALLCHARS.contains(x)) {
         return Err(NError::SuffixOffset.error());
     }
-    let index = suffix_index(offset, 0)?;
-    let mut count = (CHARSET_LEN + 1) * index + 1;
+    let mut count = (CHARSET_LEN + 1) * suffix_index(offset, 0)? + 1;
     if offset_len == 2 {
         count += suffix_index(offset, 1)? + 1;
     }
@@ -151,8 +153,7 @@ fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
     }
 }
 
-// Convert from ModeS to NNumber
-// Maybe always return a string?
+// Convert from ModeS to NNumber, maybe always return a string?
 pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
