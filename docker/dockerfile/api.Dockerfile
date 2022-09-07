@@ -23,7 +23,7 @@ COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_ap
 
 # Download latest release from github
 # This gets automatically updated via create_release.sh
-RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.14/adsbdb_linux_x86_64.tar.gz \
+RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.0.15/adsbdb_linux_x86_64.tar.gz \
 	&& tar xzvf adsbdb_linux_x86_64.tar.gz adsbdb && rm adsbdb_linux_x86_64.tar.gz \
 	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb /logs \
 	&& chmod +x /healthcheck/health_api.sh

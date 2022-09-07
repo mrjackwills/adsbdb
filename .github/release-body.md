@@ -1,20 +1,20 @@
-### 2022-08-12
+### 2022-09-07
 
 ### Chores
-+ aggressive linting, [0fa03c922b0dedeb1c2a35ea8d49f7e456d06dc7]
-+ dev docker container updated, [95faeef0ab6888b423cb2fba33126f4367149f9b], [ae77cb62039cdbd1321604df5b60530c7378f7fa]
-+ dependencies updated, [7b82d9d7a609e00674d59f158da497fdd74b3422]
-
-### Docs
-+ readme updated, [24037f9d36be22d3907361f62a5c5c61461af537]
++ Dependencies - tokio updated, anyhow removed, [83c361d0e86a94108480b7b22b940d9f631d69f8]
++ dev container updated, from buster to bullseye, [8ec1b8e9d47de8a501905a17717d97ffef26859a]
 
 ### Features
-+ api.Dockerfile switch from Alpine to Debian Bullseye, [d8fa2c0747dee8e741137a7c711cf3b2a073890f], [e5b062d837f56db5f01b8a60e5dea04849e89b1a]
-+ log to file as json, [47b769e1959b973957dea89cda2eed5b97487de4], [669d6dc4d4251086397f3c2cdc1dced0fd95749c]
++ store cache values in using Redis Hashes, [42871bec7941178467cedc44923dc79ba783a391]
++ website response explanation added Midpoint, [7639eec2dabde108160b19649f4f3ae040171c25]
 
 ### Fixes
-+ impl From\<ModelAircraft> for ResponseAircraft, [6079d32de505b63b04fa0d9bf0adb1c2ab702dfc]
-+ untrack Cargo.lock, [9bf63802cefcb9c903e836fd279a0e8c81fe9d62]
++ postgres queries use uppercase text for SQL lang, [8ad0d341e7e26d7b0e6ad0ad9205146ba9fc7c1e]
++ N_Number functions replace unwrwaps() with map_or_else, [aabcdda0f5eeac2478c0b2bc372d8bd8e5143860]
+
+### Refactors
++ ModelAircraft use &self, instead of &Self, as param, [4c39177852ca9d82e492cbd26bf7c6ce4a4c1669]
++ Redis, key.to_string() once, and optional_null turbofish matching [85bbb6bfa423bde8ec865d8c745e1a1a014f4b1d]
 
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
