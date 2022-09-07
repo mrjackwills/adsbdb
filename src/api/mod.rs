@@ -1,5 +1,4 @@
 use ::redis::{aio::Connection, RedisError};
-use http_body::Limited;
 use reqwest::Method;
 use sqlx::PgPool;
 use thiserror::Error;
@@ -9,7 +8,6 @@ use tower_http::{
 };
 
 use axum::{
-    body::Body,
     extract::ConnectInfo,
     handler::Handler,
     http::{HeaderMap, Request},
@@ -158,7 +156,7 @@ pub async fn serve(
 ) -> Result<(), AppError> {
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
-    let api_routes: Router<Limited<Body>> = Router::new()
+    let api_routes = Router::new()
         .route(&Routes::Aircraft.to_string(), get(api_routes::aircraft_get))
         .route(&Routes::Callsign.to_string(), get(api_routes::callsign_get))
         .route(&Routes::Online.to_string(), get(api_routes::online_get))
@@ -269,7 +267,7 @@ impl IntoResponse for AppError {
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-			Self::RateLimited(limit) => (
+            Self::RateLimited(limit) => (
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{} {} seconds", prefix, limit)),
             ),
@@ -279,7 +277,7 @@ impl IntoResponse for AppError {
             Self::SerdeJson(_) | Self::ParseInt(_) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson::new(prefix),
-            ),         
+            ),
             Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{} {}", prefix, variety)),

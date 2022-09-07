@@ -134,12 +134,12 @@ impl ModelFlightroute {
         scraped_flightroute: ScrapedFlightroute,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO flightroute_callsign(callsign) VALUES ($1) RETURNING flightroute_callsign_id";
-        //
         let callsign = sqlx::query_as::<_, FlightrouteCallsign>(query)
             .bind(scraped_flightroute.callsign.clone())
             .fetch_one(&mut *transaction)
             .await?;
-        let query = r#"INSERT INTO
+        let query = r#"
+INSERT INTO
 	flightroute(flightroute_callsign_id, airport_origin_id, airport_destination_id)
 VALUES (
 	$1,
