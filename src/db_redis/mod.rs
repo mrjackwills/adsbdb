@@ -1,7 +1,7 @@
 use crate::{api::AppError, parse_env::AppEnv};
 use redis::{
     aio::Connection, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo, ErrorKind,
-    RedisConnectionInfo, RedisError, Value,
+    RedisConnectionInfo, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
@@ -13,12 +13,10 @@ const FIELD: &str = "data";
 // Convert a redis string result into a struct/None
 // If the value is null, returns as Some("none")
 fn optional_null<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
-    let valid: Result<String, RedisError> = from_redis_value(v);
-    match valid {
+    match from_redis_value::<String>(v) {
         Ok(valid_string) => {
-            let data: T = serde_json::from_str(&valid_string)?;
             // This can be either "null" or a Model struct
-            Ok(Some(data))
+            Ok(Some(serde_json::from_str::<T>(&valid_string)?))
         }
         Err(e) => match e.kind() {
             ErrorKind::TypeError => Ok(None),
@@ -32,7 +30,7 @@ pub async fn get_cache<T: DeserializeOwned + Send>(
     redis: &Arc<Mutex<Connection>>,
     key: &RedisKey,
 ) -> Result<Option<T>, AppError> {
-	let key =key.to_string();
+    let key = key.to_string();
     let value: Value = redis.lock().await.hget(&key, FIELD).await?;
     let serialized_data: Option<T> = optional_null(&value)?;
     // Can either by "null" or a Model struct,
@@ -47,15 +45,19 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     to_insert: &T,
     key: &RedisKey,
 ) -> Result<(), AppError> {
+    let key = key.to_string();
     let value = serde_json::to_string(&to_insert)?;
-    redis.lock().await.hset(key.to_string(), FIELD, value).await?;
-    redis.lock().await.expire(key.to_string(), ONE_WEEK).await?;
+    redis.lock().await.hset(&key, FIELD, value).await?;
+    redis.lock().await.expire(&key, ONE_WEEK).await?;
     Ok(())
 }
 
 /// Check if rate limited, will return true if so
-pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, key: RedisKey) -> Result<(), AppError> {
-	let key = key.to_string();
+pub async fn check_rate_limit(
+    redis: &Arc<Mutex<Connection>>,
+    key: RedisKey,
+) -> Result<(), AppError> {
+    let key = key.to_string();
     let count: Option<usize> = redis.lock().await.get(&key).await?;
     redis.lock().await.incr(&key, 1).await?;
 
@@ -107,7 +109,7 @@ pub enum RedisKey {
 
 impl fmt::Display for RedisKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-     match self {
+        match self {
             Self::Callsign(callsign) => write!(f, "callsign::{}", callsign),
             Self::ModeS(mode_s) => write!(f, "mode_s::{}", mode_s),
             Self::RateLimit(ip) => write!(f, "ratelimit::{}", ip),
