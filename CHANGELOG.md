@@ -4,7 +4,7 @@
 
 ### Features
 + store cache values in using Redis Hashes, [42871bec7941178467cedc44923dc79ba783a391]
-+ website added Midpoint { k: v }, [7639eec2dabde108160b19649f4f3ae040171c25]
++ website response explanation added Midpoint, [7639eec2dabde108160b19649f4f3ae040171c25]
 
 ### Fixes
 + postgres queries use uppercase text for SQL lang, [8ad0d341e7e26d7b0e6ad0ad9205146ba9fc7c1e]
