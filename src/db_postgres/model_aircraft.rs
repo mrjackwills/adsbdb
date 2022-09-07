@@ -1,4 +1,3 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
@@ -43,7 +42,7 @@ SELECT
 	aof.operator_flag_code AS registered_owner_operator_flag_code,
 	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
 	am.manufacturer,
-	at.type as aircraft_type,
+	at.type AS aircraft_type,
 	ait.icao_type,
 	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, ap.url_photo) ELSE NULL END as url_photo,
 	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, 'thumbnails/', ap.url_photo) ELSE NULL END as url_photo_thumbnail
@@ -91,8 +90,7 @@ WHERE
             Err(_) => String::from(""),
         };
 
-        let query = Self::get_query();
-        Ok(sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(&mode_s.to_string())
             .bind(n_number)
             .bind(prefix)
@@ -101,22 +99,18 @@ WHERE
     }
 
     /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
-    pub async fn insert_photo(
-        db: &PgPool,
-        photo: &PhotoData,
-        aircraft: &Self,
-    ) -> Result<(), AppError> {
+    pub async fn insert_photo(&self, db: &PgPool, photo: &PhotoData) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
-        Self::photo_transaction(&mut transaction, photo, aircraft).await?;
+        self.photo_transaction(&mut transaction, photo).await?;
         transaction.commit().await?;
         Ok(())
     }
 
     /// Transaction to insert a new flightroute
     async fn photo_transaction(
+        &self,
         transaction: &mut Transaction<'_, Postgres>,
         photo: &PhotoData,
-        aircraft: &Self,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
         let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
@@ -134,7 +128,7 @@ WHERE
 
         sqlx::query(query)
             .bind(aircraft_photo.aircraft_photo_id)
-            .bind(aircraft.aircraft_id)
+            .bind(self.aircraft_id)
             .execute(&mut *transaction)
             .await?;
         Ok(())
@@ -179,7 +173,8 @@ mod tests {
             url_photo_thumbnail: None,
         };
 
-        ModelAircraft::photo_transaction(&mut transaction, &photodata, &test_aircraft)
+        test_aircraft
+            .photo_transaction(&mut transaction, &photodata)
             .await
             .unwrap();
 

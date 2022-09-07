@@ -120,8 +120,8 @@ update_release_body_and_changelog () {
 	sed -i -r -E "s=closes \[#([0-9]+)\],=closes [#\1](${GIT_REPO_URL}/issues/\1),=g" ./CHANGELOG.md
 }
 
-# update version in cargo.toml, to match selected current version
 update_version_number_in_files () {
+	# update version in cargo.toml, to match selected current version
 	sed -i "s|^version = .*|version = \"${MAJOR}.${MINOR}.${PATCH}\"|" Cargo.toml
 
 	# update nginx api config location with new major version

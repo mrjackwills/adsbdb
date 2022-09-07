@@ -41,8 +41,7 @@ impl ModeS {
 impl Validate for ModeS {
     /// Make sure that input is an uppercase valid mode_s string, validitiy is [a-f]{6}
     fn validate(input: String) -> Result<String, AppError> {
-        let valid = input.len() == 6 && is_hex(&input);
-        if valid {
+        if input.len() == 6 && is_hex(&input) {
             Ok(input.to_uppercase())
         } else {
             Err(AppError::ModeS(input))
@@ -127,8 +126,7 @@ impl Callsign {
 impl Validate for Callsign {
     // Make sure that input is a uppercaser valid callsign String, validitiy is [a-z]{4-8}
     fn validate(input: String) -> Result<String, AppError> {
-        let valid = (4..=8).contains(&input.len()) && input.chars().all(|c| is_charset(c, 'z'));
-        if valid {
+        if (4..=8).contains(&input.len()) && input.chars().all(|c| is_charset(c, 'z')) {
             Ok(input.to_uppercase())
         } else {
             Err(AppError::Callsign(input))

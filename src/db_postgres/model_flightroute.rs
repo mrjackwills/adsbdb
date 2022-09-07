@@ -1,4 +1,3 @@
-use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -52,8 +51,7 @@ pub struct ModelFlightroute {
 #[async_trait]
 impl Model<Self> for ModelFlightroute {
     async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {
-        let query = Self::get_query();
-        Ok(sqlx::query_as::<_, Self>(query)
+        Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(callsign)
             .fetch_optional(db)
             .await?)
@@ -66,7 +64,7 @@ impl ModelFlightroute {
     const fn get_query() -> &'static str {
         r#"
 		SELECT
-			$1 as callsign,
+			$1 AS callsign,
 			fl.flightroute_id,
 			( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
 			( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
@@ -136,12 +134,12 @@ impl ModelFlightroute {
         scraped_flightroute: ScrapedFlightroute,
     ) -> Result<(), AppError> {
         let query = "INSERT INTO flightroute_callsign(callsign) VALUES ($1) RETURNING flightroute_callsign_id";
-        //
         let callsign = sqlx::query_as::<_, FlightrouteCallsign>(query)
             .bind(scraped_flightroute.callsign.clone())
             .fetch_one(&mut *transaction)
             .await?;
-        let query = r#"INSERT INTO
+        let query = r#"
+INSERT INTO
 	flightroute(flightroute_callsign_id, airport_origin_id, airport_destination_id)
 VALUES (
 	$1,

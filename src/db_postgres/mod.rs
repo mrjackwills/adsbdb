@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::{postgres::PgPoolOptions, ConnectOptions, PgPool};
 

@@ -18,12 +18,10 @@ async fn find_flightroute(
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(path.callsign.clone());
-    let cache: Option<Option<ModelFlightroute>> = get_cache(&state.redis, &redis_key).await?;
-    if let Some(flightroute) = cache {
+    if let Some(flightroute) = get_cache(&state.redis, &redis_key).await? {
         Ok(flightroute)
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, &path.callsign).await?;
-
         if flightroute.is_none() {
             flightroute = state
                 .scraper
@@ -41,15 +39,13 @@ async fn find_aircraft(
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::ModeS(mode_s.to_string());
-    let cache: Option<Option<ModelAircraft>> = get_cache(&state.redis, &redis_key).await?;
-    if let Some(aircraft) = cache {
+    if let Some(aircraft) = get_cache(&state.redis, &redis_key).await? {
         Ok(aircraft)
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
-
-        if let Some(craft) = aircraft.clone() {
+        if let Some(craft) = aircraft.as_ref() {
             if craft.url_photo.is_none() {
-                state.scraper.scrape_photo(&state.postgres, &craft).await?;
+                state.scraper.scrape_photo(&state.postgres, craft).await?;
                 aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
             }
         }
@@ -58,26 +54,26 @@ async fn find_aircraft(
     }
 }
 
+/// Route to convert N-Number to Mode_S
 #[allow(clippy::unused_async)]
 pub async fn n_number_get(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    let mode_s = match n_number_to_mode_s(&n_number) {
-        Ok(data) => data.to_string(),
-        Err(_) => String::from(""),
-    };
-    Ok((axum::http::StatusCode::OK, ResponseJson::new(mode_s)))
+    Ok((
+        axum::http::StatusCode::OK,
+        ResponseJson::new(n_number_to_mode_s(&n_number).map_or("".to_owned(), |f| f.to_string())),
+    ))
 }
 
+/// Route to convert Mode_S to N-Number
 #[allow(clippy::unused_async)]
 pub async fn mode_s_get(
     mode_s: ModeS,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    let icao = match mode_s_to_n_number(&mode_s) {
-        Ok(data) => data.to_string(),
-        Err(_) => String::from(""),
-    };
-    Ok((axum::http::StatusCode::OK, ResponseJson::new(icao)))
+    Ok((
+        axum::http::StatusCode::OK,
+        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or("".to_owned(), |f| f.to_string())),
+    ))
 }
 
 /// Return an aircraft detail from a modes input
@@ -90,12 +86,11 @@ pub async fn aircraft_get(
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
         let callsign = Callsign::new(query_param.clone())?;
-        let (aircraft, flightroute) = tokio::join!(
+        let (aircraft, flightroute) = tokio::try_join!(
             find_aircraft(&path, state.clone()),
             find_flightroute(&callsign, state)
-        );
-        if let Ok(Some(a)) = aircraft {
-            let flightroute = flightroute?;
+        )?;
+        aircraft.map_or(Err(AppError::UnknownInDb("aircraft")), |a| {
             Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
@@ -103,20 +98,20 @@ pub async fn aircraft_get(
                     flightroute: ResponseFlightRoute::from_model(&flightroute),
                 }),
             ))
-        } else {
-            Err(AppError::UnknownInDb("aircraft"))
-        }
-    } else {
-        let aircraft = find_aircraft(&path, state).await?;
-        aircraft.map_or(Err(AppError::UnknownInDb("aircraft")), |a| {
-            Ok((
-                axum::http::StatusCode::OK,
-                ResponseJson::new(AircraftAndRoute {
-                    aircraft: Some(ResponseAircraft::from(a)),
-                    flightroute: None,
-                }),
-            ))
         })
+    } else {
+        find_aircraft(&path, state).await?.map_or(
+            Err(AppError::UnknownInDb("aircraft")),
+            |aircraft| {
+                Ok((
+                    axum::http::StatusCode::OK,
+                    ResponseJson::new(AircraftAndRoute {
+                        aircraft: Some(ResponseAircraft::from(aircraft)),
+                        flightroute: None,
+                    }),
+                ))
+            },
+        )
     }
 }
 
@@ -125,17 +120,17 @@ pub async fn callsign_get(
     Extension(state): Extension<ApplicationState>,
     path: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    let flightroute = find_flightroute(&path, state).await?;
-
-    flightroute.map_or(Err(AppError::UnknownInDb("callsign")), |a| {
-        Ok((
-            axum::http::StatusCode::OK,
-            ResponseJson::new(AircraftAndRoute {
-                aircraft: None,
-                flightroute: ResponseFlightRoute::from_model(&Some(a)),
-            }),
-        ))
-    })
+    find_flightroute(&path, state)
+        .await?
+        .map_or(Err(AppError::UnknownInDb("callsign")), |a| {
+            Ok((
+                axum::http::StatusCode::OK,
+                ResponseJson::new(AircraftAndRoute {
+                    aircraft: None,
+                    flightroute: ResponseFlightRoute::from_model(&Some(a)),
+                }),
+            ))
+        })
 }
 
 /// Return a simple online status response
@@ -335,7 +330,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
 
@@ -368,7 +363,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
 
@@ -408,7 +403,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
@@ -439,7 +434,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
@@ -568,7 +563,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
@@ -624,7 +619,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
@@ -753,7 +748,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
@@ -784,7 +779,7 @@ mod tests {
             .redis
             .lock()
             .await
-            .get(key.to_string())
+            .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "null");
