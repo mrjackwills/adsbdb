@@ -40,6 +40,9 @@ pub use input::{is_hex, ModeS, NNumber};
 
 use self::response::ResponseJson;
 
+const X_REAL_IP: &str = "x-real-ip";
+const X_FORWARDED_FOR: &str = "x-forwarded-for";
+
 #[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
@@ -61,10 +64,7 @@ impl ApplicationState {
     }
 }
 
-const X_REAL_IP: &str = "x-real-ip";
-const X_FORWARDED_FOR: &str = "x-forwarded-for";
-
-/// extract `x-real-ip` header
+/// extract `x-forwarded-for` header
 fn maybe_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get(X_FORWARDED_FOR)
@@ -81,7 +81,7 @@ fn maybe_x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 }
 
 /// Get a users ip address, application should always be behind an nginx reverse proxy
-/// so header x-forwarded-for should always be valid, then try x-real-ip
+/// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
 /// but if for some nothing works, return ipv4 255.255.255.255
 fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr {
@@ -98,7 +98,7 @@ fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr
         )
 }
 
-// Limit the users request based on ip address, using redis as mem store
+/// Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting<B: Send + Sync>(
     req: Request<B>,
     next: Next<B>,
@@ -122,7 +122,7 @@ fn get_api_version() -> String {
     format!(
         "/v{}",
         env!("CARGO_PKG_VERSION")
-            .chars()
+            .split('.')
             .take(1)
             .collect::<String>()
     )
@@ -149,6 +149,21 @@ impl fmt::Display for Routes {
     }
 }
 
+/// Get an axum useable address, from app_env host and port
+fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
+    match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
+        Ok(i) => {
+            let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
+            vec_i.get(0).map_or_else(
+                || Err(AppError::Internal("No addr".to_string())),
+                |addr| Ok(*addr),
+            )
+        }
+        Err(e) => Err(AppError::Internal(e.to_string())),
+    }
+}
+
+/// Serve the app!
 pub async fn serve(
     app_env: AppEnv,
     postgres: PgPool,
@@ -180,17 +195,7 @@ pub async fn serve(
                 .layer(middleware::from_fn(rate_limiting)),
         );
 
-    let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
-        Ok(i) => {
-            let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
-            vec_i.get(0).map_or_else(
-                || Err(AppError::Internal("No addr".to_string())),
-                |addr| Ok(*addr),
-            )
-        }
-        Err(e) => Err(AppError::Internal(e.to_string())),
-    }?;
-
+    let addr = get_addr(&app_env)?;
     let starting = format!("starting server @ {}", addr);
     info!(%starting);
 
