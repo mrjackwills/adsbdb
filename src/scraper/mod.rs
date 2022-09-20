@@ -141,27 +141,27 @@ impl Scrapper {
     async fn request_photo(
         &self,
         aircraft: &ModelAircraft,
-    ) -> Result<Option<PhotoResponse>, AppError> {
+    ) -> Option<PhotoResponse> {
         let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, aircraft.mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
                     if photo.data.is_some() {
-                        Ok(Some(photo))
+                        Some(photo)
                     } else {
-                        Ok(None)
+                        None
                     }
                 }
                 Err(e) => {
                     error!(%e);
                     error!("can't transform into json");
-                    Ok(None)
+                    None
                 }
             },
             Err(e) => {
                 error!(%e);
                 error!("can't scrape address");
-                Ok(None)
+                None
             }
         }
     }
@@ -172,16 +172,16 @@ impl Scrapper {
     async fn request_photo(
         &self,
         aircraft: &ModelAircraft,
-    ) -> Result<Option<PhotoResponse>, AppError> {
+    ) -> Option<PhotoResponse> {
         match aircraft.mode_s.as_str() {
-            "393C00" => Ok(Some(PhotoResponse {
+            "393C00" => Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
                 data: Some([PhotoData {
                     image: "001/001/example.jpg".to_owned(),
                 }]),
-            })),
-            _ => Ok(None),
+            }),
+            _ => None,
         }
     }
 
@@ -191,9 +191,7 @@ impl Scrapper {
         db: &PgPool,
         aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
-        let photo_response = self.request_photo(aircraft).await?;
-
-        if let Some(photo) = photo_response {
+        if let Some(photo) = self.request_photo(aircraft).await {
             if let Some([data_0, ..]) = photo.data.as_ref() {
                 aircraft.insert_photo(db, data_0).await?;
             }
@@ -584,7 +582,7 @@ mod tests {
 
         // let mode_s = ModeS::new("393C00".to_owned()).unwrap();
         let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_ok());
+        assert!(result.is_some());
         let expected = PhotoResponse {
             status: 200,
             count: Some(1),
@@ -592,7 +590,7 @@ mod tests {
                 image: "001/001/example.jpg".to_owned(),
             }]),
         };
-        assert_eq!(result.unwrap().unwrap(), expected);
+        assert_eq!(result.unwrap(), expected);
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
@@ -610,8 +608,7 @@ mod tests {
         };
 
         let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        assert!(result.is_none());
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
@@ -629,8 +626,7 @@ mod tests {
         };
 
         let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        assert!(result.is_none());
     }
 
     #[tokio::test]
