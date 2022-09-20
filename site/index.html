@@ -106,6 +106,7 @@
 		<br>
 		<pre><code>{ response: { aircraft: {...} } }</code></pre>
 		<table>
+			<span id="aircraft_value">Aircraft Value</span>
 			<thead>
 				<tr>
 					<th>key</th>
@@ -182,7 +183,7 @@
 
 				<tr>
 					<td>"midpoint"</td>
-					<td><a href="#airport_value">Airport || null</a></td>
+					<td><a href="#airport_value">Airport</a> || null</td>
 				</tr>
 
 				<tr>
@@ -253,51 +254,10 @@
 					<th>type</th>
 				</tr>
 			</thead>
-			<tbody>
-				<tr>
-					<td>"type"</td>
-					<td> string</td>
-				</tr>
-				<tr>
-					<td>"icao_type"</td>
-					<td> string</td>
-				</tr>
-				<tr>
-					<td>"manufacturer"</td>
-					<td> string</td>
-				</tr>
-				<tr>
-					<td>"mode_s"</td>
-					<td> string</td>
-				</tr>
-				<tr>
-					<td>"n_number"</td>
-					<td> string</td>
-				</tr>
-				<tr>
-					<td>"registered_owner_country_iso_name"</td>
-					<td> string</td>
-				</tr>
-				<tr>
-					<td>"registered_owner_country_name"</td>
-					<td>string</td>
-				</tr>
-				<tr>
-					<td>"registered_owner_operator_flag_code"</td>
-					<td>string</td>
-				</tr>
-				<tr>
-					<td>"registered_owner"</td>
-					<td>string</td>
-				</tr>
-				<tr>
-					<td>"url_photo"</td>
-					<td>string || null</td>
-				</tr>
-				<tr>
-					<td>"url_photo_thumbnail"</td>
-					<td>string || null</td>
-				</tr>
+			<tr>
+				<td>"aircraft"</td>
+				<td><a href="#aircraft_value">Aircraft</a></td>
+			</tr>
 			</tbody>
 		</table>
 		<table>
@@ -315,6 +275,11 @@
 				<tr>
 					<td>"origin"</td>
 					<td><a href="#airport_value">Airport</a></td>
+				</tr>
+
+				<tr>
+					<td>"midpoint"</td>
+					<td><a href="#airport_value">Airport</a> || null</td>
 				</tr>
 			
 				<tr>
