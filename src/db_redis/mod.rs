@@ -67,7 +67,7 @@ pub async fn check_rate_limit(
         // If bigger than 240, rate limit for 5 minutes
         if i >= 240 {
             redis.lock().await.expire(&key, 60 * 5).await?;
-            let ttl: usize = redis.lock().await.ttl(key.to_string()).await?;
+            let ttl: usize = redis.lock().await.ttl(&key).await?;
             return Err(AppError::RateLimited(ttl));
         }
         if i > 120 {

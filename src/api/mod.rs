@@ -149,7 +149,7 @@ impl fmt::Display for Routes {
     }
 }
 
-/// Get an axum useable address, from app_env host and port
+/// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
     match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
         Ok(i) => {

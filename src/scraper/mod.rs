@@ -73,7 +73,7 @@ impl Scrapper {
     }
 
     /// Search an html file for "icao":", take the next 4 chars, and see if they match the icao spec ([a-z]{4})
-    /// Will only return a vec with a length of 2
+    /// Will only return a Option<Vec>, where the Vec has a length of 2
     fn extract_icao_codes(html: &str, callsign: &str) -> Option<ScrapedFlightroute> {
         let output: Vec<_> = html
             .match_indices(ICAO)
@@ -138,10 +138,7 @@ impl Scrapper {
 
     /// Request for photo from third party site
     #[cfg(not(test))]
-    async fn request_photo(
-        &self,
-        aircraft: &ModelAircraft,
-    ) -> Option<PhotoResponse> {
+    async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
         let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, aircraft.mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
@@ -169,10 +166,7 @@ impl Scrapper {
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
-    async fn request_photo(
-        &self,
-        aircraft: &ModelAircraft,
-    ) -> Option<PhotoResponse> {
+    async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
         match aircraft.mode_s.as_str() {
             "393C00" => Some(PhotoResponse {
                 status: 200,

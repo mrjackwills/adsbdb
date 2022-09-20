@@ -7,7 +7,7 @@ use crate::n_number::ALLCHARS;
 
 use super::AppError;
 
-// Check if input char is 0-9, a-end
+// Check if input char is 0-9, a-end, where end is a supplied char
 fn is_charset(c: char, end: char) -> bool {
     c.is_ascii_digit() || ('a'..=end).contains(&c.to_ascii_lowercase())
 }
