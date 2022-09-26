@@ -128,6 +128,7 @@ impl Scrapper {
 
     // As above, but just return the test_scrape, instead of hitting a third party site
     #[cfg(test)]
+    #[allow(clippy::unused_async)]
     async fn request_callsign(&self, callsign: &str) -> Result<String, AppError> {
         if callsign == "ANA460" {
             Ok(include_str!("./test_scrape.txt").to_owned())
@@ -166,6 +167,7 @@ impl Scrapper {
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
+    #[allow(clippy::unused_async)]
     async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
         match aircraft.mode_s.as_str() {
             "393C00" => Some(PhotoResponse {

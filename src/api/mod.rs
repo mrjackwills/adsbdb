@@ -308,6 +308,7 @@ pub mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use tokio::task::JoinHandle;
+	use redis::AsyncCommands;
 
     pub struct TestSetup {
         pub handle: Option<JoinHandle<()>>,
@@ -806,12 +807,29 @@ pub mod tests {
         );
     }
 
+
+	#[tokio::test]
+	// Not rate limited, but rate limit points = number of requests, and ttl 60
+    async fn http_mod_rate_limit() {
+        let test_setup = start_server().await;
+
+        let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
+        for _ in 1..=45 {
+            reqwest::get(&url).await.unwrap();
+        }
+
+		let count: usize = test_setup.redis.lock().await.get("ratelimit::127.0.0.1").await.unwrap();
+		let ttl: usize = test_setup.redis.lock().await.ttl("ratelimit::127.0.0.1").await.unwrap();
+		assert_eq!(count, 45);
+		assert_eq!(ttl, 60);
+    }
+
     #[tokio::test]
     async fn http_mod_rate_limit_small() {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 0..=118 {
+        for _ in 1..=118 {
             reqwest::get(&url).await.unwrap();
         }
 
@@ -834,7 +852,7 @@ pub mod tests {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 0..=238 {
+        for _ in 1..=238 {
             reqwest::get(&url).await.unwrap();
         }
 

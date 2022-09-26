@@ -53,28 +53,25 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
 }
 
 /// Check if rate limited, will return true if so
-/// This is broken somehow
 pub async fn check_rate_limit(
     redis: &Arc<Mutex<Connection>>,
     key: RedisKey,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-	let mut redis = redis.lock().await;
-	redis.incr(&key, 1).await?;
-    if let Some(i) =  redis.get::<&str, Option<usize>>(&key).await? {
-        if i >= 240 {
-            redis.expire(&key, 60 * 5).await?;
-        }
-        if i > 120 {
-            let ttl: usize = redis.ttl(&key).await?;
-            return Err(AppError::RateLimited(ttl));
-        };
-        if i == 120 {
-            redis.expire(&key, 60).await?;
-            return Err(AppError::RateLimited(60));
-        }
-    } else {
-        redis.expire(&key, 60).await?;
+    redis.lock().await.incr(&key, 1).await?;
+    let count = redis.lock().await.get::<&str, usize>(&key).await?;
+    if count >= 240 {
+        redis.lock().await.expire(&key, 60 * 5).await?;
+    }
+    if count > 120 {
+        return Err(AppError::RateLimited(redis.lock().await.ttl(&key).await?));
+    }
+    if count == 120 {
+        redis.lock().await.expire(&key, 60).await?;
+        return Err(AppError::RateLimited(60));
+    }
+    if count == 1 {
+        redis.lock().await.expire(&key, 60).await?;
     }
     Ok(())
 }
