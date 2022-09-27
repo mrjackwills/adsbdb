@@ -304,11 +304,11 @@ pub mod tests {
     use crate::db_redis;
     use crate::parse_env;
 
+    use redis::AsyncCommands;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use tokio::task::JoinHandle;
-	use redis::AsyncCommands;
 
     pub struct TestSetup {
         pub handle: Option<JoinHandle<()>>,
@@ -807,9 +807,8 @@ pub mod tests {
         );
     }
 
-
-	#[tokio::test]
-	// Not rate limited, but rate limit points = number of requests, and ttl 60
+    #[tokio::test]
+    // Not rate limited, but rate limit points = number of requests, and ttl 60
     async fn http_mod_rate_limit() {
         let test_setup = start_server().await;
 
@@ -818,10 +817,22 @@ pub mod tests {
             reqwest::get(&url).await.unwrap();
         }
 
-		let count: usize = test_setup.redis.lock().await.get("ratelimit::127.0.0.1").await.unwrap();
-		let ttl: usize = test_setup.redis.lock().await.ttl("ratelimit::127.0.0.1").await.unwrap();
-		assert_eq!(count, 45);
-		assert_eq!(ttl, 60);
+        let count: usize = test_setup
+            .redis
+            .lock()
+            .await
+            .get("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        let ttl: usize = test_setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(count, 45);
+        assert_eq!(ttl, 60);
     }
 
     #[tokio::test]
@@ -829,11 +840,11 @@ pub mod tests {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 1..=118 {
+        for _ in 1..=119 {
             reqwest::get(&url).await.unwrap();
         }
 
-        // 119 request is fine
+        // 120 request is fine
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
@@ -852,11 +863,11 @@ pub mod tests {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 1..=238 {
+        for _ in 1..=239 {
             reqwest::get(&url).await.unwrap();
         }
 
-        // 239th request is rate limited
+        // 240th request is rate limited
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
