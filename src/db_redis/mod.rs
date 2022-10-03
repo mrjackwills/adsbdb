@@ -59,10 +59,8 @@ pub async fn check_rate_limit(
 ) -> Result<(), AppError> {
     let key = key.to_string();
     let mut redis = redis.lock().await;
-    let count = redis.get::<&str, Option<usize>>(&key).await?;
-    redis.incr(&key, 1).await?;
-
-    if let Some(count) = count {
+    if let Some(count) = redis.get::<&str, Option<usize>>(&key).await? {
+        redis.incr(&key, 1).await?;
         if count >= 240 {
             redis.expire(&key, 60 * 5).await?;
         }
@@ -74,6 +72,7 @@ pub async fn check_rate_limit(
             return Err(AppError::RateLimited(60));
         }
     } else {
+        redis.incr(&key, 1).await?;
         redis.expire(&key, 60).await?;
     }
     Ok(())

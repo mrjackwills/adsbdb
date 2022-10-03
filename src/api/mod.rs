@@ -107,8 +107,7 @@ async fn rate_limiting<B: Send + Sync>(
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
             let ip = get_ip(req.headers(), addr);
-            let rate_limit_key = RedisKey::RateLimit(ip);
-            check_rate_limit(&state.redis, rate_limit_key).await?;
+            check_rate_limit(&state.redis, RedisKey::RateLimit(ip)).await?;
             Ok(next.run(req).await)
         }
         None => Err(AppError::Internal(
