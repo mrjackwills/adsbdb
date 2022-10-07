@@ -4,6 +4,7 @@ use redis::{
     RedisConnectionInfo, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
+use tracing::info;
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
@@ -60,6 +61,7 @@ pub async fn check_rate_limit(
     let key = key.to_string();
     let mut redis = redis.lock().await;
     if let Some(count) = redis.get::<&str, Option<usize>>(&key).await? {
+		info!("has ratelimit: {}::{}", count, key);
         redis.incr(&key, 1).await?;
         if count >= 240 {
             redis.expire(&key, 60 * 5).await?;
@@ -72,6 +74,7 @@ pub async fn check_rate_limit(
             return Err(AppError::RateLimited(60));
         }
     } else {
+		info!("no ratelimit, incr and exp::{}", key);
         redis.incr(&key, 1).await?;
         redis.expire(&key, 60).await?;
     }
