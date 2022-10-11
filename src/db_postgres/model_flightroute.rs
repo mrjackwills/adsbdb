@@ -1,10 +1,12 @@
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
-use crate::{api::AppError, scraper::ScrapedFlightroute};
+use crate::{
+    api::{AppError, Callsign},
+    scraper::ScrapedFlightroute,
+};
 
-use super::Model;
+// use super::Model;
 
 /// Used in transaction of inserting a new scraped flightroute
 #[derive(sqlx::FromRow, Debug, Clone, Copy)]
@@ -48,17 +50,14 @@ pub struct ModelFlightroute {
     pub destination_airport_name: String,
 }
 
-#[async_trait]
-impl Model<Self> for ModelFlightroute {
-    async fn get(db: &PgPool, callsign: &str) -> Result<Option<Self>, AppError> {
+// #[async_trait]
+impl ModelFlightroute {
+    pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>(Self::get_query())
-            .bind(callsign)
+            .bind(callsign.to_string())
             .fetch_optional(db)
             .await?)
     }
-}
-
-impl ModelFlightroute {
     /// Seperated out, so can use in tests with a transaction
     /// Could also just be a const str
     const fn get_query() -> &'static str {

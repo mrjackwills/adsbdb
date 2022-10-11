@@ -31,12 +31,8 @@ mod api_routes;
 mod input;
 mod response;
 
-use crate::{
-    db_redis::{check_rate_limit, RedisKey},
-    parse_env::AppEnv,
-    scraper::Scrapper,
-};
-pub use input::{is_hex, ModeS, NNumber};
+use crate::{db_redis::check_rate_limit, parse_env::AppEnv, scraper::Scrapper};
+pub use input::{is_hex, Callsign, ModeS, NNumber};
 
 use self::response::ResponseJson;
 
@@ -107,7 +103,7 @@ async fn rate_limiting<B: Send + Sync>(
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
             let ip = get_ip(req.headers(), addr);
-            check_rate_limit(&state.redis, RedisKey::RateLimit(ip)).await?;
+            check_rate_limit(&state.redis, ip).await?;
             Ok(next.run(req).await)
         }
         None => Err(AppError::Internal(
@@ -267,10 +263,13 @@ impl IntoResponse for AppError {
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{} {}", prefix, err)),
             ),
-            Self::Internal(err) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
+            Self::Internal(e) => {
+                error!("internal: {:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(format!("{} {}", prefix, e)),
+                )
+            }
             Self::RateLimited(limit) => (
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{} {} seconds", prefix, limit)),
@@ -278,10 +277,20 @@ impl IntoResponse for AppError {
             Self::SqlxError(_) | Self::RedisError(_) => {
                 (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
             }
-            Self::SerdeJson(_) | Self::ParseInt(_) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(prefix),
-            ),
+            Self::SerdeJson(e) => {
+                error!("serde: {:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
+            Self::ParseInt(e) => {
+                error!("parseint: {:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
             Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{} {}", prefix, variety)),

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use axum::Extension;
-use tracing::info;
 
 use super::input::{Callsign, ModeS, NNumber};
 use super::response::{

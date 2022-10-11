@@ -6,7 +6,7 @@ use redis::{
     aio::Connection, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo,
     RedisConnectionInfo, Value,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tracing::info;
@@ -62,7 +62,7 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
 ) -> Result<(), AppError> {
     let key = key.to_string();
     let cache = match to_insert {
-        Some(v) => serde_json::to_string(&to_insert)?,
+        Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
     };
 	// info!("inserting cache");
