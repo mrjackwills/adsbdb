@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
 use axum::Extension;
+use tracing::info;
 
 use super::input::{Callsign, ModeS, NNumber};
 use super::response::{
     AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseFlightRoute, ResponseJson,
 };
 use super::{AppError, ApplicationState};
-use crate::db_postgres::{Model, ModelAircraft, ModelFlightroute};
-use crate::db_redis::{get_cache, insert_cache, RedisKey};
+use crate::db_postgres::{ModelAircraft, ModelFlightroute};
+// use crate::db_redis::{get_cache, insert_cache, RedisKey, Cache};
+use crate::db_redis::{get_cache, insert_cache, Cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
@@ -17,15 +19,18 @@ async fn find_flightroute(
     path: &Callsign,
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
-    let redis_key = RedisKey::Callsign(path.callsign.clone());
-    if let Some(flightroute) = get_cache(&state.redis, &redis_key).await? {
-        Ok(flightroute)
+    let redis_key = RedisKey::Callsign(path);
+    if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
+		match flightroute {
+			Cache::Data(t) => Ok(Some(t)),
+			Cache::Empty => Err(AppError::UnknownInDb("callsign"))
+		}
     } else {
-        let mut flightroute = ModelFlightroute::get(&state.postgres, &path.callsign).await?;
+        let mut flightroute = ModelFlightroute::get(&state.postgres, path).await?;
         if flightroute.is_none() {
             flightroute = state
                 .scraper
-                .scrape_flightroute(&state.postgres, &path.callsign)
+                .scrape_flightroute(&state.postgres, path)
                 .await?;
         }
         insert_cache(&state.redis, &flightroute, &redis_key).await?;
@@ -38,9 +43,12 @@ async fn find_aircraft(
     mode_s: &ModeS,
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
-    let redis_key = RedisKey::ModeS(mode_s.to_string());
-    if let Some(aircraft) = get_cache(&state.redis, &redis_key).await? {
-        Ok(aircraft)
+    let redis_key = RedisKey::ModeS(mode_s);
+    if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
+		match aircraft {
+			Cache::Data(t) => Ok(Some(t)),
+			Cache::Empty => Err(AppError::UnknownInDb("aircraft"))
+		}
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
@@ -85,7 +93,7 @@ pub async fn aircraft_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
-        let callsign = Callsign::new(query_param.clone())?;
+        let callsign = Callsign::try_from(query_param)?;
         let (aircraft, flightroute) = tokio::try_join!(
             find_aircraft(&path, state.clone()),
             find_flightroute(&callsign, state)
@@ -232,7 +240,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_n_number_route() {
-        let n_number = NNumber::new("N123AB".to_owned()).unwrap();
+        let n_number = NNumber::try_from("N123AB").unwrap();
         let response = n_number_get(n_number).await;
 
         assert!(response.is_ok());
@@ -245,7 +253,7 @@ mod tests {
     async fn http_api_get_mode_s_ok_with_photo() {
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::try_from(&mode_s).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -282,8 +290,8 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_mode_s_ok_no_photo() {
-        let mode_s = "A44917".to_owned();
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let mode_s = "A44917";
+        let path = ModeS::try_from(mode_s).unwrap();
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
@@ -295,7 +303,7 @@ mod tests {
             aircraft_type: "737MAX 9".to_owned(),
             icao_type: "B39M".to_owned(),
             manufacturer: "Boeing".to_owned(),
-            mode_s: mode_s.clone(),
+            mode_s: mode_s.to_owned(),
             n_number: "N37522".to_owned(),
             registered_owner: "United Airlines".to_owned(),
             registered_owner_operator_flag_code: "UAL".to_owned(),
@@ -317,10 +325,11 @@ mod tests {
     // Make sure aircraft is inserted correctly into redis cache and has ttl of 604800
     // this is with photo, need to use A44917 for without photo
     async fn http_api_get_mode_s_cached_with_photo() {
-        let mode_s = "A44F3B".to_owned();
-        let key = RedisKey::ModeS(mode_s.clone());
+        let mode_s = "A44F3B";
+        let tmp_mode_s = ModeS::try_from(mode_s).unwrap();
+        let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::try_from(mode_s).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -351,9 +360,10 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_mode_s_cached_no_photo() {
         let mode_s = "A44917".to_owned();
-        let key = RedisKey::ModeS(mode_s.clone());
+        let tmp_mode_s = ModeS::try_from(&mode_s).unwrap();
+        let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::try_from(&mode_s).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -382,13 +392,14 @@ mod tests {
     }
 
     #[tokio::test]
-    // Make sure unknown aircraft gets placed into cache as "null"
+    // Make sure unknown aircraft gets placed into cache as ""
     // and a second request will extend the ttl
     async fn http_api_get_mode_s_unknown_cached() {
         let mode_s = "ABABAB".to_owned();
-        let key = RedisKey::ModeS(mode_s.clone());
+        let tmp_mode_s = ModeS::try_from(&mode_s).unwrap();
+        let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::try_from(mode_s).unwrap();
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path.clone(), hm)
             .await
@@ -406,7 +417,7 @@ mod tests {
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "null");
+        assert_eq!(result.unwrap(), "");
 
         let ttl: usize = application_state
             .redis
@@ -437,7 +448,7 @@ mod tests {
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "null");
+        assert_eq!(result.unwrap(), "");
 
         let ttl: usize = application_state
             .redis
@@ -451,16 +462,16 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_callsign_ok() {
-        let callsign = "TOM35MR".to_owned();
+        let callsign = "TOM35MR";
         let application_state = get_application_state().await;
-        let path = Callsign::new(callsign.clone()).unwrap();
+        let path = Callsign::try_from(callsign).unwrap();
         let response = callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
-            callsign: callsign.clone(),
+            callsign: callsign.to_owned(),
             origin: Airport {
                 country_iso_name: "ES".to_owned(),
                 country_name: "Spain".to_owned(),
@@ -496,9 +507,9 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_callsign_with_midpoint_ok() {
-        let callsign = "QFA031".to_owned();
+        let callsign = "QFA031";
         let application_state = get_application_state().await;
-        let path = Callsign::new(callsign.clone()).unwrap();
+        let path = Callsign::try_from(callsign).unwrap();
         let response = callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
@@ -506,7 +517,7 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
 
         let flightroute = ResponseFlightRoute {
-            callsign: callsign.clone(),
+            callsign: callsign.to_owned(),
             origin: Airport {
                 country_iso_name: "AU".to_owned(),
                 country_name: "Australia".to_owned(),
@@ -553,12 +564,13 @@ mod tests {
     #[tokio::test]
     // Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
     async fn http_api_get_callsign_cached() {
-        let callsign = "TOM35MR".to_owned();
+        let callsign = "TOM35MR";
         let application_state = get_application_state().await;
-        let path = Callsign::new(callsign.clone()).unwrap();
+        let path = Callsign::try_from(callsign).unwrap();
         callsign_get(application_state.clone(), path).await.unwrap();
 
-        let key = RedisKey::Callsign(callsign.clone());
+        let tmp_callsign = Callsign::try_from(callsign).unwrap();
+        let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
             .lock()
@@ -567,7 +579,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
-        assert_eq!(result.callsign, callsign.clone());
+        assert_eq!(result.callsign, callsign);
         assert_eq!(result.origin_airport_country_iso_name, "ES");
         assert_eq!(result.origin_airport_country_name, "Spain");
         assert_eq!(result.origin_airport_elevation, 27);
@@ -609,12 +621,12 @@ mod tests {
     #[tokio::test]
     // Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
     async fn http_api_get_midpoint_callsign_cached() {
-        let callsign = "QFA031".to_owned();
+        let callsign = "QFA031";
         let application_state = get_application_state().await;
-        let path = Callsign::new(callsign.clone()).unwrap();
+        let path = Callsign::try_from(callsign).unwrap();
         callsign_get(application_state.clone(), path).await.unwrap();
-
-        let key = RedisKey::Callsign(callsign.clone());
+        let tmp_callsign = Callsign::try_from(callsign).unwrap();
+        let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
             .lock()
@@ -624,7 +636,7 @@ mod tests {
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
 
-        assert_eq!(result.callsign, callsign.clone());
+        assert_eq!(result.callsign, callsign);
 
         assert_eq!(result.origin_airport_country_iso_name, "AU");
         assert_eq!(result.origin_airport_country_name, "Australia");
@@ -685,7 +697,7 @@ mod tests {
     // Insert a new flightroute using the scraper
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
-        let path = Callsign::new(CALLSIGN.to_owned()).unwrap();
+        let path = Callsign::try_from(CALLSIGN).unwrap();
 
         let response = callsign_get(application_state.clone(), path).await;
 
@@ -732,9 +744,9 @@ mod tests {
     // Make sure that an unknown flightroute is inserted correctly into redis cache as NULL and has ttl of 604800
     // and another request extends the tll to 604800 again
     async fn http_api_get_callsign_none_cached() {
-        let callsign = "ABABAB".to_owned();
+        let callsign = "ABABAB";
         let application_state = get_application_state().await;
-        let path = Callsign::new(callsign.clone()).unwrap();
+        let path = Callsign::try_from(callsign).unwrap();
 
         let response = callsign_get(application_state.clone(), path.clone())
             .await
@@ -743,7 +755,8 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, "callsign"),
             _ => unreachable!(),
         };
-        let key = RedisKey::Callsign(callsign.clone());
+        let tmp_callsign = Callsign::try_from(callsign).unwrap();
+        let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
             .lock()
@@ -751,7 +764,7 @@ mod tests {
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "null");
+        assert_eq!(result.unwrap(), "");
 
         let ttl: usize = application_state
             .redis
@@ -774,7 +787,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let key = RedisKey::Callsign(callsign);
+        let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
             .lock()
@@ -782,7 +795,7 @@ mod tests {
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "null");
+        assert_eq!(result.unwrap(), "");
 
         let ttl: usize = application_state
             .redis
@@ -799,7 +812,7 @@ mod tests {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::try_from(&mode_s).unwrap();
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
         let hm = axum::extract::Query(hm);
@@ -872,7 +885,7 @@ mod tests {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44917".to_owned();
         let application_state = get_application_state().await;
-        let path = ModeS::new(mode_s.clone()).unwrap();
+        let path = ModeS::try_from(&mode_s).unwrap();
 
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
