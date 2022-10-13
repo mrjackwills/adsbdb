@@ -9,7 +9,6 @@ use redis::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use tracing::info;
 // use tracing::info;
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
@@ -81,24 +80,18 @@ pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Res
     let key = RedisKey::RateLimit(ip).to_string();
     let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
     if let Some(count) = count {
-        // let ttl: usize = redis.lock().await.ttl(&key).await?;
-        // info!("has ratelimit:{}, count::{}", count, key);
         redis.lock().await.incr(&key, 1).await?;
         if count >= 240 {
-            info!("setting ttl to 300");
             redis.lock().await.expire(&key, 60 * 5).await?;
         }
         if count > 120 {
-            info!("returning error");
-            return Err(AppError::RateLimited(redis.lock().await.ttl(&key).await?));
+            return Err(AppError::RateLimited(usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60)));
         }
         if count == 120 {
-            info!("setting ttl to 60");
             redis.lock().await.expire(&key, 60).await?;
             return Err(AppError::RateLimited(60));
         }
     } else {
-        // info!("no ratelimit, incr and exp::{}", key);
         redis.lock().await.incr(&key, 1).await?;
         redis.lock().await.expire(&key, 60).await?;
     }
