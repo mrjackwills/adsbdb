@@ -22,15 +22,15 @@
 
 ### Chores
 + aggressive linting, [0fa03c92](https://github.com/mrjackwills/adsbdb/commit/0fa03c922b0dedeb1c2a35ea8d49f7e456d06dc7),
-+ dev docker container updated, [95faeef0](https://github.com/mrjackwills/adsbdb/commit/95faeef0ab6888b423cb2fba33126f4367149f9b),, [ae77cb62](https://github.com/mrjackwills/adsbdb/commit/ae77cb62039cdbd1321604df5b60530c7378f7fa),
++ dev docker container updated, [95faeef0](https://github.com/mrjackwills/adsbdb/commit/95faeef0ab6888b423cb2fba33126f4367149f9b), [ae77cb62](https://github.com/mrjackwills/adsbdb/commit/ae77cb62039cdbd1321604df5b60530c7378f7fa),
 + dependencies updated, [7b82d9d7](https://github.com/mrjackwills/adsbdb/commit/7b82d9d7a609e00674d59f158da497fdd74b3422),
 
 ### Docs
 + readme updated, [24037f9d](https://github.com/mrjackwills/adsbdb/commit/24037f9d36be22d3907361f62a5c5c61461af537),
 
 ### Features
-+ api.Dockerfile switch from Alpine to Debian Bullseye, [d8fa2c07](https://github.com/mrjackwills/adsbdb/commit/d8fa2c0747dee8e741137a7c711cf3b2a073890f),, [e5b062d8](https://github.com/mrjackwills/adsbdb/commit/e5b062d837f56db5f01b8a60e5dea04849e89b1a),
-+ log to file as json, [47b769e1](https://github.com/mrjackwills/adsbdb/commit/47b769e1959b973957dea89cda2eed5b97487de4),, [669d6dc4](https://github.com/mrjackwills/adsbdb/commit/669d6dc4d4251086397f3c2cdc1dced0fd95749c),
++ api.Dockerfile switch from Alpine to Debian Bullseye, [d8fa2c07](https://github.com/mrjackwills/adsbdb/commit/d8fa2c0747dee8e741137a7c711cf3b2a073890f), [e5b062d8](https://github.com/mrjackwills/adsbdb/commit/e5b062d837f56db5f01b8a60e5dea04849e89b1a),
++ log to file as json, [47b769e1](https://github.com/mrjackwills/adsbdb/commit/47b769e1959b973957dea89cda2eed5b97487de4), [669d6dc4](https://github.com/mrjackwills/adsbdb/commit/669d6dc4d4251086397f3c2cdc1dced0fd95749c),
 
 ### Fixes
 + impl From\<ModelAircraft> for ResponseAircraft, [6079d32d](https://github.com/mrjackwills/adsbdb/commit/6079d32de505b63b04fa0d9bf0adb1c2ab702dfc),
@@ -40,7 +40,7 @@
 ### 2022-08-04
 
 ### Chores
-+ aggressive linting: nursery, pedantic, and unused_unwraps, [b6716880](https://github.com/mrjackwills/adsbdb/commit/b6716880fc7e5c5b168d9aeafc9288ef9dc542c8),, [7a87c386](https://github.com/mrjackwills/adsbdb/commit/7a87c3864702ae7a2cbb2e7b5fc7602cd11df6fd),, [13e30b0a](https://github.com/mrjackwills/adsbdb/commit/13e30b0a0179c47f14474f824fcdb78612495479),
++ aggressive linting: nursery, pedantic, and unused_unwraps, [b6716880](https://github.com/mrjackwills/adsbdb/commit/b6716880fc7e5c5b168d9aeafc9288ef9dc542c8), [7a87c386](https://github.com/mrjackwills/adsbdb/commit/7a87c3864702ae7a2cbb2e7b5fc7602cd11df6fd), [13e30b0a](https://github.com/mrjackwills/adsbdb/commit/13e30b0a0179c47f14474f824fcdb78612495479),
 + dependencies updated, [ce1ef872](https://github.com/mrjackwills/adsbdb/commit/ce1ef872fe81501dc473b71def7710bd2141fdbd),
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.12'>v0.0.12</a>
@@ -116,7 +116,7 @@
 + Cargo.toml update dependencies, [23e6e0c8](https://github.com/mrjackwills/adsbdb/commit/23e6e0c8abcca091e6a62d1795e4a645faeec96f),
 
 ### Docs
-+ readme updated, [126e544e](https://github.com/mrjackwills/adsbdb/commit/126e544e24f151bbd07824a65100a24454f60198),, [48d4c2d4](https://github.com/mrjackwills/adsbdb/commit/48d4c2d42f80c798b89ec889c8a8ed7fbed150e4),
++ readme updated, [126e544e](https://github.com/mrjackwills/adsbdb/commit/126e544e24f151bbd07824a65100a24454f60198), [48d4c2d4](https://github.com/mrjackwills/adsbdb/commit/48d4c2d42f80c798b89ec889c8a8ed7fbed150e4),
 
 ### Features
 + N-Number to Mode-S conversion, also include n_number in aircraft response, closes [#1](https://github.com/mrjackwills/adsbdb/issues/1), [2f0b9052](https://github.com/mrjackwills/adsbdb/commit/2f0b9052e1121022183da34bdd05e7d76e402a83),
