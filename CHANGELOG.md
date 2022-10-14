@@ -1,3 +1,25 @@
+### Chores
++ create_release.sh v0.1.0. [065daa3d6a4efa28a75bb7fe97ed2c94c426966d]
+
+### Docs
++ readme updated, [94e1ea83d36802876f072695065aac5df02f2c38]
++ comment typos fixed, [9d799ca37aa968a228efe77667c6e0084d1305f0]
+
+### Features
++ NNumber, ModeS & Callsign new_types. [6a42752e3395a837fb1abc42e73768d5ec2b583c]
+
+### Fixes
++ ttl as isize instead of usize, [84dbbf02d66bfbf6b529f82a694ea4bb3946d419]
++ Cargo.lock tracked, [366a90eeb52122ec46b18395d2aac83363178be7]
++ cache aircraft/flightroute with Cache enum, [5118d3b42a043e72a02a9f31daaf7ca7608f4b5c]
++ SQL querye uppercase SQL reserved words, [e918e88c022d3d8b903156ccc82a03387edc07d5]
++ website added Aircraft Value table, [5ef5e1c7063eba42a3728ef2fcf94de42cd93258]
++ try/catch on website script, [94be3918d43719431960c2479fa0df57adec2743]
+
+### Refactors
++ get_addr() for creating axum usable address from &env fix: get_api_version use spit instead of chars, [e6657a0a2225c0a1eb4ce4bacaa65b6e7d96eac0]
++ photo_scraper return Option<T> instead of Result<Option<T>, ApiError>, [842adfc90212431a0aedf7368520909264d21a65]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.15'>v0.0.15</a>
 ### 2022-09-07
 

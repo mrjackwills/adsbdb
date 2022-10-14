@@ -76,7 +76,6 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
 
 /// Check if rate limited, will return true if so
 pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Result<(), AppError> {
-    // info!("in check_rate_limit");
     let key = RedisKey::RateLimit(ip).to_string();
     let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
     if let Some(count) = count {
