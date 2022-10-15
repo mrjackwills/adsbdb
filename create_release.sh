@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # rust create_release
-# v0.1.0
+# v0.1.1
 
-PACKAGE_NAME='adsbdb'
 STAR_LINE='****************************************'
 CWD=$(pwd)
 
@@ -19,11 +18,6 @@ error_close() {
 	echo -e "\n${RED}ERROR - EXITED: ${YELLOW}$1${RESET}\n";
 	exit 1
 }
-
-if [ -z "$PACKAGE_NAME" ]
-then
-	error_close "No package name"
-fi
 
 # $1 string - question to ask
 ask_yn () {
