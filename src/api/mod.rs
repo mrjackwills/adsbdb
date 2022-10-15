@@ -31,10 +31,8 @@ mod input;
 mod response;
 
 use crate::{db_redis::check_rate_limit, parse_env::AppEnv, scraper::Scrapper};
-pub use input::{is_hex, Callsign, ModeS, NNumber};
 pub use app_error::{AppError, UnknownAC};
-
-
+pub use input::{is_hex, Callsign, ModeS, NNumber};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -191,7 +189,7 @@ pub async fn serve(
         );
 
     let addr = get_addr(&app_env)?;
-    let starting = format!("starting server @ {}", addr);
+    let starting = format!("starting server @ {}{}", addr, get_api_version());
     info!(%starting);
 
     match axum::Server::bind(&addr)

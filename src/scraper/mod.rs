@@ -1,9 +1,9 @@
+#[cfg(not(test))]
+use crate::api::UnknownAC;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 #[cfg(not(test))]
 use tracing::error;
-#[cfg(not(test))]
-use crate::api::UnknownAC;
 
 use crate::{
     api::{AppError, Callsign},

@@ -6,7 +6,7 @@ use super::input::{Callsign, ModeS, NNumber};
 use super::response::{
     AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseFlightRoute, ResponseJson,
 };
-use super::{AppError, app_error::UnknownAC, ApplicationState};
+use super::{app_error::UnknownAC, AppError, ApplicationState};
 use crate::db_postgres::{ModelAircraft, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, Cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
@@ -561,7 +561,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
+    /// Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
     async fn http_api_get_callsign_cached() {
         let callsign = "TOM35MR";
         let application_state = get_application_state().await;
@@ -693,7 +693,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // Insert a new flightroute using the scraper
+    /// Insert a new flightroute using the scraper
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
         let path = Callsign::try_from(CALLSIGN).unwrap();
@@ -740,8 +740,8 @@ mod tests {
     }
 
     #[tokio::test]
-    // Make sure that an unknown flightroute is inserted correctly into redis cache as NULL and has ttl of 604800
-    // and another request extends the tll to 604800 again
+    /// Make sure that an unknown flightroute is inserted correctly into redis cache as NULL and has ttl of 604800
+    /// and another request extends the tll to 604800 again
     async fn http_api_get_callsign_none_cached() {
         let callsign = "ABABAB";
         let application_state = get_application_state().await;

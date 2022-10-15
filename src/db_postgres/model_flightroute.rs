@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{
-    api::{Callsign, AppError},
+    api::{AppError, Callsign},
     scraper::ScrapedFlightroute,
 };
 

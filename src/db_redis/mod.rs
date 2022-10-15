@@ -1,5 +1,5 @@
 use crate::{
-    api::{Callsign, ModeS, AppError},
+    api::{AppError, Callsign, ModeS},
     parse_env::AppEnv,
 };
 use redis::{
@@ -14,7 +14,7 @@ use tracing::info;
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
-// Convert a redis string result into a Cache<T>
+/// Convert a redis string result into a Cache<T>
 fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> {
     match from_redis_value::<String>(v) {
         Ok(string_value) => {
