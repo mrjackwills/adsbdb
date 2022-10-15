@@ -1,16 +1,10 @@
 <p align="center">
- <img src='./.github/logo.svg' width='125px'/>
+	<img src='./.github/logo.svg' width='125px'/>
+	<h1 align="center"><a href='https://api.adsbdb.com' target='_blank' rel='noopener noreferrer'>api.adsbdb.com</a></h1>
 </p>
 
 <p align="center">
- <h1 align="center"><a href='https://api.adsbdb.com' target='_blank' rel='noopener noreferrer'>api.adsbdb.com</a></h1>
-</p>
-
-<p align="center">
-	public aircraft & flightroute api
-</p>
-
-<p align="center">
+	public aircraft & flightroute api<br>
 	Built in <a href='https://www.rust-lang.org/' target='_blank' rel='noopener noreferrer'>Rust</a>
 	for <a href='https://www.docker.com/' target='_blank' rel='noopener noreferrer'>Docker</a>,
 	using <a href='https://www.postgresql.org/' target='_blank' rel='noopener noreferrer'>PostgreSQL</a>
@@ -21,12 +15,9 @@
 
 <hr>
 
-<p align="center">
-	check <a href='https://twitter.com/adsbdb' target='_blank' rel='noopener noreferrer'>adsbdb twitter</a> for any status updates
-</p>
-
 <p>
-	Please report any incorrect data to the <a href="https://github.com/mrjackwills/adsbdb/issues/new/choose" target='_blank' rel='noopener noreferrer'>issues page</a>, with the <strong>Data</strong> tag.<br>
+	check <a href='https://twitter.com/adsbdb' target='_blank' rel='noopener noreferrer'>adsbdb twitter</a> for any status updates,
+	and please report any incorrect data to the <a href="https://github.com/mrjackwills/adsbdb/issues/new/choose" target='_blank' rel='noopener noreferrer'>issues page</a>, with the <strong>Data</strong> tag.
 	<br>
 	With thanks to;
 	<li>

@@ -1,7 +1,6 @@
-use ::redis::{aio::Connection, RedisError};
+use ::redis::aio::Connection;
 use reqwest::Method;
 use sqlx::PgPool;
-use thiserror::Error;
 use tower_http::{
     cors::{Any, CorsLayer},
     limit::RequestBodyLimitLayer,
@@ -12,33 +11,31 @@ use axum::{
     handler::Handler,
     http::{HeaderMap, Request},
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
     Extension, Router,
 };
 use std::{
     fmt,
     net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs},
-    num::ParseIntError,
     sync::Arc,
     time::Instant,
 };
 use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
-use tracing::{error, info};
+use tracing::info;
 
 mod api_routes;
+mod app_error;
 mod input;
 mod response;
 
-use crate::{
-    db_redis::{check_rate_limit, RedisKey},
-    parse_env::AppEnv,
-    scraper::Scrapper,
-};
-pub use input::{is_hex, ModeS, NNumber};
+use crate::{db_redis::check_rate_limit, parse_env::AppEnv, scraper::Scrapper};
+pub use app_error::{AppError, UnknownAC};
+pub use input::{is_hex, Callsign, ModeS, NNumber};
 
-use self::response::ResponseJson;
+const X_REAL_IP: &str = "x-real-ip";
+const X_FORWARDED_FOR: &str = "x-forwarded-for";
 
 #[derive(Clone)]
 pub struct ApplicationState {
@@ -61,10 +58,7 @@ impl ApplicationState {
     }
 }
 
-const X_REAL_IP: &str = "x-real-ip";
-const X_FORWARDED_FOR: &str = "x-forwarded-for";
-
-/// extract `x-real-ip` header
+/// extract `x-forwarded-for` header
 fn maybe_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get(X_FORWARDED_FOR)
@@ -81,7 +75,7 @@ fn maybe_x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 }
 
 /// Get a users ip address, application should always be behind an nginx reverse proxy
-/// so header x-forwarded-for should always be valid, then try x-real-ip
+/// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
 /// but if for some nothing works, return ipv4 255.255.255.255
 fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr {
@@ -98,7 +92,7 @@ fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr
         )
 }
 
-// Limit the users request based on ip address, using redis as mem store
+/// Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting<B: Send + Sync>(
     req: Request<B>,
     next: Next<B>,
@@ -107,8 +101,7 @@ async fn rate_limiting<B: Send + Sync>(
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
             let ip = get_ip(req.headers(), addr);
-            let rate_limit_key = RedisKey::RateLimit(ip);
-            check_rate_limit(&state.redis, rate_limit_key).await?;
+            check_rate_limit(&state.redis, ip).await?;
             Ok(next.run(req).await)
         }
         None => Err(AppError::Internal(
@@ -122,7 +115,7 @@ fn get_api_version() -> String {
     format!(
         "/v{}",
         env!("CARGO_PKG_VERSION")
-            .chars()
+            .split('.')
             .take(1)
             .collect::<String>()
     )
@@ -149,6 +142,21 @@ impl fmt::Display for Routes {
     }
 }
 
+/// Get an useable axum address, from app_env:host+port
+fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
+    match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
+        Ok(i) => {
+            let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
+            vec_i.get(0).map_or_else(
+                || Err(AppError::Internal("No addr".to_string())),
+                |addr| Ok(*addr),
+            )
+        }
+        Err(e) => Err(AppError::Internal(e.to_string())),
+    }
+}
+
+/// Serve the app!
 pub async fn serve(
     app_env: AppEnv,
     postgres: PgPool,
@@ -180,18 +188,8 @@ pub async fn serve(
                 .layer(middleware::from_fn(rate_limiting)),
         );
 
-    let addr = match (app_env.api_host, app_env.api_port).to_socket_addrs() {
-        Ok(i) => {
-            let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
-            vec_i.get(0).map_or_else(
-                || Err(AppError::Internal("No addr".to_string())),
-                |addr| Ok(*addr),
-            )
-        }
-        Err(e) => Err(AppError::Internal(e.to_string())),
-    }?;
-
-    let starting = format!("starting server @ {}", addr);
+    let addr = get_addr(&app_env)?;
+    let starting = format!("starting server @ {}{}", addr, get_api_version());
     info!(%starting);
 
     match axum::Server::bind(&addr)
@@ -231,63 +229,6 @@ async fn shutdown_signal() {
     println!("signal received, starting graceful shutdown");
 }
 
-#[derive(Debug, Error)]
-pub enum AppError {
-    #[error("invalid callsign:")]
-    Callsign(String),
-    #[error("invalid n_number:")]
-    NNumber(String),
-    #[error("internal error:")]
-    Internal(String),
-    #[error("invalid modeS:")]
-    ModeS(String),
-    #[error("not found")]
-    SqlxError(#[from] sqlx::Error),
-    #[error("redis error")]
-    RedisError(#[from] RedisError),
-    #[error("internal error")]
-    SerdeJson(#[from] serde_json::Error),
-    #[error("rate limited for")]
-    RateLimited(usize),
-    #[error("unknown")]
-    UnknownInDb(&'static str),
-    #[error("parse int")]
-    ParseInt(#[from] ParseIntError),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let prefix = self.to_string();
-        let (status, body) = match self {
-            Self::Callsign(err) | Self::NNumber(err) | Self::ModeS(err) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
-            Self::Internal(err) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
-            Self::RateLimited(limit) => (
-                axum::http::StatusCode::TOO_MANY_REQUESTS,
-                ResponseJson::new(format!("{} {} seconds", prefix, limit)),
-            ),
-            Self::SqlxError(_) | Self::RedisError(_) => {
-                (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
-            }
-            Self::SerdeJson(_) | Self::ParseInt(_) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(prefix),
-            ),
-            Self::UnknownInDb(variety) => (
-                axum::http::StatusCode::NOT_FOUND,
-                ResponseJson::new(format!("{} {}", prefix, variety)),
-            ),
-        };
-
-        (status, body).into_response()
-    }
-}
-
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
@@ -299,6 +240,7 @@ pub mod tests {
     use crate::db_redis;
     use crate::parse_env;
 
+    use redis::AsyncCommands;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
@@ -802,15 +744,43 @@ pub mod tests {
     }
 
     #[tokio::test]
+    // Not rate limited, but rate limit points = number of requests, and ttl 60
+    async fn http_mod_rate_limit() {
+        let test_setup = start_server().await;
+
+        let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
+        for _ in 1..=45 {
+            reqwest::get(&url).await.unwrap();
+        }
+
+        let count: usize = test_setup
+            .redis
+            .lock()
+            .await
+            .get("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        let ttl: usize = test_setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(count, 45);
+        assert_eq!(ttl, 60);
+    }
+
+    #[tokio::test]
     async fn http_mod_rate_limit_small() {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 0..=118 {
+        for _ in 1..=119 {
             reqwest::get(&url).await.unwrap();
         }
 
-        // 119 request is fine
+        // 120 request is fine
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
@@ -829,11 +799,11 @@ pub mod tests {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 0..=238 {
+        for _ in 1..=239 {
             reqwest::get(&url).await.unwrap();
         }
 
-        // 239th request is rate limited
+        // 240th request is rate limited
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;

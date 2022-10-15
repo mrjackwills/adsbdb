@@ -31,7 +31,7 @@ tar -C "$LOCATION_ALL_LOGS" -cf "$TEMP_DIR_NAME/logs.tar" ./
 
 tar -C "$LOCATION_REDIS" -cf "$TEMP_DIR_NAME/redis_data.tar" ./
 
-# Dump staticpi database into a tar in tmp folder
+# Dump adbsdb database into a tar in tmp folder
 pg_dump -U "$DB_NAME" -d "$DB_NAME" -h "$DOCKER_PG_HOST" -p "${DOCKER_PG_PORT}" --no-owner --format=t > "$TEMP_DIR_NAME/pg_dump.tar"
 
 # gzip postgres output
