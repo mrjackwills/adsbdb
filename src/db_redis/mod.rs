@@ -7,20 +7,12 @@ use redis::{
     RedisConnectionInfo, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
+use tracing::info;
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-// use tracing::info;
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
-// ONE MINUTE for debugging
-// const ONE_WEEK: usize = 60;
 const FIELD: &str = "data";
-
-#[derive(Debug, Serialize)]
-pub enum Cache<T: DeserializeOwned> {
-    Data(T),
-    Empty,
-}
 
 
 // Convert a redis string result into a Cache<T>
@@ -36,6 +28,13 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> 
     }
 }
 
+#[derive(Debug, Serialize)]
+pub enum Cache<T: DeserializeOwned> {
+    Data(T),
+    Empty,
+}
+
+
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
 pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     redis: &Arc<Mutex<Connection>>,
@@ -44,7 +43,6 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     let key = key.to_string();
     let value: Option<Value> = redis.lock().await.hget(&key, FIELD).await?;
     if value.is_some() {
-        // info!("extend ttl for one week");
         redis.lock().await.expire(&key, ONE_WEEK).await?;
     }
     let serialized_data = match value {
@@ -64,7 +62,6 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
         Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
     };
-	// info!("inserting cache");
     redis
         .lock()
         .await
@@ -81,6 +78,7 @@ pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Res
     if let Some(count) = count {
         redis.lock().await.incr(&key, 1).await?;
         if count >= 240 {
+			info!("blocked for 5 minutes::{}", key);
             redis.lock().await.expire(&key, 60 * 5).await?;
         }
         if count > 120 {
