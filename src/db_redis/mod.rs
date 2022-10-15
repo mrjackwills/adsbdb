@@ -1,84 +1,92 @@
-use crate::{api::AppError, parse_env::AppEnv};
+use crate::{
+    api::{AppError, Callsign, ModeS},
+    parse_env::AppEnv,
+};
 use redis::{
-    aio::Connection, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo, ErrorKind,
+    aio::Connection, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo,
     RedisConnectionInfo, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use tracing::info;
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
-// Convert a redis string result into a struct/None
-// If the value is null, returns as Some("none")
-fn optional_null<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
+/// Convert a redis string result into a Cache<T>
+fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> {
     match from_redis_value::<String>(v) {
-        Ok(valid_string) => {
-            // This can be either "null" or a Model struct
-            Ok(Some(serde_json::from_str::<T>(&valid_string)?))
+        Ok(string_value) => {
+            if string_value.is_empty() {
+                Ok(Cache::Empty)
+            } else {
+                Ok(Cache::Data(serde_json::from_str::<T>(&string_value)?))
+            }
         }
-        Err(e) => match e.kind() {
-            ErrorKind::TypeError => Ok(None),
-            _ => Err(AppError::RedisError(e)),
-        },
+        Err(e) => Err(AppError::RedisError(e)),
     }
+}
+
+#[derive(Debug, Serialize)]
+pub enum Cache<T: DeserializeOwned> {
+    Data(T),
+    Empty,
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<T: DeserializeOwned + Send>(
+pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     redis: &Arc<Mutex<Connection>>,
-    key: &RedisKey,
-) -> Result<Option<T>, AppError> {
+    key: &RedisKey<'a>,
+) -> Result<Option<Cache<T>>, AppError> {
     let key = key.to_string();
-    let value: Value = redis.lock().await.hget(&key, FIELD).await?;
-    let serialized_data: Option<T> = optional_null(&value)?;
-    // Can either by "null" or a Model struct,
-    if serialized_data.is_some() {
+    let value: Option<Value> = redis.lock().await.hget(&key, FIELD).await?;
+    if value.is_some() {
         redis.lock().await.expire(&key, ONE_WEEK).await?;
     }
+    let serialized_data = match value {
+        Some(d) => Some(redis_to_serde(&d)?),
+        None => None,
+    };
     Ok(serialized_data)
 }
 
-pub async fn insert_cache<T: Serialize + Send + Sync>(
+pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
     redis: &Arc<Mutex<Connection>>,
-    to_insert: &T,
-    key: &RedisKey,
+    to_insert: &Option<T>,
+    key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-    let value = serde_json::to_string(&to_insert)?;
-    redis.lock().await.hset(&key, FIELD, value).await?;
+    let cache = match to_insert {
+        Some(v) => serde_json::to_string(&v)?,
+        None => String::new(),
+    };
+    redis.lock().await.hset(&key, FIELD, cache).await?;
     redis.lock().await.expire(&key, ONE_WEEK).await?;
     Ok(())
 }
 
 /// Check if rate limited, will return true if so
-pub async fn check_rate_limit(
-    redis: &Arc<Mutex<Connection>>,
-    key: RedisKey,
-) -> Result<(), AppError> {
-    let key = key.to_string();
-    let count: Option<usize> = redis.lock().await.get(&key).await?;
-    redis.lock().await.incr(&key, 1).await?;
-
-    // Only increasing ttl if NOT already blocked
-    // Has to be -1 of whatever limit you want, as first request doesn't count
-    if let Some(i) = count {
-        // If bigger than 240, rate limit for 5 minutes
-        if i >= 240 {
+pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Result<(), AppError> {
+    let key = RedisKey::RateLimit(ip).to_string();
+    let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
+    if let Some(count) = count {
+        redis.lock().await.incr(&key, 1).await?;
+        if count >= 240 {
+            info!("blocked for 5 minutes::{}", key);
             redis.lock().await.expire(&key, 60 * 5).await?;
-            let ttl: usize = redis.lock().await.ttl(key.to_string()).await?;
-            return Err(AppError::RateLimited(ttl));
         }
-        if i > 120 {
-            let ttl: usize = redis.lock().await.ttl(&key).await?;
-            return Err(AppError::RateLimited(ttl));
-        };
-        if i == 120 {
+        if count > 120 {
+            return Err(AppError::RateLimited(
+                usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60),
+            ));
+        }
+        if count == 120 {
             redis.lock().await.expire(&key, 60).await?;
             return Err(AppError::RateLimited(60));
         }
     } else {
+        redis.lock().await.incr(&key, 1).await?;
         redis.lock().await.expire(&key, 60).await?;
     }
     Ok(())
@@ -101,13 +109,13 @@ pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
 }
 
 #[derive(Debug, Clone)]
-pub enum RedisKey {
-    Callsign(String),
-    ModeS(String),
+pub enum RedisKey<'a> {
+    Callsign(&'a Callsign),
+    ModeS(&'a ModeS),
     RateLimit(IpAddr),
 }
 
-impl fmt::Display for RedisKey {
+impl<'a> fmt::Display for RedisKey<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Callsign(callsign) => write!(f, "callsign::{}", callsign),

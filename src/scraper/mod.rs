@@ -1,11 +1,13 @@
+#[cfg(not(test))]
+use crate::api::UnknownAC;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 #[cfg(not(test))]
 use tracing::error;
 
 use crate::{
-    api::AppError,
-    db_postgres::{Model, ModelAircraft, ModelAirport, ModelFlightroute},
+    api::{AppError, Callsign},
+    db_postgres::{ModelAircraft, ModelAirport, ModelFlightroute},
     parse_env::AppEnv,
 };
 
@@ -72,9 +74,9 @@ impl Scrapper {
         }
     }
 
-    /// Search an html file for "icao":", take the next 4 chars, and see if they match the icao spec ([a-z]{4})
-    /// Will only return a vec with a length of 2
-    fn extract_icao_codes(html: &str, callsign: &str) -> Option<ScrapedFlightroute> {
+    /// Search a &str for "icao":", take the next 4 chars, and see if they match the icao spec ([a-z]{4})
+    /// Will only return a Option<Vec>, where the Vec has a length of 2
+    fn extract_icao_codes(html: &str, callsign: &Callsign) -> Option<ScrapedFlightroute> {
         let output: Vec<_> = html
             .match_indices(ICAO)
             .filter_map(|i| {
@@ -84,7 +86,7 @@ impl Scrapper {
             .collect::<Vec<_>>();
         if output.len() >= 2 {
             Some(ScrapedFlightroute {
-                callsign: callsign.to_owned(),
+                callsign: callsign.to_string(),
                 origin: output[0].clone(),
                 destination: output[1].clone(),
             })
@@ -107,7 +109,7 @@ impl Scrapper {
 
     /// Scrape callsign url for whole page html string
     #[cfg(not(test))]
-    async fn request_callsign(&self, callsign: &str) -> Result<String, AppError> {
+    async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
         let url = format!("{}/{}", self.flight_scrape_url, callsign);
         match reqwest::get(url).await {
             Ok(response) => match response.text().await {
@@ -115,21 +117,22 @@ impl Scrapper {
                 Err(e) => {
                     error!(%e);
                     error!("can't transform into text");
-                    Err(AppError::UnknownInDb("callsign"))
+                    Err(AppError::UnknownInDb(UnknownAC::Callsign))
                 }
             },
             Err(e) => {
                 error!(%e);
                 error!("can't scrape address");
-                Err(AppError::UnknownInDb("callsign"))
+                Err(AppError::UnknownInDb(UnknownAC::Callsign))
             }
         }
     }
 
     // As above, but just return the test_scrape, instead of hitting a third party site
     #[cfg(test)]
-    async fn request_callsign(&self, callsign: &str) -> Result<String, AppError> {
-        if callsign == "ANA460" {
+    #[allow(clippy::unused_async)]
+    async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
+        if callsign.to_string() == "ANA460" {
             Ok(include_str!("./test_scrape.txt").to_owned())
         } else {
             Ok(String::new())
@@ -138,30 +141,27 @@ impl Scrapper {
 
     /// Request for photo from third party site
     #[cfg(not(test))]
-    async fn request_photo(
-        &self,
-        aircraft: &ModelAircraft,
-    ) -> Result<Option<PhotoResponse>, AppError> {
+    async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
         let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, aircraft.mode_s);
         match reqwest::get(url).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
                     if photo.data.is_some() {
-                        Ok(Some(photo))
+                        Some(photo)
                     } else {
-                        Ok(None)
+                        None
                     }
                 }
                 Err(e) => {
                     error!(%e);
                     error!("can't transform into json");
-                    Ok(None)
+                    None
                 }
             },
             Err(e) => {
                 error!(%e);
                 error!("can't scrape address");
-                Ok(None)
+                None
             }
         }
     }
@@ -169,19 +169,17 @@ impl Scrapper {
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
-    async fn request_photo(
-        &self,
-        aircraft: &ModelAircraft,
-    ) -> Result<Option<PhotoResponse>, AppError> {
+    #[allow(clippy::unused_async)]
+    async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
         match aircraft.mode_s.as_str() {
-            "393C00" => Ok(Some(PhotoResponse {
+            "393C00" => Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
                 data: Some([PhotoData {
                     image: "001/001/example.jpg".to_owned(),
                 }]),
-            })),
-            _ => Ok(None),
+            }),
+            _ => None,
         }
     }
 
@@ -191,9 +189,7 @@ impl Scrapper {
         db: &PgPool,
         aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
-        let photo_response = self.request_photo(aircraft).await?;
-
-        if let Some(photo) = photo_response {
+        if let Some(photo) = self.request_photo(aircraft).await {
             if let Some([data_0, ..]) = photo.data.as_ref() {
                 aircraft.insert_photo(db, data_0).await?;
             }
@@ -205,7 +201,7 @@ impl Scrapper {
     pub async fn scrape_flightroute(
         &self,
         db: &PgPool,
-        callsign: &str,
+        callsign: &Callsign,
     ) -> Result<Option<ModelFlightroute>, AppError> {
         let mut output = None;
         let html = self.request_callsign(callsign).await?;
@@ -377,7 +373,8 @@ mod tests {
     #[test]
     fn scraper_extract_icao_codes() {
         let html_string = include_str!("./test_scrape.txt");
-        let result = Scrapper::extract_icao_codes(html_string, TEST_CALLSIGN);
+        let result =
+            Scrapper::extract_icao_codes(html_string, &Callsign::try_from(TEST_CALLSIGN).unwrap());
 
         let expected = ScrapedFlightroute {
             callsign: TEST_CALLSIGN.to_owned(),
@@ -392,13 +389,14 @@ mod tests {
     #[tokio::test]
     /// in test mode, live site is actually just include_str()
     async fn scraper_use_live_site() {
+        let callsign = Callsign::try_from(TEST_CALLSIGN).unwrap();
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let result = scraper.request_callsign(TEST_CALLSIGN).await;
+        let result = scraper.request_callsign(&callsign).await;
 
         assert!(result.is_ok());
 
-        let result = Scrapper::extract_icao_codes(&result.unwrap(), TEST_CALLSIGN);
+        let result = Scrapper::extract_icao_codes(&result.unwrap(), &callsign);
         let expected = ScrapedFlightroute {
             callsign: TEST_CALLSIGN.to_owned(),
             origin: TEST_ORIGIN.to_owned(),
@@ -412,9 +410,10 @@ mod tests {
     #[tokio::test]
     /// in test mode, live site is actually just include_str()
     async fn scraper_scraper_for_route_insert() {
+        let callsign = Callsign::try_from(TEST_CALLSIGN).unwrap();
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
-        let result = scraper.scrape_flightroute(&setup.1, TEST_CALLSIGN).await;
+        let result = scraper.scrape_flightroute(&setup.1, &callsign).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -584,7 +583,7 @@ mod tests {
 
         // let mode_s = ModeS::new("393C00".to_owned()).unwrap();
         let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_ok());
+        assert!(result.is_some());
         let expected = PhotoResponse {
             status: 200,
             count: Some(1),
@@ -592,7 +591,7 @@ mod tests {
                 image: "001/001/example.jpg".to_owned(),
             }]),
         };
-        assert_eq!(result.unwrap().unwrap(), expected);
+        assert_eq!(result.unwrap(), expected);
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
@@ -610,8 +609,7 @@ mod tests {
         };
 
         let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        assert!(result.is_none());
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
@@ -629,8 +627,7 @@ mod tests {
         };
 
         let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        assert!(result.is_none());
     }
 
     #[tokio::test]
@@ -638,7 +635,7 @@ mod tests {
         let setup = setup().await;
         let scraper = Scrapper::new(&setup.0);
 
-        let mode_s = ModeS::new(TEST_MODE_S.to_owned()).unwrap();
+        let mode_s = ModeS::try_from(TEST_MODE_S).unwrap();
 
         let test_aircraft = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix)
             .await

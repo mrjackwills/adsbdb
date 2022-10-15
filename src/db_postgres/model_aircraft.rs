@@ -37,15 +37,15 @@ impl ModelAircraft {
 SELECT
 	aa.aircraft_id,
 	$1 AS mode_s,
-	$2 as n_number,
+	$2 AS n_number,
 	aro.registered_owner,
 	aof.operator_flag_code AS registered_owner_operator_flag_code,
 	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
 	am.manufacturer,
 	at.type AS aircraft_type,
 	ait.icao_type,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, ap.url_photo) ELSE NULL END as url_photo,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, 'thumbnails/', ap.url_photo) ELSE NULL END as url_photo_thumbnail
+	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, ap.url_photo) ELSE NULL END AS url_photo,
+	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
 	aircraft aa
 JOIN
@@ -69,7 +69,7 @@ JOIN
 ON
 	aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
 JOIN
-	aircraft_manufacturer am 
+	aircraft_manufacturer am
 ON
 	aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
 JOIN
