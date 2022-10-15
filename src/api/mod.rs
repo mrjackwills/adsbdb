@@ -1,7 +1,6 @@
-use ::redis::{aio::Connection, RedisError};
+use ::redis::aio::Connection;
 use reqwest::Method;
 use sqlx::PgPool;
-use thiserror::Error;
 use tower_http::{
     cors::{Any, CorsLayer},
     limit::RequestBodyLimitLayer,
@@ -12,33 +11,28 @@ use axum::{
     handler::Handler,
     http::{HeaderMap, Request},
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
     Extension, Router,
 };
 use std::{
     fmt,
     net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs},
-    num::ParseIntError,
     sync::Arc,
     time::Instant,
 };
 use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
-use tracing::{error, info};
+use tracing::info;
 
 mod api_routes;
+mod app_error;
 mod input;
 mod response;
 
-use crate::{
-    db_redis::{check_rate_limit, RedisKey},
-    parse_env::AppEnv,
-    scraper::Scrapper,
-};
-pub use input::{is_hex, ModeS, NNumber};
-
-use self::response::ResponseJson;
+use crate::{db_redis::check_rate_limit, parse_env::AppEnv, scraper::Scrapper};
+pub use app_error::{AppError, UnknownAC};
+pub use input::{is_hex, Callsign, ModeS, NNumber};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -107,7 +101,7 @@ async fn rate_limiting<B: Send + Sync>(
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
             let ip = get_ip(req.headers(), addr);
-            check_rate_limit(&state.redis, RedisKey::RateLimit(ip)).await?;
+            check_rate_limit(&state.redis, ip).await?;
             Ok(next.run(req).await)
         }
         None => Err(AppError::Internal(
@@ -195,7 +189,7 @@ pub async fn serve(
         );
 
     let addr = get_addr(&app_env)?;
-    let starting = format!("starting server @ {}", addr);
+    let starting = format!("starting server @ {}{}", addr, get_api_version());
     info!(%starting);
 
     match axum::Server::bind(&addr)
@@ -233,63 +227,6 @@ async fn shutdown_signal() {
     }
 
     println!("signal received, starting graceful shutdown");
-}
-
-#[derive(Debug, Error)]
-pub enum AppError {
-    #[error("invalid callsign:")]
-    Callsign(String),
-    #[error("invalid n_number:")]
-    NNumber(String),
-    #[error("internal error:")]
-    Internal(String),
-    #[error("invalid modeS:")]
-    ModeS(String),
-    #[error("not found")]
-    SqlxError(#[from] sqlx::Error),
-    #[error("redis error")]
-    RedisError(#[from] RedisError),
-    #[error("internal error")]
-    SerdeJson(#[from] serde_json::Error),
-    #[error("rate limited for")]
-    RateLimited(usize),
-    #[error("unknown")]
-    UnknownInDb(&'static str),
-    #[error("parse int")]
-    ParseInt(#[from] ParseIntError),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let prefix = self.to_string();
-        let (status, body) = match self {
-            Self::Callsign(err) | Self::NNumber(err) | Self::ModeS(err) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
-            Self::Internal(err) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(format!("{} {}", prefix, err)),
-            ),
-            Self::RateLimited(limit) => (
-                axum::http::StatusCode::TOO_MANY_REQUESTS,
-                ResponseJson::new(format!("{} {} seconds", prefix, limit)),
-            ),
-            Self::SqlxError(_) | Self::RedisError(_) => {
-                (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
-            }
-            Self::SerdeJson(_) | Self::ParseInt(_) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson::new(prefix),
-            ),
-            Self::UnknownInDb(variety) => (
-                axum::http::StatusCode::NOT_FOUND,
-                ResponseJson::new(format!("{} {}", prefix, variety)),
-            ),
-        };
-
-        (status, body).into_response()
-    }
 }
 
 /// http tests - ran via actual requests to a (local) server

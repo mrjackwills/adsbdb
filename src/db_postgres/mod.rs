@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use async_trait::async_trait;
+// use async_trait::async_trait;
 use sqlx::{postgres::PgPoolOptions, ConnectOptions, PgPool};
 
 mod model_aircraft;
@@ -13,10 +13,11 @@ pub use model_flightroute::ModelFlightroute;
 
 use crate::{api::AppError, parse_env::AppEnv};
 
-#[async_trait]
-pub trait Model<T> {
-    async fn get(db: &PgPool, input: &str) -> Result<Option<T>, AppError>;
-}
+// Is this even needed?
+// #[async_trait]
+// pub trait Model<T> {
+//     async fn get(db: &PgPool, input: &str) -> Result<Option<T>, AppError>;
+// }
 
 pub async fn db_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     let mut options = sqlx::postgres::PgConnectOptions::new()
