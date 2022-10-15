@@ -231,6 +231,22 @@ async fn shutdown_signal() {
     println!("signal received, starting graceful shutdown");
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnknownInDb {
+    Aircraft,
+    Callsign,
+}
+
+impl fmt::Display for UnknownInDb {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let disp = match self {
+            Self::Aircraft => "aircraft",
+            Self::Callsign => "callsign",
+        };
+        write!(f, "{}", disp)
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("invalid callsign:")]
@@ -250,7 +266,7 @@ pub enum AppError {
     #[error("rate limited for")]
     RateLimited(usize),
     #[error("unknown")]
-    UnknownInDb(&'static str),
+    UnknownInDb(UnknownInDb),
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),
 }

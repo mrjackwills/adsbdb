@@ -1,3 +1,5 @@
+#[cfg(not(test))]
+use crate::api::UnknownInDb;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 #[cfg(not(test))]
@@ -115,13 +117,13 @@ impl Scrapper {
                 Err(e) => {
                     error!(%e);
                     error!("can't transform into text");
-                    Err(AppError::UnknownInDb("callsign"))
+                    Err(AppError::UnknownInDb(UnknownInDb::Callsign))
                 }
             },
             Err(e) => {
                 error!(%e);
                 error!("can't scrape address");
-                Err(AppError::UnknownInDb("callsign"))
+                Err(AppError::UnknownInDb(UnknownInDb::Callsign))
             }
         }
     }

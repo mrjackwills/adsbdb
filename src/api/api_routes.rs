@@ -6,14 +6,13 @@ use super::input::{Callsign, ModeS, NNumber};
 use super::response::{
     AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseFlightRoute, ResponseJson,
 };
-use super::{AppError, ApplicationState};
+use super::{AppError, ApplicationState, UnknownInDb};
 use crate::db_postgres::{ModelAircraft, ModelFlightroute};
-// use crate::db_redis::{get_cache, insert_cache, RedisKey, Cache};
 use crate::db_redis::{get_cache, insert_cache, Cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
-/// Check redis cache for aircraft (or 'none'), or hit postgres
+/// Check redis cache for Cache::Data<ModelFlightroute> or Cache::Empty, else query postgres
 async fn find_flightroute(
     path: &Callsign,
     state: ApplicationState,
@@ -22,7 +21,7 @@ async fn find_flightroute(
     if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
         match flightroute {
             Cache::Data(t) => Ok(Some(t)),
-            Cache::Empty => Err(AppError::UnknownInDb("callsign")),
+            Cache::Empty => Err(AppError::UnknownInDb(UnknownInDb::Callsign)),
         }
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, path).await?;
@@ -37,7 +36,7 @@ async fn find_flightroute(
     }
 }
 
-/// Check redis cache for aircraft (or 'none'), or hit postgres
+/// Check redis cache for Cache::Data<ModelAircraft> or Cache::Empty, else query postgres
 async fn find_aircraft(
     mode_s: &ModeS,
     state: ApplicationState,
@@ -46,7 +45,7 @@ async fn find_aircraft(
     if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
         match aircraft {
             Cache::Data(t) => Ok(Some(t)),
-            Cache::Empty => Err(AppError::UnknownInDb("aircraft")),
+            Cache::Empty => Err(AppError::UnknownInDb(UnknownInDb::Aircraft)),
         }
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
@@ -97,7 +96,7 @@ pub async fn aircraft_get(
             find_aircraft(&path, state.clone()),
             find_flightroute(&callsign, state)
         )?;
-        aircraft.map_or(Err(AppError::UnknownInDb("aircraft")), |a| {
+        aircraft.map_or(Err(AppError::UnknownInDb(UnknownInDb::Aircraft)), |a| {
             Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
@@ -108,7 +107,7 @@ pub async fn aircraft_get(
         })
     } else {
         find_aircraft(&path, state).await?.map_or(
-            Err(AppError::UnknownInDb("aircraft")),
+            Err(AppError::UnknownInDb(UnknownInDb::Aircraft)),
             |aircraft| {
                 Ok((
                     axum::http::StatusCode::OK,
@@ -127,9 +126,9 @@ pub async fn callsign_get(
     Extension(state): Extension<ApplicationState>,
     path: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    find_flightroute(&path, state)
-        .await?
-        .map_or(Err(AppError::UnknownInDb("callsign")), |a| {
+    find_flightroute(&path, state).await?.map_or(
+        Err(AppError::UnknownInDb(UnknownInDb::Callsign)),
+        |a| {
             Ok((
                 axum::http::StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
@@ -137,7 +136,8 @@ pub async fn callsign_get(
                     flightroute: ResponseFlightRoute::from_model(&Some(a)),
                 }),
             ))
-        })
+        },
+    )
 }
 
 /// Return a simple online status response
@@ -405,7 +405,7 @@ mod tests {
             .unwrap_err();
 
         match response {
-            AppError::UnknownInDb(x) => assert_eq!(x, "aircraft"),
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownInDb::Aircraft),
             _ => unreachable!(),
         };
 
@@ -436,7 +436,7 @@ mod tests {
             .unwrap_err();
 
         match response {
-            AppError::UnknownInDb(x) => assert_eq!(x, "aircraft"),
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownInDb::Aircraft),
             _ => unreachable!(),
         };
 
@@ -751,7 +751,7 @@ mod tests {
             .await
             .unwrap_err();
         match response {
-            AppError::UnknownInDb(x) => assert_eq!(x, "callsign"),
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownInDb::Callsign),
             _ => unreachable!(),
         };
         let tmp_callsign = Callsign::try_from(callsign).unwrap();
@@ -782,7 +782,7 @@ mod tests {
             .unwrap_err();
 
         match response {
-            AppError::UnknownInDb(x) => assert_eq!(x, "callsign"),
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownInDb::Callsign),
             _ => unreachable!(),
         };
 
