@@ -99,7 +99,8 @@ impl AppEnv {
         } else if std::fs::metadata(local_env).is_ok() {
             local_env
         } else {
-            panic!("Unable to load env file")
+			println!("\n\x1b[31mUnable to load env file\x1b[0m\n");
+			std::process::exit(1);
         };
 
         dotenv::from_path(env_path).ok();
