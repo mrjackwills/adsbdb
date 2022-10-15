@@ -236,7 +236,7 @@ release_flow() {
 	release_continue "git add ."
 	git add .
 
-	release_continue "git commit -mg \"chore: release \"${NEW_TAG_WITH_V}\""
+	release_continue "git commit -m \"chore: release \"${NEW_TAG_WITH_V}\""
 	git commit -m "chore: release ${NEW_TAG_WITH_V}"
 
 	release_continue "git checkout main"
