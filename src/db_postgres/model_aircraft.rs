@@ -33,7 +33,7 @@ struct AircraftPhoto {
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
     const fn get_query() -> &'static str {
-        r#"
+r#"
 SELECT
 	aa.aircraft_id,
 	$1 AS mode_s,

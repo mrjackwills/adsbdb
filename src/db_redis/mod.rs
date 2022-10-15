@@ -7,24 +7,24 @@ use redis::{
     RedisConnectionInfo, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use tracing::info;
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use tracing::info;
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
-
 // Convert a redis string result into a Cache<T>
 fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> {
     match from_redis_value::<String>(v) {
-        Ok(string_value) => 
-		if string_value.is_empty() {
-			Ok(Cache::Empty)
-		}else{
-			Ok(Cache::Data(serde_json::from_str::<T>(&string_value)?))
-		},
-        Err(e) => Err(AppError::RedisError(e))
+        Ok(string_value) => {
+            if string_value.is_empty() {
+                Ok(Cache::Empty)
+            } else {
+                Ok(Cache::Data(serde_json::from_str::<T>(&string_value)?))
+            }
+        }
+        Err(e) => Err(AppError::RedisError(e)),
     }
 }
 
@@ -33,7 +33,6 @@ pub enum Cache<T: DeserializeOwned> {
     Data(T),
     Empty,
 }
-
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
 pub async fn get_cache<'a, T: DeserializeOwned + Send>(
@@ -49,7 +48,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
         Some(d) => Some(redis_to_serde(&d)?),
         None => None,
     };
-	Ok(serialized_data)
+    Ok(serialized_data)
 }
 
 pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
@@ -62,11 +61,7 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
         Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
     };
-    redis
-        .lock()
-        .await
-        .hset(&key, FIELD, cache)
-        .await?;
+    redis.lock().await.hset(&key, FIELD, cache).await?;
     redis.lock().await.expire(&key, ONE_WEEK).await?;
     Ok(())
 }
@@ -78,11 +73,13 @@ pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Res
     if let Some(count) = count {
         redis.lock().await.incr(&key, 1).await?;
         if count >= 240 {
-			info!("blocked for 5 minutes::{}", key);
+            info!("blocked for 5 minutes::{}", key);
             redis.lock().await.expire(&key, 60 * 5).await?;
         }
         if count > 120 {
-            return Err(AppError::RateLimited(usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60)));
+            return Err(AppError::RateLimited(
+                usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60),
+            ));
         }
         if count == 120 {
             redis.lock().await.expire(&key, 60).await?;

@@ -13,6 +13,7 @@ pub use model_flightroute::ModelFlightroute;
 
 use crate::{api::AppError, parse_env::AppEnv};
 
+// Is this even needed?
 // #[async_trait]
 // pub trait Model<T> {
 //     async fn get(db: &PgPool, input: &str) -> Result<Option<T>, AppError>;
