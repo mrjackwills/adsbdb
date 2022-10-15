@@ -72,7 +72,7 @@ impl Scrapper {
         }
     }
 
-    /// Search an html file for "icao":", take the next 4 chars, and see if they match the icao spec ([a-z]{4})
+    /// Search a &str for "icao":", take the next 4 chars, and see if they match the icao spec ([a-z]{4})
     /// Will only return a Option<Vec>, where the Vec has a length of 2
     fn extract_icao_codes(html: &str, callsign: &Callsign) -> Option<ScrapedFlightroute> {
         let output: Vec<_> = html

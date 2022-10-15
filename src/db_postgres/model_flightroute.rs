@@ -49,6 +49,7 @@ pub struct ModelFlightroute {
 }
 
 impl ModelFlightroute {
+	/// Query for a fully joined Some(ModelFlightRoute) or None
     pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(callsign.to_string())
