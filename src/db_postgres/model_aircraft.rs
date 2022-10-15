@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{
-    api::{AppError, ModeS},
+    api::{ModeS, AppError},
     n_number::mode_s_to_n_number,
     scraper::PhotoData,
 };
@@ -33,7 +33,7 @@ struct AircraftPhoto {
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
     const fn get_query() -> &'static str {
-r#"
+        r#"
 SELECT
 	aa.aircraft_id,
 	$1 AS mode_s,

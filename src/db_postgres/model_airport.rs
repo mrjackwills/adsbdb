@@ -3,8 +3,6 @@ use sqlx::PgPool;
 
 use crate::api::AppError;
 
-// use super::Model;
-
 #[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAirport {
     pub airport_icao_code_id: i64,

@@ -1,5 +1,5 @@
 use crate::{
-    api::{AppError, Callsign, ModeS},
+    api::{Callsign, ModeS, AppError},
     parse_env::AppEnv,
 };
 use redis::{

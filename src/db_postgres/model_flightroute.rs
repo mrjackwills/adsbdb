@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{
-    api::{AppError, Callsign},
+    api::{Callsign, AppError},
     scraper::ScrapedFlightroute,
 };
 
@@ -49,7 +49,7 @@ pub struct ModelFlightroute {
 }
 
 impl ModelFlightroute {
-	/// Query for a fully joined Some(ModelFlightRoute) or None
+    /// Query for a fully joined Some(ModelFlightRoute) or None
     pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(callsign.to_string())
@@ -59,7 +59,7 @@ impl ModelFlightroute {
     /// Seperated out, so can use in tests with a transaction
     /// Could also just be a const str
     const fn get_query() -> &'static str {
-r#"
+        r#"
 SELECT
 	$1 AS callsign,
 	fl.flightroute_id,
