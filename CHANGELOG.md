@@ -1,5 +1,5 @@
 ### Chores
-+ create_release.sh v0.1.1 [065daa3d6a4efa28a75bb7fe97ed2c94c426966d]
++ create_release.sh v0.1.1, [065daa3d6a4efa28a75bb7fe97ed2c94c426966d]
 
 ### Docs
 + readme updated, [94e1ea83d36802876f072695065aac5df02f2c38]
@@ -7,7 +7,7 @@
 + comments updated, [b1ccd36e6615922a8f6bf543a882fbf21f510195]
 
 ### Features
-+ NNumber, ModeS & Callsign new_types. [6a42752e3395a837fb1abc42e73768d5ec2b583c]
++ NNumber, ModeS & Callsign new_types, [6a42752e3395a837fb1abc42e73768d5ec2b583c]
 + Exit with code 1 if no .env file found, [0939a2d38ffd633a029eee6e95c21062249e3e45]
 + UnknownAC (Aircraft/Callsign) enum, [596cfa07ac0704aaa3f8efd7d07d029e2a732c0c]
 
