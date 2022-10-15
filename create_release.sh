@@ -254,7 +254,7 @@ release_flow() {
 	release_continue "git checkout dev"
 	git checkout dev
 
-	release_continue "git merge --no-ff main -m 'chore: merge main into dev'"
+	release_continue "git merge --no-ff main -m \"chore: merge main into dev\""
 	git merge --no-ff main -m 'chore: merge main into dev'
 
 	release_continue "git push origin dev"
