@@ -29,15 +29,6 @@ impl fmt::Display for ModeS {
     }
 }
 
-impl ModeS {
-    // pub fn new(x: String) -> Result<Self, AppError> {
-    //     Ok(Self(Self::validate(&x)?))
-    // }
-    // pub fn get(&self) -> String {
-    // 	self.0.to_string()
-    // }
-}
-
 impl TryFrom<&str> for ModeS {
     type Error = AppError;
     fn try_from(x: &str) -> Result<Self, AppError> {
@@ -93,15 +84,6 @@ impl fmt::Display for NNumber {
     }
 }
 
-impl NNumber {
-    // pub fn new(x: String) -> Result<Self, AppError> {
-    //     Ok(Self(Self::validate(x)?))
-    // }
-    // pub fn get(&self) -> String {
-    // 	self.0.to_string()
-    // }
-}
-
 impl TryFrom<&str> for NNumber {
     type Error = AppError;
     fn try_from(x: &str) -> Result<Self, AppError> {
@@ -147,12 +129,6 @@ where
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Callsign(String);
-
-impl Callsign {
-    // pub fn get(&self) -> String {
-    // 	self.0.to_string()
-    // }
-}
 
 impl TryFrom<&str> for Callsign {
     type Error = AppError;
