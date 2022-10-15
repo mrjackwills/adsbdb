@@ -15,7 +15,7 @@
 + ttl as isize instead of usize, [84dbbf02d66bfbf6b529f82a694ea4bb3946d419]
 + Cargo.lock tracked, [366a90eeb52122ec46b18395d2aac83363178be7]
 + cache aircraft/flightroute with Cache enum, [5118d3b42a043e72a02a9f31daaf7ca7608f4b5c]
-+ SQL querye uppercase SQL reserved words, [e918e88c022d3d8b903156ccc82a03387edc07d5]
++ SQL query uppercase SQL reserved words, [e918e88c022d3d8b903156ccc82a03387edc07d5]
 + website added Aircraft Value table, [5ef5e1c7063eba42a3728ef2fcf94de42cd93258]
 + try/catch on website script, [94be3918d43719431960c2479fa0df57adec2743]
 + print version number when starting, [19de8a9d2c8a4c3ae2dd0b8cb2e01722130e5f00]
