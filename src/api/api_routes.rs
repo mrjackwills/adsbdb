@@ -67,7 +67,7 @@ pub async fn n_number_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         axum::http::StatusCode::OK,
-        ResponseJson::new(n_number_to_mode_s(&n_number).map_or("".to_owned(), |f| f.to_string())),
+        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
     ))
 }
 
@@ -78,7 +78,7 @@ pub async fn mode_s_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         axum::http::StatusCode::OK,
-        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or("".to_owned(), |f| f.to_string())),
+        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
     ))
 }
 
