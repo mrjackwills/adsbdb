@@ -30,7 +30,7 @@ mod app_error;
 mod input;
 mod response;
 
-use crate::{db_redis::check_rate_limit, parse_env::AppEnv, scraper::Scrapper};
+use crate::{db_redis::{check_rate_limit, RedisKey}, parse_env::AppEnv, scraper::Scraper};
 pub use app_error::{AppError, UnknownAC};
 pub use input::{is_hex, Callsign, ModeS, NNumber};
 
@@ -43,7 +43,7 @@ pub struct ApplicationState {
     redis: Arc<Mutex<Connection>>,
     uptime: Instant,
     url_prefix: String,
-    scraper: Scrapper,
+    scraper: Scraper,
 }
 
 impl ApplicationState {
@@ -52,7 +52,7 @@ impl ApplicationState {
             postgres,
             redis,
             uptime: Instant::now(),
-            scraper: Scrapper::new(app_env),
+            scraper: Scraper::new(app_env),
             url_prefix: app_env.url_photo_prefix.clone(),
         }
     }
@@ -100,8 +100,9 @@ async fn rate_limiting<B: Send + Sync>(
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
     match req.extensions().get::<ApplicationState>() {
         Some(state) => {
-            let ip = get_ip(req.headers(), addr);
-            check_rate_limit(&state.redis, ip).await?;
+            // let ip = );
+			let key = RedisKey::RateLimit(get_ip(req.headers(), addr));
+            check_rate_limit(&state.redis, key).await?;
             Ok(next.run(req).await)
         }
         None => Err(AppError::Internal(
