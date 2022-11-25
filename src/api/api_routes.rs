@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axum::Extension;
+use axum::extract::{OriginalUri, State};
 
 use super::input::{Callsign, ModeS, NNumber};
 use super::response::{
@@ -8,21 +8,20 @@ use super::response::{
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
 use crate::db_postgres::{ModelAircraft, ModelFlightroute};
-use crate::db_redis::{get_cache, insert_cache, Cache, RedisKey};
+use crate::db_redis::{get_cache, insert_cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
-/// Check redis cache for Cache::Data<ModelFlightroute> or Cache::Empty, else query postgres
+/// Check redis cache for Option<ModelFlightroute>, else query postgres
 async fn find_flightroute(
     path: &Callsign,
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(path);
     if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
-        match flightroute {
-            Cache::Data(t) => Ok(Some(t)),
-            Cache::Empty => Err(AppError::UnknownInDb(UnknownAC::Callsign)),
-        }
+        flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| {
+            Ok(Some(route))
+        })
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, path).await?;
         if flightroute.is_none() {
@@ -36,17 +35,16 @@ async fn find_flightroute(
     }
 }
 
-/// Check redis cache for Cache::Data<ModelAircraft> or Cache::Empty, else query postgres
+/// Check redis cache for Option<ModelAircraft>, else query postgres
 async fn find_aircraft(
     mode_s: &ModeS,
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::ModeS(mode_s);
     if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
-        match aircraft {
-            Cache::Data(t) => Ok(Some(t)),
-            Cache::Empty => Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
-        }
+        aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| {
+            Ok(Some(craft))
+        })
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
@@ -67,7 +65,7 @@ pub async fn n_number_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         axum::http::StatusCode::OK,
-        ResponseJson::new(n_number_to_mode_s(&n_number).map_or("".to_owned(), |f| f.to_string())),
+        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
     ))
 }
 
@@ -78,14 +76,14 @@ pub async fn mode_s_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         axum::http::StatusCode::OK,
-        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or("".to_owned(), |f| f.to_string())),
+        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
     ))
 }
 
 /// Return an aircraft detail from a modes input
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 pub async fn aircraft_get(
-    Extension(state): Extension<ApplicationState>,
+    State(state): State<ApplicationState>,
     path: ModeS,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
@@ -123,7 +121,7 @@ pub async fn aircraft_get(
 
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
-    Extension(state): Extension<ApplicationState>,
+    State(state): State<ApplicationState>,
     path: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(&path, state).await?.map_or(
@@ -143,7 +141,7 @@ pub async fn callsign_get(
 /// Return a simple online status response
 #[allow(clippy::unused_async)]
 pub async fn online_get(
-    Extension(state): Extension<ApplicationState>,
+    State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
         axum::http::StatusCode::OK,
@@ -156,10 +154,12 @@ pub async fn online_get(
 
 /// return a unknown endpoint response
 #[allow(clippy::unused_async)]
-pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRes<String>) {
+pub async fn fallback(
+    OriginalUri(original_uri): OriginalUri,
+) -> (axum::http::StatusCode, AsJsonRes<String>) {
     (
         axum::http::StatusCode::NOT_FOUND,
-        ResponseJson::new(format!("unknown endpoint: {}", uri)),
+        ResponseJson::new(format!("unknown endpoint: {}", original_uri)),
     )
 }
 
@@ -184,7 +184,7 @@ mod tests {
 
     const CALLSIGN: &str = "ANA460";
 
-    async fn get_application_state() -> Extension<ApplicationState> {
+    async fn get_application_state() -> State<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
@@ -192,7 +192,7 @@ mod tests {
             .query_async::<_, ()>(&mut redis)
             .await
             .unwrap();
-        Extension(ApplicationState::new(
+        State(ApplicationState::new(
             postgres,
             Arc::new(Mutex::new(redis)),
             &app_env,
@@ -220,7 +220,7 @@ mod tests {
     // basically a 404 handler
     async fn http_api_fallback_route() {
         let uri = "/test/uri".parse::<Uri>().unwrap();
-        let response = fallback(uri.clone()).await;
+        let response = fallback(OriginalUri(uri.clone())).await;
         assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
         assert_eq!(response.1.response, format!("unknown endpoint: {}", uri));
     }

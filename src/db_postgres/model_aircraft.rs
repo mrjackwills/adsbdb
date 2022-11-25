@@ -85,10 +85,7 @@ WHERE
     }
 
     pub async fn get(db: &PgPool, mode_s: &ModeS, prefix: &str) -> Result<Option<Self>, AppError> {
-        let n_number = match mode_s_to_n_number(mode_s) {
-            Ok(data) => data.to_string(),
-            Err(_) => String::from(""),
-        };
+        let n_number = mode_s_to_n_number(mode_s).map_or(String::new(), |data| data.to_string());
 
         Ok(sqlx::query_as::<_, Self>(Self::get_query())
             .bind(&mode_s.to_string())

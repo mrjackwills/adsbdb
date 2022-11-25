@@ -9,36 +9,33 @@ use redis::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{error, info};
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
-/// Convert a redis string result into a Cache<T>
-fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> {
+/// Convert a redis string result into a Option<T>
+fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
     match from_redis_value::<String>(v) {
         Ok(string_value) => {
             if string_value.is_empty() {
-                Ok(Cache::Empty)
+                Ok(None)
             } else {
-                Ok(Cache::Data(serde_json::from_str::<T>(&string_value)?))
+                Ok(Some(serde_json::from_str::<T>(&string_value)?))
             }
         }
-        Err(e) => Err(AppError::RedisError(e)),
+        Err(e) => {
+            error!("{:?}", v);
+            Err(AppError::RedisError(e))
+        }
     }
-}
-
-#[derive(Debug, Serialize)]
-pub enum Cache<T: DeserializeOwned> {
-    Data(T),
-    Empty,
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
 pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     redis: &Arc<Mutex<Connection>>,
     key: &RedisKey<'a>,
-) -> Result<Option<Cache<T>>, AppError> {
+) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
     let value: Option<Value> = redis.lock().await.hget(&key, FIELD).await?;
     if value.is_some() {
@@ -51,6 +48,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     Ok(serialized_data)
 }
 
+/// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
     redis: &Arc<Mutex<Connection>>,
     to_insert: &Option<T>,
@@ -67,21 +65,28 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
 }
 
 /// Check if rate limited, will return true if so
-pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Result<(), AppError> {
-    let key = RedisKey::RateLimit(ip).to_string();
+/// info!() at the moment for bug hunting
+pub async fn check_rate_limit(
+    redis: &Arc<Mutex<Connection>>,
+    key: RedisKey<'_>,
+) -> Result<(), AppError> {
+    let key = key.to_string();
     let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
     if let Some(count) = count {
         redis.lock().await.incr(&key, 1).await?;
         if count >= 240 {
+            info!("count: {}, key:{}", count, key);
             info!("blocked for 5 minutes::{}", key);
             redis.lock().await.expire(&key, 60 * 5).await?;
         }
         if count > 120 {
+            info!("count: {}, key:{}", count, key);
             return Err(AppError::RateLimited(
                 usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60),
             ));
         }
         if count == 120 {
+            info!("count: {}, key:{}", count, key);
             redis.lock().await.expire(&key, 60).await?;
             return Err(AppError::RateLimited(60));
         }

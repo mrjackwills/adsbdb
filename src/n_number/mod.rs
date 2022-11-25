@@ -7,8 +7,9 @@
 // But it seems to work as expected, although probably inefficient
 use std::fmt;
 
+use once_cell::sync::Lazy;
+
 use crate::api::{AppError, ModeS, NNumber};
-use lazy_static::lazy_static;
 
 const ICAO_SIZE: usize = 6;
 
@@ -17,10 +18,7 @@ const ICAO_CHARSET: &str = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DIGITSET: &str = "0123456789";
 const CHARSET_LEN: usize = 24;
 
-lazy_static! {
-    /// Uppercase icao charset + digits
-    pub static ref ALLCHARS: String = format!("{}{}", ICAO_CHARSET, DIGITSET);
-}
+pub static ALLCHARS: Lazy<String> = Lazy::new(|| format!("{}{}", ICAO_CHARSET, DIGITSET));
 
 const SUFFIX_SIZE: usize = 601;
 

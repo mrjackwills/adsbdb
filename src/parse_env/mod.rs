@@ -35,17 +35,14 @@ pub struct AppEnv {
 impl AppEnv {
     /// Parse "true" or "false" to bool, else false
     fn parse_boolean(key: &str, map: &EnvHashMap) -> bool {
-        match map.get(key) {
-            Some(value) => value == "true",
-            None => false,
-        }
+        map.get(key).map_or(false, |value| value == "true")
     }
 
     fn parse_string(key: &str, map: &EnvHashMap) -> Result<String, EnvError> {
-        match map.get(key) {
-            Some(value) => Ok(value.into()),
-            None => Err(EnvError::NotFound(key.into())),
-        }
+        map.get(key).map_or(
+            Err(EnvError::NotFound(key.into())),
+            |value| Ok(value.into()),
+        )
     }
 
     /// Parse string to u32, else return 1
@@ -53,10 +50,7 @@ impl AppEnv {
         let default = 1;
         map.get(key).map_or_else(
             || Err(EnvError::NotFound(key.into())),
-            |data| match data.parse::<u16>() {
-                Ok(d) => Ok(d),
-                Err(_) => Ok(default),
-            },
+            |data| data.parse::<u16>().map_or(Ok(default), Ok),
         )
     }
 
@@ -103,7 +97,7 @@ impl AppEnv {
             std::process::exit(1);
         };
 
-        dotenv::from_path(env_path).ok();
+        dotenvy::from_path(env_path).ok();
         match Self::generate() {
             Ok(s) => s,
             Err(e) => {
@@ -180,7 +174,7 @@ mod tests {
 
     #[test]
     fn env_return_appenv() {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         // ACTION
         let result = AppEnv::generate();

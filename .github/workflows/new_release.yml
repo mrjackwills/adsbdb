@@ -7,16 +7,26 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v3
       
-       # Build for linux x86_64
+      ##################################
+      ## Build binary for release page #
+      ##################################
+
+      # Install stable rust, and associated tools
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Build for linux x86_64
       - name: build release linux_x86_64
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+        run: cargo build --release
+      # Compress ouput into tar
       - name: compress adsbdb_linux_x86_64 binary
         run: tar -C target/release -czf ./adsbdb_linux_x86_64.tar.gz adsbdb
+      
+      ###################
+      ## Create release #
+      ###################
 
       - name: Release
         uses: softprops/action-gh-release@v1

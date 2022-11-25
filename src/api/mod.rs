@@ -1,19 +1,15 @@
 use ::redis::aio::Connection;
 use reqwest::Method;
 use sqlx::PgPool;
-use tower_http::{
-    cors::{Any, CorsLayer},
-    limit::RequestBodyLimitLayer,
-};
+use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
-    extract::ConnectInfo,
-    handler::Handler,
+    extract::{ConnectInfo, DefaultBodyLimit, State},
     http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
     routing::get,
-    Extension, Router,
+    Router,
 };
 use std::{
     fmt,
@@ -30,7 +26,11 @@ mod app_error;
 mod input;
 mod response;
 
-use crate::{db_redis::check_rate_limit, parse_env::AppEnv, scraper::Scrapper};
+use crate::{
+    db_redis::{check_rate_limit, RedisKey},
+    parse_env::AppEnv,
+    scraper::Scraper,
+};
 pub use app_error::{AppError, UnknownAC};
 pub use input::{is_hex, Callsign, ModeS, NNumber};
 
@@ -43,7 +43,7 @@ pub struct ApplicationState {
     redis: Arc<Mutex<Connection>>,
     uptime: Instant,
     url_prefix: String,
-    scraper: Scrapper,
+    scraper: Scraper,
 }
 
 impl ApplicationState {
@@ -52,7 +52,7 @@ impl ApplicationState {
             postgres,
             redis,
             uptime: Instant::now(),
-            scraper: Scrapper::new(app_env),
+            scraper: Scraper::new(app_env),
             url_prefix: app_env.url_photo_prefix.clone(),
         }
     }
@@ -94,20 +94,14 @@ fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr
 
 /// Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting<B: Send + Sync>(
+    State(state): State<ApplicationState>,
     req: Request<B>,
     next: Next<B>,
 ) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
-    match req.extensions().get::<ApplicationState>() {
-        Some(state) => {
-            let ip = get_ip(req.headers(), addr);
-            check_rate_limit(&state.redis, ip).await?;
-            Ok(next.run(req).await)
-        }
-        None => Err(AppError::Internal(
-            "Unable to get application_state".to_owned(),
-        )),
-    }
+    let key = RedisKey::RateLimit(get_ip(req.headers(), addr));
+    check_rate_limit(&state.redis, key).await?;
+    Ok(next.run(req).await)
 }
 
 /// Create a /v[x] prefix for all api routes, where x is the current major version
@@ -179,13 +173,16 @@ pub async fn serve(
 
     let app = Router::new()
         .nest(&prefix, api_routes)
-        .fallback(api_routes::fallback.into_service())
+        .fallback(api_routes::fallback)
+        .with_state(application_state.clone())
         .layer(
             ServiceBuilder::new()
-                .layer(RequestBodyLimitLayer::new(1024))
+                .layer(DefaultBodyLimit::max(1024))
                 .layer(cors)
-                .layer(Extension(application_state))
-                .layer(middleware::from_fn(rate_limiting)),
+                .layer(middleware::from_fn_with_state(
+                    application_state,
+                    rate_limiting,
+                )),
         );
 
     let addr = get_addr(&app_env)?;
