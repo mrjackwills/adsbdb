@@ -18,9 +18,7 @@ const ICAO_CHARSET: &str = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DIGITSET: &str = "0123456789";
 const CHARSET_LEN: usize = 24;
 
-pub static ALLCHARS: Lazy<String> = Lazy::new(|| {
-	format!("{}{}", ICAO_CHARSET, DIGITSET)
-});
+pub static ALLCHARS: Lazy<String> = Lazy::new(|| format!("{}{}", ICAO_CHARSET, DIGITSET));
 
 const SUFFIX_SIZE: usize = 601;
 

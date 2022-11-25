@@ -24,7 +24,10 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> 
                 Ok(Cache::Data(serde_json::from_str::<T>(&string_value)?))
             }
         }
-        Err(e) => Err(AppError::RedisError(e)),
+        Err(e) => {
+            info!("{:?}", v);
+            Err(AppError::RedisError(e))
+        }
     }
 }
 
@@ -67,21 +70,27 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
 }
 
 /// Check if rate limited, will return true if so
-pub async fn check_rate_limit(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Result<(), AppError> {
-    let key = RedisKey::RateLimit(ip).to_string();
+pub async fn check_rate_limit(
+    redis: &Arc<Mutex<Connection>>,
+    key: RedisKey<'_>,
+) -> Result<(), AppError> {
+    let key = key.to_string();
     let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
     if let Some(count) = count {
         redis.lock().await.incr(&key, 1).await?;
         if count >= 240 {
+            info!("count: {}, key:{}", count, key);
             info!("blocked for 5 minutes::{}", key);
             redis.lock().await.expire(&key, 60 * 5).await?;
         }
         if count > 120 {
+            info!("count: {}, key:{}", count, key);
             return Err(AppError::RateLimited(
                 usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60),
             ));
         }
         if count == 120 {
+            info!("count: {}, key:{}", count, key);
             redis.lock().await.expire(&key, 60).await?;
             return Err(AppError::RateLimited(60));
         }

@@ -39,7 +39,10 @@ impl AppEnv {
     }
 
     fn parse_string(key: &str, map: &EnvHashMap) -> Result<String, EnvError> {
-        map.get(key).map_or(Err(EnvError::NotFound(key.into())), |value| Ok(value.into()))
+        map.get(key).map_or(
+            Err(EnvError::NotFound(key.into())),
+            |value| Ok(value.into()),
+        )
     }
 
     /// Parse string to u32, else return 1

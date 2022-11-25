@@ -1,7 +1,6 @@
 use std::fmt;
 
-use async_trait::async_trait;
-use axum::extract::{FromRequest, RequestParts};
+use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 
 use crate::n_number::ALLCHARS;
 
@@ -12,6 +11,7 @@ fn is_charset(c: char, end: char) -> bool {
     c.is_ascii_digit() || ('a'..=end).contains(&c.to_ascii_lowercase())
 }
 
+/// Check that a given &string is a valid hex string
 pub fn is_hex(input: &str) -> bool {
     input.chars().all(|c| is_charset(c, 'f'))
 }
@@ -62,13 +62,13 @@ impl Validate for ModeS {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for ModeS
+impl<S> FromRequestParts<S> for ModeS
 where
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = AppError;
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request(req).await {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
             Ok(value) => Ok(Self::try_from(value.0)?),
             Err(_) => Err(AppError::ModeS(String::from("invalid"))),
         }
@@ -114,13 +114,14 @@ impl Validate for NNumber {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for NNumber
+impl<S> FromRequestParts<S> for NNumber
 where
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = AppError;
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request(req).await {
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
             Ok(value) => Ok(Self::try_from(value.0)?),
             Err(_) => Err(AppError::NNumber(String::from("invalid"))),
         }
@@ -169,13 +170,14 @@ impl Validate for Callsign {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for Callsign
+impl<S> FromRequestParts<S> for Callsign
 where
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = AppError;
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request(req).await {
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
             Ok(value) => Ok(Self::try_from(value.0)?),
             Err(_) => Err(AppError::ModeS(String::from("invalid"))),
         }

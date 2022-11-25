@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axum::Extension;
+use axum::extract::{OriginalUri, State};
 
 use super::input::{Callsign, ModeS, NNumber};
 use super::response::{
@@ -85,7 +85,7 @@ pub async fn mode_s_get(
 /// Return an aircraft detail from a modes input
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 pub async fn aircraft_get(
-    Extension(state): Extension<ApplicationState>,
+    State(state): State<ApplicationState>,
     path: ModeS,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
@@ -123,7 +123,7 @@ pub async fn aircraft_get(
 
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
-    Extension(state): Extension<ApplicationState>,
+    State(state): State<ApplicationState>,
     path: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(&path, state).await?.map_or(
@@ -143,7 +143,7 @@ pub async fn callsign_get(
 /// Return a simple online status response
 #[allow(clippy::unused_async)]
 pub async fn online_get(
-    Extension(state): Extension<ApplicationState>,
+    State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
         axum::http::StatusCode::OK,
@@ -156,10 +156,12 @@ pub async fn online_get(
 
 /// return a unknown endpoint response
 #[allow(clippy::unused_async)]
-pub async fn fallback(uri: axum::http::Uri) -> (axum::http::StatusCode, AsJsonRes<String>) {
+pub async fn fallback(
+    OriginalUri(original_uri): OriginalUri,
+) -> (axum::http::StatusCode, AsJsonRes<String>) {
     (
         axum::http::StatusCode::NOT_FOUND,
-        ResponseJson::new(format!("unknown endpoint: {}", uri)),
+        ResponseJson::new(format!("unknown endpoint: {}", original_uri)),
     )
 }
 
@@ -184,7 +186,7 @@ mod tests {
 
     const CALLSIGN: &str = "ANA460";
 
-    async fn get_application_state() -> Extension<ApplicationState> {
+    async fn get_application_state() -> State<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
@@ -192,7 +194,7 @@ mod tests {
             .query_async::<_, ()>(&mut redis)
             .await
             .unwrap();
-        Extension(ApplicationState::new(
+        State(ApplicationState::new(
             postgres,
             Arc::new(Mutex::new(redis)),
             &app_env,
@@ -220,7 +222,7 @@ mod tests {
     // basically a 404 handler
     async fn http_api_fallback_route() {
         let uri = "/test/uri".parse::<Uri>().unwrap();
-        let response = fallback(uri.clone()).await;
+        let response = fallback(OriginalUri(uri.clone())).await;
         assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
         assert_eq!(response.1.response, format!("unknown endpoint: {}", uri));
     }
