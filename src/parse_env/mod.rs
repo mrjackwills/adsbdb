@@ -94,7 +94,7 @@ impl AppEnv {
             std::process::exit(1);
         };
 
-        dotenv::from_path(env_path).ok();
+        dotenvy::from_path(env_path).ok();
         match Self::generate() {
             Ok(s) => s,
             Err(e) => {
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn env_return_appenv() {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         // ACTION
         let result = AppEnv::generate();
