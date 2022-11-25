@@ -19,7 +19,9 @@ async fn find_flightroute(
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(path);
     if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
-		flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| Ok(Some(route)))
+        flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| {
+            Ok(Some(route))
+        })
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, path).await?;
         if flightroute.is_none() {
@@ -40,7 +42,9 @@ async fn find_aircraft(
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::ModeS(mode_s);
     if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
-		aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| Ok(Some(craft)))
+        aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| {
+            Ok(Some(craft))
+        })
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
