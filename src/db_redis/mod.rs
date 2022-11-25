@@ -9,7 +9,7 @@ use redis::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use tracing::{info, error};
+use tracing::{error, info};
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
