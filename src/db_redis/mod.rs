@@ -48,6 +48,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     Ok(serialized_data)
 }
 
+/// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
     redis: &Arc<Mutex<Connection>>,
     to_insert: &Option<T>,
