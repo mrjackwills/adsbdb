@@ -9,9 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      ####################################
-      ## Build binaries for release page #
-      ####################################
+      ##################################
+      ## Build binary for release page #
+      ##################################
 
       # Install stable rust, and associated tools
       - name: install rust

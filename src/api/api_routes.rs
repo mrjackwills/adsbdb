@@ -8,21 +8,18 @@ use super::response::{
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
 use crate::db_postgres::{ModelAircraft, ModelFlightroute};
-use crate::db_redis::{get_cache, insert_cache, Cache, RedisKey};
+use crate::db_redis::{get_cache, insert_cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
-/// Check redis cache for Cache::Data<ModelFlightroute> or Cache::Empty, else query postgres
+/// Check redis cache for Option<ModelFlightroute>, else query postgres
 async fn find_flightroute(
     path: &Callsign,
     state: ApplicationState,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(path);
     if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
-        match flightroute {
-            Cache::Data(t) => Ok(Some(t)),
-            Cache::Empty => Err(AppError::UnknownInDb(UnknownAC::Callsign)),
-        }
+		flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| Ok(Some(route)))
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, path).await?;
         if flightroute.is_none() {
@@ -36,17 +33,14 @@ async fn find_flightroute(
     }
 }
 
-/// Check redis cache for Cache::Data<ModelAircraft> or Cache::Empty, else query postgres
+/// Check redis cache for Option<ModelAircraft>, else query postgres
 async fn find_aircraft(
     mode_s: &ModeS,
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::ModeS(mode_s);
     if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
-        match aircraft {
-            Cache::Data(t) => Ok(Some(t)),
-            Cache::Empty => Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
-        }
+		aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| Ok(Some(craft)))
     } else {
         let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {

@@ -9,39 +9,33 @@ use redis::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{info, error};
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
-/// Convert a redis string result into a Cache<T>
-fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Cache<T>, AppError> {
+/// Convert a redis string result into a Option<T>
+fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
     match from_redis_value::<String>(v) {
         Ok(string_value) => {
             if string_value.is_empty() {
-                Ok(Cache::Empty)
+                Ok(None)
             } else {
-                Ok(Cache::Data(serde_json::from_str::<T>(&string_value)?))
+                Ok(Some(serde_json::from_str::<T>(&string_value)?))
             }
         }
         Err(e) => {
-            info!("{:?}", v);
+            error!("{:?}", v);
             Err(AppError::RedisError(e))
         }
     }
-}
-
-#[derive(Debug, Serialize)]
-pub enum Cache<T: DeserializeOwned> {
-    Data(T),
-    Empty,
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
 pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     redis: &Arc<Mutex<Connection>>,
     key: &RedisKey<'a>,
-) -> Result<Option<Cache<T>>, AppError> {
+) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
     let value: Option<Value> = redis.lock().await.hget(&key, FIELD).await?;
     if value.is_some() {
@@ -70,6 +64,7 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
 }
 
 /// Check if rate limited, will return true if so
+/// info!() at the moment for bug hunting
 pub async fn check_rate_limit(
     redis: &Arc<Mutex<Connection>>,
     key: RedisKey<'_>,

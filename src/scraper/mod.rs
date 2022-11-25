@@ -183,7 +183,7 @@ impl Scraper {
         }
     }
 
-    // Attempt to get photol url, and also insert into db
+    /// Attempt to get photol url, and also insert into db
     pub async fn scrape_photo(
         &self,
         db: &PgPool,
