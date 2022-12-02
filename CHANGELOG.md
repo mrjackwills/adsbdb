@@ -4,7 +4,7 @@
 ### Chores
 + aggressive linting with rust 1.65.0, [755644bb](https://github.com/mrjackwills/adsbdb/commit/755644bb5fc2f984b87779c1d140117ed77c03b9)
 + dependencies updated, implement axum v0.6 changes, [c7812986](https://github.com/mrjackwills/adsbdb/commit/c781298636cd967df7a21fe302a07a6bf6811cee)
-+ postgres upgraded to v15, closes #[7], [a59dfb85](https://github.com/mrjackwills/adsbdb/commit/a59dfb850fe2f01c0deeac27070c08ee2a0e388c)
++ postgres upgraded to v15, closes #7, [a59dfb85](https://github.com/mrjackwills/adsbdb/commit/a59dfb850fe2f01c0deeac27070c08ee2a0e388c)
 
 ### Docs
 + readme updated, [43f8f003](https://github.com/mrjackwills/adsbdb/commit/43f8f003114f86a08210cbe6bc9f406ef4f0f692)

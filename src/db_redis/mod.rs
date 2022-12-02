@@ -11,7 +11,8 @@ use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-const ONE_WEEK: usize = 60 * 60 * 24 * 7;
+// const ONE_WEEK: usize = 60 * 60 * 24 * 7;
+const ONE_WEEK: usize = 30;
 const FIELD: &str = "data";
 
 /// Convert a redis string result into a Option<T>
