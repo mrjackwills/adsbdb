@@ -26,7 +26,7 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError>
             }
         }
         Err(e) => {
-            info!("value::{:?}", v);
+            info!("value::{:#?}", v);
             error!("{:?}", e);
             Err(AppError::RedisError(e))
         }
@@ -87,7 +87,7 @@ pub async fn check_rate_limit(
         if count > 120 {
             info!("count: {}, key:{}", count, key);
             return Err(AppError::RateLimited(
-                usize::try_from(redis.ttl::<&str, isize>(&key).await?).unwrap_or(60),
+                redis.ttl::<&str, usize>(&key).await?
             ));
         }
         if count == 120 {
