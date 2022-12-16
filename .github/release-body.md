@@ -1,24 +1,19 @@
-### 2022-11-25
+### 2022-12-16
 
 ### Chores
-+ aggressive linting with rust 1.65.0, [755644bb5fc2f984b87779c1d140117ed77c03b9]
-+ dependencies updated, implement axum v0.6 changes, [c781298636cd967df7a21fe302a07a6bf6811cee]
-+ postgres upgraded to v15, closes #[7], [a59dfb850fe2f01c0deeac27070c08ee2a0e388c]
-
-### Docs
-+ readme updated, [43f8f003114f86a08210cbe6bc9f406ef4f0f692]
++ dependencies updated, [b8355f7f5b9b362c9a1ace242a8b15a1eebc8121], [16ba8d135740c29bcc2c4208fbab6a522fce3bbb], [343f13ec80b9b9edbb3514b7c8bb0b86f92c3cd4]
++ container alpine version bump, [5652a1b0424071885b1ccf4b09db15ceb982a404]
 
 ### Features
-+ use dtolnay/rust-toolchain in github workflow, [10e872b190c12658e7a9df02832e62445f5cad8e]
-+ replace dotenv with dotenvy, [2234f3f85c884ef98a4ae29a41e97fd4da42eee8]
-+ replace lazy_static with once_cell, [524b3ef06184fca94b1ce5d4569d1280f5f21b36]
++ api Dockerfile(s) use ubuntu container, [50d7b760cf67c6d0c28beee29b78dc9a947dc2ba]
++ rust caching in github action, [30cce60a2e5cbf6616bf9e649a4cfb3bcfa46e5a]
 
 ### Fixes
-+ typo Scrapper > Scraper, [d9ff9e3de546fae58b37e5a546d630930bb013b1]
+* lock redis in ratelimit methods, [e8304d308270bb2c178ffa5315771519f82552bf]
 
-### Reverts
-+ remove Cache<T>, just use Option<T>, [cce579cb41c4619a6fa109d9d6a40b3ebc9544de]
-
+### Refactors
++ ttl turbofish into usize, [432892a90faf15b106ebeae1a4ffd23edbdf8314]
++ Rust 1.66 linting, [873bbb29118d15a43352606750799422668a0918]
 
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
