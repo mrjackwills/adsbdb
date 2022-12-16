@@ -86,9 +86,7 @@ pub async fn check_rate_limit(
         }
         if count > 120 {
             info!("count: {}, key:{}", count, key);
-            return Err(AppError::RateLimited(
-                redis.ttl::<&str, usize>(&key).await?
-            ));
+            return Err(AppError::RateLimited(redis.ttl::<&str, usize>(&key).await?));
         }
         if count == 120 {
             info!("count: {}, key:{}", count, key);
