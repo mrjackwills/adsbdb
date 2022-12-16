@@ -17,6 +17,10 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Rust caching
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
       # Build for linux x86_64
       - name: build release linux_x86_64
         run: cargo build --release
