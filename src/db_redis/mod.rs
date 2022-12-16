@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 use tracing::{error, info};
 
 const ONE_WEEK: usize = 60 * 60 * 24 * 7;
+// const ONE_WEEK: usize = 30;
 const FIELD: &str = "data";
 
 /// Convert a redis string result into a Option<T>
@@ -25,7 +26,8 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError>
             }
         }
         Err(e) => {
-            error!("{:?}", v);
+            info!("value::{:#?}", v);
+            error!("{:?}", e);
             Err(AppError::RedisError(e))
         }
     }
@@ -37,9 +39,10 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     key: &RedisKey<'a>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
-    let value: Option<Value> = redis.lock().await.hget(&key, FIELD).await?;
+    let mut redis = redis.lock().await;
+    let value: Option<Value> = redis.hget(&key, FIELD).await?;
     if value.is_some() {
-        redis.lock().await.expire(&key, ONE_WEEK).await?;
+        redis.expire(&key, ONE_WEEK).await?;
     }
     let serialized_data = match value {
         Some(d) => Some(redis_to_serde(&d)?),
@@ -55,12 +58,13 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
+    let mut redis = redis.lock().await;
     let cache = match to_insert {
         Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
     };
-    redis.lock().await.hset(&key, FIELD, cache).await?;
-    redis.lock().await.expire(&key, ONE_WEEK).await?;
+    redis.hset(&key, FIELD, cache).await?;
+    redis.expire(&key, ONE_WEEK).await?;
     Ok(())
 }
 
@@ -71,28 +75,27 @@ pub async fn check_rate_limit(
     key: RedisKey<'_>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-    let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
+    let mut redis = redis.lock().await;
+    let count = redis.get::<&str, Option<usize>>(&key).await?;
     if let Some(count) = count {
-        redis.lock().await.incr(&key, 1).await?;
+        redis.incr(&key, 1).await?;
         if count >= 240 {
             info!("count: {}, key:{}", count, key);
             info!("blocked for 5 minutes::{}", key);
-            redis.lock().await.expire(&key, 60 * 5).await?;
+            redis.expire(&key, 60 * 5).await?;
         }
         if count > 120 {
             info!("count: {}, key:{}", count, key);
-            return Err(AppError::RateLimited(
-                usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?).unwrap_or(60),
-            ));
+            return Err(AppError::RateLimited(redis.ttl::<&str, usize>(&key).await?));
         }
         if count == 120 {
             info!("count: {}, key:{}", count, key);
-            redis.lock().await.expire(&key, 60).await?;
+            redis.expire(&key, 60).await?;
             return Err(AppError::RateLimited(60));
         }
     } else {
-        redis.lock().await.incr(&key, 1).await?;
-        redis.lock().await.expire(&key, 60).await?;
+        redis.incr(&key, 1).await?;
+        redis.expire(&key, 60).await?;
     }
     Ok(())
 }
@@ -123,9 +126,9 @@ pub enum RedisKey<'a> {
 impl<'a> fmt::Display for RedisKey<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Callsign(callsign) => write!(f, "callsign::{}", callsign),
-            Self::ModeS(mode_s) => write!(f, "mode_s::{}", mode_s),
-            Self::RateLimit(ip) => write!(f, "ratelimit::{}", ip),
+            Self::Callsign(callsign) => write!(f, "callsign::{callsign}"),
+            Self::ModeS(mode_s) => write!(f, "mode_s::{mode_s}"),
+            Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
         }
     }
 }

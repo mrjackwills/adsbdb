@@ -18,7 +18,7 @@ const ICAO_CHARSET: &str = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DIGITSET: &str = "0123456789";
 const CHARSET_LEN: usize = 24;
 
-pub static ALLCHARS: Lazy<String> = Lazy::new(|| format!("{}{}", ICAO_CHARSET, DIGITSET));
+pub static ALLCHARS: Lazy<String> = Lazy::new(|| format!("{ICAO_CHARSET}{DIGITSET}"));
 
 const SUFFIX_SIZE: usize = 601;
 
@@ -48,7 +48,7 @@ impl fmt::Display for NError {
             Self::GetSuffix => "get_suffix",
             Self::SuffixOffset => "suffix_offset",
         };
-        write!(f, "N-Number::{}", disp)
+        write!(f, "N-Number::{disp}")
     }
 }
 
@@ -68,7 +68,7 @@ impl Bucket {
             Self::Four => 35,
         }
     }
-    const fn extra(&self) -> u32 {
+    const fn extra(&self) -> u8 {
         match self {
             Self::One => 1,
             _ => 0,
@@ -98,7 +98,7 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
             .chars()
             .nth(rem - 1)
             .map_or(Err(NError::GetSuffix.error()), |c| {
-                Ok(format!("{}{}", first_char, c))
+                Ok(format!("{first_char}{c}"))
             })
     } else {
         Err(NError::GetSuffix.error())
@@ -141,13 +141,13 @@ fn suffix_offset(offset: &str) -> Result<usize, AppError> {
 /// The output is an hexadecimal of length 6 starting with the suffix
 /// Example: format_mode_s('a', 11) -> "a0000b"
 fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
-    let as_hex = format!("{:X}", count);
+    let as_hex = format!("{count:X}");
     let l = prefix.chars().count() + as_hex.chars().count();
     if prefix.len() + as_hex.chars().count() > ICAO_SIZE {
         Err(NError::FormatModeS.error())
     } else {
         let to_fill = format!("{:0^width$}", "", width = ICAO_SIZE - l);
-        ModeS::try_from(format!("{prefix}{to_fill}{}", as_hex).to_uppercase())
+        ModeS::try_from(format!("{prefix}{to_fill}{as_hex}").to_uppercase())
     }
 }
 
@@ -164,7 +164,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     let mut rem = usize::from_str_radix(&mode_s.to_string()[1..], 16)? - 1;
 
     let calc_rem = |output: &mut String, rem: usize, bucket: Bucket| -> usize {
-        let digit = rem / bucket.get() + bucket.extra() as usize;
+        let digit = rem / bucket.get() + usize::try_from(bucket.extra()).unwrap_or(1);
         let rem = rem % bucket.get();
         output.push_str(&digit.to_string());
         rem
@@ -179,7 +179,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
         } else {
             rem = calc_rem(&mut output, rem, bucket);
             if rem < SUFFIX_SIZE {
-                return NNumber::try_from(format!("{}{}", output, get_suffix(rem)?));
+                return NNumber::try_from(format!("{output}{}", get_suffix(rem)?));
             }
             rem -= SUFFIX_SIZE;
         }
@@ -214,9 +214,9 @@ fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<us
             char.to_digit(10).map_or_else(
                 || Err(NError::CharToDigit.error()),
                 |mut value| {
-                    value -= bucket.extra() as u32;
+                    value -= u32::from(bucket.extra());
                     let output = match bucket {
-                        Bucket::One => value as usize * bucket.get(),
+                        Bucket::One => usize::try_from(value).unwrap_or(1) * bucket.get(),
                         _ => value as usize * bucket.get() + SUFFIX_SIZE,
                     };
                     Ok(output)

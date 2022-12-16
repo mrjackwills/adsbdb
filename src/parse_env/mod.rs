@@ -101,7 +101,7 @@ impl AppEnv {
         match Self::generate() {
             Ok(s) => s,
             Err(e) => {
-                println!("\n\x1b[31m{}\x1b[0m\n", e);
+                println!("\n\x1b[31m{e}\x1b[0m\n");
                 std::process::exit(1);
             }
         }

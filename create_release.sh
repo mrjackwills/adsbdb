@@ -110,8 +110,8 @@ update_release_body_and_changelog () {
 	sed -i -E "s=(\s)\[([0-9a-f]{8})([0-9a-f]{32})\]= [\2](${GIT_REPO_URL}/commit/\2\3)=g" ./CHANGELOG.md
 
 	# Update changelog to add links to closed issues - comma included!
-	# "closes [#1]," -> "closes [#1](https:/www.../issues/1),""
-	sed -i -r -E "s=closes \[#([0-9]+)\],=closes [#\1](${GIT_REPO_URL}/issues/\1),=g" ./CHANGELOG.md
+	# "closes #1" -> "closes [#1](https:/www.../issues/1)"
+	sed -i -r -E "s=closes \#([0-9]+)=closes [#\1](${GIT_REPO_URL}/issues/\1)=g" ./CHANGELOG.md
 }
 
 update_version_number_in_files () {

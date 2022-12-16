@@ -19,7 +19,7 @@ impl fmt::Display for UnknownAC {
             Self::Aircraft => "aircraft",
             Self::Callsign => "callsign",
         };
-        write!(f, "{}", disp)
+        write!(f, "{disp}")
     }
 }
 
@@ -53,18 +53,18 @@ impl IntoResponse for AppError {
         let (status, body) = match self {
             Self::Callsign(err) | Self::NNumber(err) | Self::ModeS(err) => (
                 axum::http::StatusCode::BAD_REQUEST,
-                ResponseJson::new(format!("{} {}", prefix, err)),
+                ResponseJson::new(format!("{prefix} {err}")),
             ),
             Self::Internal(e) => {
                 error!("internal: {:?}", e);
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    ResponseJson::new(format!("{} {}", prefix, e)),
+                    ResponseJson::new(format!("{prefix} {e}")),
                 )
             }
             Self::RateLimited(limit) => (
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
-                ResponseJson::new(format!("{} {} seconds", prefix, limit)),
+                ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
             Self::SqlxError(_) | Self::RedisError(_) => {
                 (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
@@ -85,7 +85,7 @@ impl IntoResponse for AppError {
             }
             Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
-                ResponseJson::new(format!("{} {}", prefix, variety)),
+                ResponseJson::new(format!("{prefix} {variety}")),
             ),
         };
 
