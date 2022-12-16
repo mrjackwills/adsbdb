@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM ubuntu:22.04
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
