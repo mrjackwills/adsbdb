@@ -132,7 +132,7 @@ impl fmt::Display for Routes {
             Self::NNumber => "n-number/:n-number",
             Self::ModeS => "mode-s/:mode_s",
         };
-        write!(f, "/{}", disp)
+        write!(f, "/{disp}")
     }
 }
 
@@ -186,7 +186,7 @@ pub async fn serve(
         );
 
     let addr = get_addr(&app_env)?;
-    let starting = format!("starting server @ {}{}", addr, get_api_version());
+    let starting = format!("starting server @ {addr}{}", get_api_version());
     info!(%starting);
 
     match axum::Server::bind(&addr)

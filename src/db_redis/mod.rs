@@ -17,16 +17,16 @@ const FIELD: &str = "data";
 
 /// Convert a redis string result into a Option<T>
 fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
-	match from_redis_value::<String>(v) {
-		Ok(string_value) => {
+    match from_redis_value::<String>(v) {
+        Ok(string_value) => {
             if string_value.is_empty() {
                 Ok(None)
             } else {
-				Ok(Some(serde_json::from_str::<T>(&string_value)?))
+                Ok(Some(serde_json::from_str::<T>(&string_value)?))
             }
         }
         Err(e) => {
-			info!("value::{:?}", v);
+            info!("value::{:?}", v);
             error!("{:?}", e);
             Err(AppError::RedisError(e))
         }
@@ -39,7 +39,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     key: &RedisKey<'a>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
-	let  mut redis = redis.lock().await;
+    let mut redis = redis.lock().await;
     let value: Option<Value> = redis.hget(&key, FIELD).await?;
     if value.is_some() {
         redis.expire(&key, ONE_WEEK).await?;
@@ -58,7 +58,7 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-	let mut redis = redis.lock().await;
+    let mut redis = redis.lock().await;
     let cache = match to_insert {
         Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
@@ -75,7 +75,7 @@ pub async fn check_rate_limit(
     key: RedisKey<'_>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-	let mut  redis = redis.lock().await;
+    let mut redis = redis.lock().await;
     let count = redis.get::<&str, Option<usize>>(&key).await?;
     if let Some(count) = count {
         redis.incr(&key, 1).await?;
@@ -128,9 +128,9 @@ pub enum RedisKey<'a> {
 impl<'a> fmt::Display for RedisKey<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Callsign(callsign) => write!(f, "callsign::{}", callsign),
-            Self::ModeS(mode_s) => write!(f, "mode_s::{}", mode_s),
-            Self::RateLimit(ip) => write!(f, "ratelimit::{}", ip),
+            Self::Callsign(callsign) => write!(f, "callsign::{callsign}"),
+            Self::ModeS(mode_s) => write!(f, "mode_s::{mode_s}"),
+            Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
         }
     }
 }

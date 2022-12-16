@@ -159,7 +159,7 @@ pub async fn fallback(
 ) -> (axum::http::StatusCode, AsJsonRes<String>) {
     (
         axum::http::StatusCode::NOT_FOUND,
-        ResponseJson::new(format!("unknown endpoint: {}", original_uri)),
+        ResponseJson::new(format!("unknown endpoint: {original_uri}")),
     )
 }
 

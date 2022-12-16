@@ -110,7 +110,7 @@ impl Scraper {
     /// Scrape callsign url for whole page html string
     #[cfg(not(test))]
     async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
-        let url = format!("{}/{}", self.flight_scrape_url, callsign);
+        let url = format!("{}/{callsign}", self.flight_scrape_url);
         match reqwest::get(url).await {
             Ok(response) => match response.text().await {
                 Ok(text) => Ok(text),
