@@ -40,15 +40,15 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
     let mut redis = redis.lock().await;
-    let value: Option<Value> = redis.hget(&key, FIELD).await?;
-    if value.is_some() {
+    if let Some(value) = redis
+        .hget::<'_, &str, &str, Option<Value>>(&key, FIELD)
+        .await?
+    {
         redis.expire(&key, ONE_WEEK).await?;
+        Ok(Some(redis_to_serde(&value)?))
+    } else {
+        Ok(None)
     }
-    let serialized_data = match value {
-        Some(d) => Some(redis_to_serde(&d)?),
-        None => None,
-    };
-    Ok(serialized_data)
 }
 
 /// Insert an Option<model> into cache, using redis hashset
@@ -100,6 +100,7 @@ pub async fn check_rate_limit(
     Ok(())
 }
 
+/// Get an async redis connection
 pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
     let connection_info = ConnectionInfo {
         redis: RedisConnectionInfo {
