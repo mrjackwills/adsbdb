@@ -13,9 +13,9 @@ enum EnvError {
 pub struct AppEnv {
     pub api_host: String,
     pub api_port: u16,
-    pub debug: bool,
-    pub location_logs: String,
     pub domain: String,
+    pub location_logs: String,
+    pub log_level: tracing::Level,
     pub pg_database: String,
     pub pg_host: String,
     pub pg_pass: String,
@@ -25,7 +25,6 @@ pub struct AppEnv {
     pub redis_host: String,
     pub redis_password: String,
     pub redis_port: u16,
-    pub trace: bool,
     pub url_aircraft_photo: String,
     pub url_photo_prefix: String,
     pub url_callsign: String,
@@ -38,11 +37,15 @@ impl AppEnv {
         map.get(key).map_or(false, |value| value == "true")
     }
 
-    fn parse_string(key: &str, map: &EnvHashMap) -> Result<String, EnvError> {
-        map.get(key).map_or(
-            Err(EnvError::NotFound(key.into())),
-            |value| Ok(value.into()),
-        )
+    /// Parse debug and/or trace into tracing level
+    fn parse_log(map: &EnvHashMap) -> tracing::Level {
+        if Self::parse_boolean("LOG_TRACE", map) {
+            tracing::Level::TRACE
+        } else if Self::parse_boolean("LOG_DEBUG", map) {
+            tracing::Level::DEBUG
+        } else {
+            tracing::Level::INFO
+        }
     }
 
     /// Parse string to u32, else return 1
@@ -51,6 +54,13 @@ impl AppEnv {
         map.get(key).map_or_else(
             || Err(EnvError::NotFound(key.into())),
             |data| data.parse::<u16>().map_or(Ok(default), Ok),
+        )
+    }
+
+    fn parse_string(key: &str, map: &EnvHashMap) -> Result<String, EnvError> {
+        map.get(key).map_or(
+            Err(EnvError::NotFound(key.into())),
+            |value| Ok(value.into()),
         )
     }
 
@@ -64,9 +74,9 @@ impl AppEnv {
         Ok(Self {
             api_host: Self::parse_string("API_HOST", &env_map)?,
             api_port: Self::parse_number("API_PORT", &env_map)?,
-            debug: Self::parse_boolean("DEBUG", &env_map),
             domain: Self::parse_string("API_HOST", &env_map)?,
             location_logs: Self::parse_string("LOCATION_LOGS", &env_map)?,
+            log_level: Self::parse_log(&env_map),
             pg_database: Self::parse_string("PG_DATABASE", &env_map)?,
             pg_host: Self::parse_string("PG_HOST", &env_map)?,
             pg_pass: Self::parse_string("PG_PASS", &env_map)?,
@@ -76,7 +86,6 @@ impl AppEnv {
             redis_host: Self::parse_string("REDIS_HOST", &env_map)?,
             redis_password: Self::parse_string("REDIS_PASSWORD", &env_map)?,
             redis_port: Self::parse_number("REDIS_PORT", &env_map)?,
-            trace: Self::parse_boolean("TRACE", &env_map),
             url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &env_map)?,
             url_photo_prefix: Self::parse_string("URL_PHOTO_PREFIX", &env_map)?,
             url_callsign: Self::parse_string("URL_CALLSIGN", &env_map)?,
@@ -180,6 +189,84 @@ mod tests {
         let result = AppEnv::generate();
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn env_parse_log_valid() {
+        // FIXTURES
+        let map = HashMap::from([("RANDOM_STRING".to_owned(), "123".to_owned())]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::INFO);
+
+        // FIXTURES
+        let map = HashMap::from([("LOG_DEBUG".to_owned(), "false".to_owned())]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::INFO);
+
+        // FIXTURES
+        let map = HashMap::from([("LOG_TRACE".to_owned(), "false".to_owned())]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::INFO);
+
+        // FIXTURES
+        let map = HashMap::from([
+            ("LOG_DEBUG".to_owned(), "false".to_owned()),
+            ("LOG_TRACE".to_owned(), "false".to_owned()),
+        ]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::INFO);
+
+        // FIXTURES
+        let map = HashMap::from([
+            ("LOG_DEBUG".to_owned(), "true".to_owned()),
+            ("LOG_TRACE".to_owned(), "false".to_owned()),
+        ]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::DEBUG);
+
+        // FIXTURES
+        let map = HashMap::from([
+            ("LOG_DEBUG".to_owned(), "true".to_owned()),
+            ("LOG_TRACE".to_owned(), "true".to_owned()),
+        ]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::TRACE);
+
+        // FIXTURES
+        let map = HashMap::from([
+            ("LOG_DEBUG".to_owned(), "false".to_owned()),
+            ("LOG_TRACE".to_owned(), "true".to_owned()),
+        ]);
+
+        // ACTION
+        let result = AppEnv::parse_log(&map);
+
+        // CHECK
+        assert_eq!(result, tracing::Level::TRACE);
     }
 
     #[test]
