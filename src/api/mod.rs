@@ -26,11 +26,7 @@ mod app_error;
 mod input;
 mod response;
 
-use crate::{
-    db_redis::{check_rate_limit, RedisKey},
-    parse_env::AppEnv,
-    scraper::Scraper,
-};
+use crate::{db_redis::ratelimit, parse_env::AppEnv, scraper::Scraper};
 pub use app_error::{AppError, UnknownAC};
 pub use input::{is_hex, Callsign, ModeS, NNumber};
 
@@ -99,8 +95,7 @@ async fn rate_limiting<B: Send + Sync>(
     next: Next<B>,
 ) -> Result<Response, AppError> {
     let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
-    let key = RedisKey::RateLimit(get_ip(req.headers(), addr));
-    check_rate_limit(&state.redis, key).await?;
+    ratelimit::RateLimit::check(&state.redis, get_ip(req.headers(), addr)).await?;
     Ok(next.run(req).await)
 }
 
