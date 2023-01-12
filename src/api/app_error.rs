@@ -62,13 +62,22 @@ impl IntoResponse for AppError {
                     ResponseJson::new(format!("{prefix} {e}")),
                 )
             }
+			Self::ParseInt(e) => {
+                error!("parseint: {:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
             Self::RateLimited(limit) => (
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
-            Self::SqlxError(_) | Self::RedisError(_) => {
-                (axum::http::StatusCode::NOT_FOUND, ResponseJson::new(prefix))
-            }
+			Self::RedisError(e) => {
+				error!("{:?}", e);
+				(axum::http::StatusCode::INTERNAL_SERVER_ERROR, ResponseJson::new(prefix))
+			}
+        
             Self::SerdeJson(e) => {
                 error!("serde: {:?}", e);
                 (
@@ -76,13 +85,11 @@ impl IntoResponse for AppError {
                     ResponseJson::new(prefix),
                 )
             }
-            Self::ParseInt(e) => {
-                error!("parseint: {:?}", e);
-                (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    ResponseJson::new(prefix),
-                )
+			Self::SqlxError(e) => {
+				error!("{:?}", e);
+                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, ResponseJson::new(prefix))
             }
+       
             Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{prefix} {variety}")),

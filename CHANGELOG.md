@@ -1,3 +1,9 @@
+### Chores
++ dependencies updated, [680af9c7d94e2bb00b79a3e3e77f4058eeea4977]
+
+### Debug
++ ratelimit tracing, [f68df99caf4bb533afa1daf9439e593de25a8f92]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.19'>v0.0.19</a>
 ### 2023-01-04
 

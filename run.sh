@@ -184,8 +184,7 @@ select_containers() {
 	do
 		case $choice in
 			0)
-				exit
-				break;;
+				exit;;
 			1)
 				TO_RUN=("${TO_RUN[@]}" "${API}")
 				;;
@@ -217,8 +216,7 @@ main() {
 	do
 		case $choice in
 			0)
-				exit
-				break;;
+				exit;;
 			1)
 				select_containers
 				break;;
