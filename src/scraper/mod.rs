@@ -198,17 +198,24 @@ impl Scraper {
     }
 
     /// Scrape third party site for a flightroute, and try to insert into db
+    /// Has a timeout of 3 seconds
     pub async fn scrape_flightroute(
         &self,
         db: &PgPool,
         callsign: &Callsign,
     ) -> Result<Option<ModelFlightroute>, AppError> {
         let mut output = None;
-        let html = self.request_callsign(callsign).await?;
-        if let Some(scraped_flightroute) = Self::extract_icao_codes(&html, callsign) {
-            if Self::check_icao_in_db(db, &scraped_flightroute).await? {
-                ModelFlightroute::insert_scraped_flightroute(db, scraped_flightroute).await?;
-                output = ModelFlightroute::get(db, callsign).await.unwrap_or(None);
+        if let Ok(Ok(html)) = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            self.request_callsign(callsign),
+        )
+        .await
+        {
+            if let Some(scraped_flightroute) = Self::extract_icao_codes(&html, callsign) {
+                if Self::check_icao_in_db(db, &scraped_flightroute).await? {
+                    ModelFlightroute::insert_scraped_flightroute(db, scraped_flightroute).await?;
+                    output = ModelFlightroute::get(db, callsign).await.unwrap_or(None);
+                }
             }
         }
         Ok(output)
