@@ -52,6 +52,7 @@ pub enum AppError {
 }
 
 impl IntoResponse for AppError {
+	#[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
         let prefix = self.to_string();
         let (status, body) = match self {

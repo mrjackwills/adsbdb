@@ -1,9 +1,10 @@
-use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 
 #[cfg(not(test))]
 use tracing::error;
+#[cfg(not(test))]
+use reqwest::{Client, Response};
 
 use crate::{
     api::{AppError, Callsign},
