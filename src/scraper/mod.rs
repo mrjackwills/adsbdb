@@ -1,7 +1,7 @@
-#[cfg(not(test))]
-use crate::api::UnknownAC;
+use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
+
 #[cfg(not(test))]
 use tracing::error;
 
@@ -10,6 +10,9 @@ use crate::{
     db_postgres::{ModelAircraft, ModelAirport, ModelFlightroute},
     parse_env::AppEnv,
 };
+
+#[cfg(not(test))]
+use crate::api::UnknownAC;
 
 const ICAO: &str = "\"icao\":";
 
@@ -58,6 +61,20 @@ impl Scraper {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
         }
+    }
+
+    /// Build a reqwest client, with a default timeout, and compression enabled
+    /// Then send a get request to the url given
+    #[cfg(not(test))]
+    async fn client_get(url: String) -> Result<Response, AppError> {
+        Ok(Client::builder()
+            .connect_timeout(std::time::Duration::from_millis(3000))
+            .gzip(true)
+            .brotli(true)
+            .build()?
+            .get(url)
+            .send()
+            .await?)
     }
 
     // Make sure that input is a valid callsignstring, validitiy is [a-z]{4-8}
@@ -110,8 +127,7 @@ impl Scraper {
     /// Scrape callsign url for whole page html string
     #[cfg(not(test))]
     async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
-        let url = format!("{}/{callsign}", self.flight_scrape_url);
-        match reqwest::get(url).await {
+        match Self::client_get(format!("{}/{callsign}", self.flight_scrape_url)).await {
             Ok(response) => match response.text().await {
                 Ok(text) => Ok(text),
                 Err(e) => {
@@ -142,8 +158,12 @@ impl Scraper {
     /// Request for photo from third party site
     #[cfg(not(test))]
     async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
-        let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, aircraft.mode_s);
-        match reqwest::get(url).await {
+        match Self::client_get(format!(
+            "{}ac_thumb.json?m={}&n=1",
+            self.photo_url, aircraft.mode_s
+        ))
+        .await
+        {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
                     if photo.data.is_some() {

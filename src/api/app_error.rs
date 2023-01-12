@@ -27,6 +27,8 @@ impl fmt::Display for UnknownAC {
 pub enum AppError {
     #[error("Axum")]
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
+    #[error("Reqwest")]
+    Reqwest(#[from] reqwest::Error),
     #[error("invalid callsign:")]
     Callsign(String),
     #[error("invalid n_number:")]
@@ -89,7 +91,13 @@ impl IntoResponse for AppError {
                     ResponseJson::new(prefix),
                 )
             }
-
+            Self::Reqwest(e) => {
+                error!("{:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
             Self::SerdeJson(e) => {
                 error!("serde: {:?}", e);
                 (
