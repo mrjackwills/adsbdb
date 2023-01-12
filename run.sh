@@ -12,8 +12,8 @@ RESET='\033[0m'
 
 DOCKER_GUID=$(id -g)
 DOCKER_UID=$(id -u)
-DOCKER_TIME_CONT="America"
-DOCKER_TIME_CITY="New_York"
+DOCKER_TIME_CONT="Europe"
+DOCKER_TIME_CITY="Berlin"
 
 PRO=production
 DEV=dev

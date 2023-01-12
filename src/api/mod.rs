@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
-    extract::{ConnectInfo, DefaultBodyLimit, State},
+    extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, State},
     http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
@@ -13,7 +13,7 @@ use axum::{
 };
 use std::{
     fmt,
-    net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs},
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
     sync::Arc,
     time::Instant,
 };
@@ -54,8 +54,8 @@ impl ApplicationState {
     }
 }
 
-/// extract `x-forwarded-for` header
-fn maybe_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
+/// extract `x-forwared-for` header
+fn x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get(X_FORWARDED_FOR)
         .and_then(|x| x.to_str().ok())
@@ -63,7 +63,7 @@ fn maybe_x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
 }
 
 /// extract the `x-real-ip` header
-fn maybe_x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
+fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get(X_REAL_IP)
         .and_then(|x| x.to_str().ok())
@@ -74,18 +74,10 @@ fn maybe_x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 /// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
 /// but if for some nothing works, return ipv4 255.255.255.255
-fn get_ip(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> IpAddr {
-    maybe_x_forwarded_for(headers)
-        .or_else(|| maybe_x_real_ip(headers))
-        .map_or_else(
-            || {
-                addr.map_or_else(
-                    || IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255)),
-                    |ip| ip.0.ip(),
-                )
-            },
-            |ip_addr| ip_addr,
-        )
+pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
+    x_forwarded_for(headers)
+        .or_else(|| x_real_ip(headers))
+        .map_or(addr.0.ip(), |ip_addr| ip_addr)
 }
 
 /// Limit the users request based on ip address, using redis as mem store
@@ -94,9 +86,11 @@ async fn rate_limiting<B: Send + Sync>(
     req: Request<B>,
     next: Next<B>,
 ) -> Result<Response, AppError> {
-    let addr: Option<&ConnectInfo<SocketAddr>> = req.extensions().get();
-    ratelimit::RateLimit::check(&state.redis, get_ip(req.headers(), addr)).await?;
-    Ok(next.run(req).await)
+    let (mut parts, body) = req.into_parts();
+    let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
+    let ip = get_ip(&parts.headers, addr);
+    ratelimit::RateLimit::check(&state.redis, ip).await?;
+    Ok(next.run(Request::from_parts(parts, body)).await)
 }
 
 /// Create a /v[x] prefix for all api routes, where x is the current major version

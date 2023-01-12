@@ -25,6 +25,10 @@ impl fmt::Display for UnknownAC {
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("Axum")]
+    AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
+    #[error("Reqwest")]
+    Reqwest(#[from] reqwest::Error),
     #[error("invalid callsign:")]
     Callsign(String),
     #[error("invalid n_number:")]
@@ -48,9 +52,17 @@ pub enum AppError {
 }
 
 impl IntoResponse for AppError {
+	#[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
         let prefix = self.to_string();
         let (status, body) = match self {
+            Self::AxumExtension(e) => {
+                error!("{:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
             Self::Callsign(err) | Self::NNumber(err) | Self::ModeS(err) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{prefix} {err}")),
@@ -62,7 +74,7 @@ impl IntoResponse for AppError {
                     ResponseJson::new(format!("{prefix} {e}")),
                 )
             }
-			Self::ParseInt(e) => {
+            Self::ParseInt(e) => {
                 error!("parseint: {:?}", e);
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -73,11 +85,20 @@ impl IntoResponse for AppError {
                 axum::http::StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
-			Self::RedisError(e) => {
-				error!("{:?}", e);
-				(axum::http::StatusCode::INTERNAL_SERVER_ERROR, ResponseJson::new(prefix))
-			}
-        
+            Self::RedisError(e) => {
+                error!("{:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
+            Self::Reqwest(e) => {
+                error!("{:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
+            }
             Self::SerdeJson(e) => {
                 error!("serde: {:?}", e);
                 (
@@ -85,11 +106,14 @@ impl IntoResponse for AppError {
                     ResponseJson::new(prefix),
                 )
             }
-			Self::SqlxError(e) => {
-				error!("{:?}", e);
-                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, ResponseJson::new(prefix))
+            Self::SqlxError(e) => {
+                error!("{:?}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(prefix),
+                )
             }
-       
+
             Self::UnknownInDb(variety) => (
                 axum::http::StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{prefix} {variety}")),
