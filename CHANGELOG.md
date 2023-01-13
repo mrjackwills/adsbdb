@@ -1,8 +1,17 @@
+**This release has breaking changes in the response Aircaft JSON object**
+
 ### Chores
-+ dependencies updated, [680af9c7d94e2bb00b79a3e3e77f4058eeea4977]
++ dependencies updated, [680af9c7d94e2bb00b79a3e3e77f4058eeea4977], [227cb14a1aef740d818654a2dc20a85877e0cf1c]
 
 ### Debug
 + ratelimit tracing, [f68df99caf4bb533afa1daf9439e593de25a8f92]
+
+### Features
+**Breaking Change**
++ `n_number` is now `registration`, the api now returns, or attempts to return, a registration for every aircraft, closes #13. One is also able to use the `/aircraft/x` route, where `x` can be either mode_s hex code or aircraft registration, [b468fa824575322e64142ed031b9de158c46fb52]
+
+### Fixes
++ Use a reqwest::Client builder, to enable request timeout, and gzip & brotli encoding, [57bd31d95501c8ae6b1bc4ca88f92035ce137450]
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.19'>v0.0.19</a>
 ### 2023-01-04
