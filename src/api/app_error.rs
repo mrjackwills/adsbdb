@@ -25,10 +25,10 @@ impl fmt::Display for UnknownAC {
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("invalid modeS or registration:")]
+    AircraftSearch(String),
     #[error("Axum")]
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
-    #[error("Reqwest")]
-    Reqwest(#[from] reqwest::Error),
     #[error("invalid callsign:")]
     Callsign(String),
     #[error("invalid n_number:")]
@@ -37,22 +37,26 @@ pub enum AppError {
     Internal(String),
     #[error("invalid modeS:")]
     ModeS(String),
-    #[error("not found")]
-    SqlxError(#[from] sqlx::Error),
-    #[error("redis error")]
-    RedisError(#[from] RedisError),
-    #[error("internal error")]
-    SerdeJson(#[from] serde_json::Error),
-    #[error("rate limited for")]
-    RateLimited(usize),
-    #[error("unknown")]
-    UnknownInDb(UnknownAC),
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),
+    #[error("rate limited for")]
+    RateLimited(usize),
+    #[error("redis error")]
+    RedisError(#[from] RedisError),
+    #[error("invalid registration:")]
+    Registration(String),
+    #[error("Reqwest")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("internal error")]
+    SerdeJson(#[from] serde_json::Error),
+    #[error("not found")]
+    SqlxError(#[from] sqlx::Error),
+    #[error("unknown")]
+    UnknownInDb(UnknownAC),
 }
 
 impl IntoResponse for AppError {
-	#[allow(clippy::cognitive_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
         let prefix = self.to_string();
         let (status, body) = match self {
@@ -63,10 +67,15 @@ impl IntoResponse for AppError {
                     ResponseJson::new(prefix),
                 )
             }
-            Self::Callsign(err) | Self::NNumber(err) | Self::ModeS(err) => (
+            Self::Callsign(err)
+            | Self::AircraftSearch(err)
+            | Self::ModeS(err)
+            | Self::NNumber(err)
+            | Self::Registration(err) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{prefix} {err}")),
             ),
+
             Self::Internal(e) => {
                 error!("internal: {:?}", e);
                 (

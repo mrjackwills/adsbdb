@@ -1,5 +1,5 @@
 use crate::{
-    api::{AppError, Callsign, ModeS},
+    api::{AircraftSearch, AppError, Callsign, ModeS, Registration},
     parse_env::AppEnv,
 };
 use redis::{
@@ -91,6 +91,7 @@ pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
 #[derive(Debug, Clone)]
 pub enum RedisKey<'a> {
     Callsign(&'a Callsign),
+    Registration(&'a Registration),
     ModeS(&'a ModeS),
     RateLimit(IpAddr),
 }
@@ -101,6 +102,16 @@ impl<'a> fmt::Display for RedisKey<'a> {
             Self::Callsign(callsign) => write!(f, "callsign::{callsign}"),
             Self::ModeS(mode_s) => write!(f, "mode_s::{mode_s}"),
             Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
+            Self::Registration(registration) => write!(f, "registration::{registration}"),
+        }
+    }
+}
+
+impl<'a> From<&'a AircraftSearch> for RedisKey<'a> {
+    fn from(value: &'a AircraftSearch) -> Self {
+        match value {
+            AircraftSearch::Registration(registration) => Self::Registration(registration),
+            AircraftSearch::ModeS(mode_s) => Self::ModeS(mode_s),
         }
     }
 }

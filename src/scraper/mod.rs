@@ -2,9 +2,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 
 #[cfg(not(test))]
-use tracing::error;
-#[cfg(not(test))]
 use reqwest::{Client, Response};
+#[cfg(not(test))]
+use tracing::error;
 
 use crate::{
     api::{AppError, Callsign},
@@ -250,7 +250,7 @@ impl Scraper {
 #[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::api::ModeS;
+    use crate::api::{AircraftSearch, ModeS, Registration};
     use crate::{db_postgres, db_redis};
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
@@ -259,6 +259,7 @@ mod tests {
     const TEST_ORIGIN: &str = "ROAH";
     const TEST_DESTINATION: &str = "RJTT";
     const TEST_MODE_S: &str = "393C00";
+    const TEST_REGISTRATION: &str = "F-GPAA";
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -600,7 +601,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "393C00".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -627,7 +628,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "AAAAAA".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -645,7 +646,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "AAAAAB".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -659,21 +660,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn scraper_get_photo_insert() {
+    async fn scraper_get_photo_insert_by_mode_s() {
         let setup = setup().await;
         let scraper = Scraper::new(&setup.0);
 
         let mode_s = ModeS::try_from(TEST_MODE_S).unwrap();
 
-        let test_aircraft = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix)
-            .await
-            .unwrap()
-            .unwrap();
+        let aircraft_search = AircraftSearch::ModeS(mode_s);
+        let test_aircraft =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
+                .await
+                .unwrap()
+                .unwrap();
 
         let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
         assert!(result.is_ok());
 
-        let result = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix).await;
+        let result =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -684,7 +688,65 @@ mod tests {
         assert_eq!(result.icao_type, test_aircraft.icao_type);
         assert_eq!(result.manufacturer, test_aircraft.manufacturer);
         assert_eq!(result.mode_s, test_aircraft.mode_s);
-        assert_eq!(result.n_number, test_aircraft.n_number);
+        assert_eq!(result.registration, test_aircraft.registration);
+        assert_eq!(result.registered_owner, test_aircraft.registered_owner);
+        assert_eq!(
+            result.registered_owner_country_iso_name,
+            test_aircraft.registered_owner_country_iso_name
+        );
+        assert_eq!(
+            result.registered_owner_country_name,
+            test_aircraft.registered_owner_country_name
+        );
+        assert_eq!(
+            result.registered_owner_operator_flag_code,
+            test_aircraft.registered_owner_operator_flag_code
+        );
+        assert_eq!(
+            result.url_photo,
+            Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
+        );
+        assert_eq!(
+            result.url_photo_thumbnail,
+            Some(format!(
+                "{}thumbnails/001/001/example.jpg",
+                setup.0.url_photo_prefix
+            )),
+        );
+
+        remove_scraped_data(&setup.1).await;
+    }
+
+    #[tokio::test]
+    async fn scraper_get_photo_insert_by_registration() {
+        let setup = setup().await;
+        let scraper = Scraper::new(&setup.0);
+
+        let registration = Registration::try_from(TEST_REGISTRATION).unwrap();
+
+        let aircraft_search = AircraftSearch::Registration(registration);
+        let test_aircraft =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
+                .await
+                .unwrap()
+                .unwrap();
+
+        let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
+        assert!(result.is_ok());
+
+        let result =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.is_some());
+        let result = result.unwrap();
+
+        assert_eq!(result.aircraft_type, test_aircraft.aircraft_type);
+        assert_eq!(result.icao_type, test_aircraft.icao_type);
+        assert_eq!(result.manufacturer, test_aircraft.manufacturer);
+        assert_eq!(result.mode_s, test_aircraft.mode_s);
+        assert_eq!(result.registration, test_aircraft.registration);
         assert_eq!(result.registered_owner, test_aircraft.registered_owner);
         assert_eq!(
             result.registered_owner_country_iso_name,

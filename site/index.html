@@ -103,7 +103,7 @@
 		</table>
 		<hr>
 
-		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S]</code>
+		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S || REGISTRATION]</code>
 		<br>
 		<pre><code>{ response: { aircraft: {...} } }</code></pre>
 		<table>
@@ -132,7 +132,7 @@
 					<td> string</td>
 				</tr>
 				<tr>
-					<td>"n_number"</td>
+					<td>"registration"</td>
 					<td> string</td>
 				</tr>
 				<tr>
@@ -244,7 +244,7 @@
 
 
 		<hr>
-		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S]?callsign=[CALLSIGN]</code>
+		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S || REGISTRATION]?callsign=[CALLSIGN]</code>
 		<br>
 		<br>
 		<pre><code>{ response: { aircraft: {...}, flightroute: {...} } }</code></pre>
