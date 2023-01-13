@@ -39,7 +39,7 @@
 
 ## Routes
 
-```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S]```
+```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S || REGISTRATION]```
 ```json
 {
 	"response":{
@@ -48,7 +48,7 @@
 			"icao_type": string,
 			"manufacturer": string,
 			"mode_s": string,
-			"n_number": string,
+			"registration": string,
 			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
 			"registered_owner_operator_flag_code": string,
@@ -67,25 +67,6 @@ Unknown aircraft return status 404 with
 ```
 ---
 
-Convert from MODE-S string to N-Number string
-```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
-```json
-{
-	"response": string
-}
-
-```
----
-
-Convert from N-Number string to Mode_S string
-```https://api.adsbdb.com/v[semver.major]/n-number/[N-NUMBER]```
-```json
-{
-	"response": string
-}
-
-```
----
 
 ```https://api.adsbdb.com/v[semver.major]/callsign/[CALLSIGN]```
 ```json
@@ -145,7 +126,7 @@ Unknown callsign return status 404 with
 ```
 ---
 
-```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S]?callsign=[CALLSIGN]``` 
+```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S || REGISTRATION]?callsign=[CALLSIGN]``` 
 
 ```json
 {
@@ -156,7 +137,7 @@ Unknown callsign return status 404 with
 			"icao_type": string,
 			"manufacturer": string,
 			"mode_s": string,
-			"n_number": string,
+			"registration": string,
 			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
 			"registered_owner_operator_flag_code": string,
@@ -198,6 +179,26 @@ Unknown callsign return status 404 with
 
 If an unknown callsign is provided as a query param, but the aircraft is known, response will be status 200 with just aircraft
 
+---
+
+Convert from MODE-S string to N-Number string
+```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
+```json
+{
+	"response": string
+}
+
+```
+---
+
+Convert from N-Number string to Mode_S string
+```https://api.adsbdb.com/v[semver.major]/n-number/[N-NUMBER]```
+```json
+{
+	"response": string
+}
+
+```
 ---
 
 ## Download

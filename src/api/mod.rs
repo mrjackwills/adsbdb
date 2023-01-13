@@ -28,7 +28,7 @@ mod response;
 
 use crate::{db_redis::ratelimit, parse_env::AppEnv, scraper::Scraper};
 pub use app_error::{AppError, UnknownAC};
-pub use input::{is_hex, Callsign, ModeS, NNumber};
+pub use input::{AircraftSearch, Callsign, ModeS, NNumber, Registration};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -425,7 +425,7 @@ pub mod tests {
         assert_eq!(result["icao_type"], "CRJ7");
         assert_eq!(result["manufacturer"], "Bombardier");
         assert_eq!(result["mode_s"], mode_s);
-        assert_eq!(result["n_number"], "N539GJ");
+        assert_eq!(result["registration"], "N539GJ");
         assert_eq!(result["registered_owner"], "United Express");
         assert_eq!(result["registered_owner_country_iso_name"], "US");
         assert_eq!(result["registered_owner_country_name"], "United States");
@@ -457,7 +457,7 @@ pub mod tests {
         assert_eq!(aircraft_result["icao_type"], "CRJ7");
         assert_eq!(aircraft_result["manufacturer"], "Bombardier");
         assert_eq!(aircraft_result["mode_s"], mode_s);
-        assert_eq!(aircraft_result["n_number"], "N539GJ");
+        assert_eq!(aircraft_result["registration"], "N539GJ");
         assert_eq!(aircraft_result["registered_owner"], "United Express");
         assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
         assert_eq!(
@@ -534,7 +534,7 @@ pub mod tests {
         assert_eq!(aircraft_result["icao_type"], "CRJ7");
         assert_eq!(aircraft_result["manufacturer"], "Bombardier");
         assert_eq!(aircraft_result["mode_s"], mode_s);
-        assert_eq!(aircraft_result["n_number"], "N539GJ");
+        assert_eq!(aircraft_result["registration"], "N539GJ");
         assert_eq!(aircraft_result["registered_owner"], "United Express");
         assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
         assert_eq!(
