@@ -1,7 +1,8 @@
-#[cfg(not(test))]
-use crate::api::UnknownAC;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
+
+#[cfg(not(test))]
+use reqwest::{Client, Response};
 #[cfg(not(test))]
 use tracing::error;
 
@@ -10,6 +11,9 @@ use crate::{
     db_postgres::{ModelAircraft, ModelAirport, ModelFlightroute},
     parse_env::AppEnv,
 };
+
+#[cfg(not(test))]
+use crate::api::UnknownAC;
 
 const ICAO: &str = "\"icao\":";
 
@@ -60,7 +64,21 @@ impl Scraper {
         }
     }
 
-    // Make sure that input is a valid callsignstring, validitiy is [a-z]{4-8}
+    /// Build a reqwest client, with a default timeout, and compression enabled
+    /// Then send a get request to the url given
+    #[cfg(not(test))]
+    async fn client_get(url: String) -> Result<Response, AppError> {
+        Ok(Client::builder()
+            .connect_timeout(std::time::Duration::from_millis(10000))
+            .gzip(true)
+            .brotli(true)
+            .build()?
+            .get(url)
+            .send()
+            .await?)
+    }
+
+    // Make sure that input is a valid callsign string, validitiy is [a-z]{4-8}
     // Should accept str or string as input?
     fn validate_icao(input: &str) -> Option<String> {
         let valid = input.len() == 4
@@ -110,8 +128,7 @@ impl Scraper {
     /// Scrape callsign url for whole page html string
     #[cfg(not(test))]
     async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
-        let url = format!("{}/{callsign}", self.flight_scrape_url);
-        match reqwest::get(url).await {
+        match Self::client_get(format!("{}/{callsign}", self.flight_scrape_url)).await {
             Ok(response) => match response.text().await {
                 Ok(text) => Ok(text),
                 Err(e) => {
@@ -142,8 +159,12 @@ impl Scraper {
     /// Request for photo from third party site
     #[cfg(not(test))]
     async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
-        let url = format!("{}ac_thumb.json?m={}&n=1", self.photo_url, aircraft.mode_s);
-        match reqwest::get(url).await {
+        match Self::client_get(format!(
+            "{}ac_thumb.json?m={}&n=1",
+            self.photo_url, aircraft.mode_s
+        ))
+        .await
+        {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
                     if photo.data.is_some() {
@@ -198,17 +219,24 @@ impl Scraper {
     }
 
     /// Scrape third party site for a flightroute, and try to insert into db
+    /// Has a timeout of 3 seconds
     pub async fn scrape_flightroute(
         &self,
         db: &PgPool,
         callsign: &Callsign,
     ) -> Result<Option<ModelFlightroute>, AppError> {
         let mut output = None;
-        let html = self.request_callsign(callsign).await?;
-        if let Some(scraped_flightroute) = Self::extract_icao_codes(&html, callsign) {
-            if Self::check_icao_in_db(db, &scraped_flightroute).await? {
-                ModelFlightroute::insert_scraped_flightroute(db, scraped_flightroute).await?;
-                output = ModelFlightroute::get(db, callsign).await.unwrap_or(None);
+        if let Ok(Ok(html)) = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            self.request_callsign(callsign),
+        )
+        .await
+        {
+            if let Some(scraped_flightroute) = Self::extract_icao_codes(&html, callsign) {
+                if Self::check_icao_in_db(db, &scraped_flightroute).await? {
+                    ModelFlightroute::insert_scraped_flightroute(db, scraped_flightroute).await?;
+                    output = ModelFlightroute::get(db, callsign).await.unwrap_or(None);
+                }
             }
         }
         Ok(output)
@@ -222,7 +250,7 @@ impl Scraper {
 #[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::api::ModeS;
+    use crate::api::{AircraftSearch, ModeS, Registration};
     use crate::{db_postgres, db_redis};
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
@@ -231,6 +259,7 @@ mod tests {
     const TEST_ORIGIN: &str = "ROAH";
     const TEST_DESTINATION: &str = "RJTT";
     const TEST_MODE_S: &str = "393C00";
+    const TEST_REGISTRATION: &str = "F-GPAA";
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -452,8 +481,6 @@ mod tests {
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };
 
-        // assert_eq!(expected, result);
-
         assert_eq!(result.callsign, expected.callsign);
         assert_eq!(
             result.origin_airport_country_iso_name,
@@ -572,7 +599,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "393C00".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -599,7 +626,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "AAAAAA".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -617,7 +644,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "AAAAAB".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -631,21 +658,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn scraper_get_photo_insert() {
+    async fn scraper_get_photo_insert_by_mode_s() {
         let setup = setup().await;
         let scraper = Scraper::new(&setup.0);
 
         let mode_s = ModeS::try_from(TEST_MODE_S).unwrap();
 
-        let test_aircraft = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix)
-            .await
-            .unwrap()
-            .unwrap();
+        let aircraft_search = AircraftSearch::ModeS(mode_s);
+        let test_aircraft =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
+                .await
+                .unwrap()
+                .unwrap();
 
         let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
         assert!(result.is_ok());
 
-        let result = ModelAircraft::get(&setup.1, &mode_s, &setup.0.url_photo_prefix).await;
+        let result =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -656,7 +686,65 @@ mod tests {
         assert_eq!(result.icao_type, test_aircraft.icao_type);
         assert_eq!(result.manufacturer, test_aircraft.manufacturer);
         assert_eq!(result.mode_s, test_aircraft.mode_s);
-        assert_eq!(result.n_number, test_aircraft.n_number);
+        assert_eq!(result.registration, test_aircraft.registration);
+        assert_eq!(result.registered_owner, test_aircraft.registered_owner);
+        assert_eq!(
+            result.registered_owner_country_iso_name,
+            test_aircraft.registered_owner_country_iso_name
+        );
+        assert_eq!(
+            result.registered_owner_country_name,
+            test_aircraft.registered_owner_country_name
+        );
+        assert_eq!(
+            result.registered_owner_operator_flag_code,
+            test_aircraft.registered_owner_operator_flag_code
+        );
+        assert_eq!(
+            result.url_photo,
+            Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
+        );
+        assert_eq!(
+            result.url_photo_thumbnail,
+            Some(format!(
+                "{}thumbnails/001/001/example.jpg",
+                setup.0.url_photo_prefix
+            )),
+        );
+
+        remove_scraped_data(&setup.1).await;
+    }
+
+    #[tokio::test]
+    async fn scraper_get_photo_insert_by_registration() {
+        let setup = setup().await;
+        let scraper = Scraper::new(&setup.0);
+
+        let registration = Registration::try_from(TEST_REGISTRATION).unwrap();
+
+        let aircraft_search = AircraftSearch::Registration(registration);
+        let test_aircraft =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
+                .await
+                .unwrap()
+                .unwrap();
+
+        let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
+        assert!(result.is_ok());
+
+        let result =
+            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.is_some());
+        let result = result.unwrap();
+
+        assert_eq!(result.aircraft_type, test_aircraft.aircraft_type);
+        assert_eq!(result.icao_type, test_aircraft.icao_type);
+        assert_eq!(result.manufacturer, test_aircraft.manufacturer);
+        assert_eq!(result.mode_s, test_aircraft.mode_s);
+        assert_eq!(result.registration, test_aircraft.registration);
         assert_eq!(result.registered_owner, test_aircraft.registered_owner);
         assert_eq!(
             result.registered_owner_country_iso_name,

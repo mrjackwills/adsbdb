@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axum::extract::{OriginalUri, State};
 
-use super::input::{Callsign, ModeS, NNumber};
+use super::input::{AircraftSearch, Callsign, ModeS, NNumber};
 use super::response::{
     AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseFlightRoute, ResponseJson,
 };
@@ -37,20 +37,23 @@ async fn find_flightroute(
 
 /// Check redis cache for Option<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    mode_s: &ModeS,
+    aircraft_search: &AircraftSearch,
     state: ApplicationState,
 ) -> Result<Option<ModelAircraft>, AppError> {
-    let redis_key = RedisKey::ModeS(mode_s);
+    let redis_key = RedisKey::from(aircraft_search);
+
     if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| {
             Ok(Some(craft))
         })
     } else {
-        let mut aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
+        let mut aircraft =
+            ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
             if craft.url_photo.is_none() {
                 state.scraper.scrape_photo(&state.postgres, craft).await?;
-                aircraft = ModelAircraft::get(&state.postgres, mode_s, &state.url_prefix).await?;
+                aircraft =
+                    ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
         }
         insert_cache(&state.redis, &aircraft, &redis_key).await?;
@@ -58,40 +61,19 @@ async fn find_aircraft(
     }
 }
 
-/// Route to convert N-Number to Mode_S
-#[allow(clippy::unused_async)]
-pub async fn n_number_get(
-    n_number: NNumber,
-) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    Ok((
-        axum::http::StatusCode::OK,
-        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
-    ))
-}
-
-/// Route to convert Mode_S to N-Number
-#[allow(clippy::unused_async)]
-pub async fn mode_s_get(
-    mode_s: ModeS,
-) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    Ok((
-        axum::http::StatusCode::OK,
-        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
-    ))
-}
-
 /// Return an aircraft detail from a modes input
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
+/// TODO turn this optional into an extractor?
 pub async fn aircraft_get(
     State(state): State<ApplicationState>,
-    path: ModeS,
+    aircraft_search: AircraftSearch,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
         let callsign = Callsign::try_from(query_param)?;
         let (aircraft, flightroute) = tokio::try_join!(
-            find_aircraft(&path, state.clone()),
+            find_aircraft(&aircraft_search, state.clone()),
             find_flightroute(&callsign, state)
         )?;
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |a| {
@@ -104,7 +86,7 @@ pub async fn aircraft_get(
             ))
         })
     } else {
-        find_aircraft(&path, state).await?.map_or(
+        find_aircraft(&aircraft_search, state).await?.map_or(
             Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
             |aircraft| {
                 Ok((
@@ -136,6 +118,28 @@ pub async fn callsign_get(
             ))
         },
     )
+}
+
+/// Route to convert N-Number to Mode_S
+#[allow(clippy::unused_async)]
+pub async fn n_number_get(
+    n_number: NNumber,
+) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
+    Ok((
+        axum::http::StatusCode::OK,
+        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
+    ))
+}
+
+/// Route to convert Mode_S to N-Number
+#[allow(clippy::unused_async)]
+pub async fn mode_s_get(
+    mode_s: ModeS,
+) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
+    Ok((
+        axum::http::StatusCode::OK,
+        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
+    ))
 }
 
 /// Return a simple online status response
@@ -178,6 +182,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use crate::api::response::Airport;
+    use crate::api::Registration;
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
@@ -252,7 +257,7 @@ mod tests {
     async fn http_api_get_mode_s_ok_with_photo() {
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = ModeS::try_from(&mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -264,7 +269,46 @@ mod tests {
             icao_type: "C680".to_owned(),
             manufacturer: "Cessna".to_owned(),
             mode_s,
-            n_number: "N377QS".to_owned(),
+            registration: "N377QS".to_owned(),
+            registered_owner: "NetJets".to_owned(),
+            registered_owner_operator_flag_code: "EJA".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: Some(format!(
+                "{}{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+            url_photo_thumbnail: Some(format!(
+                "{}thumbnails/{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+        };
+
+        match &response.1.response.aircraft {
+            Some(x) => assert_eq!(x, &aircraft),
+            None => unreachable!(),
+        }
+
+        assert!(response.1.response.flightroute.is_none());
+    }
+
+    #[tokio::test]
+    async fn http_api_get_registration_ok_with_photo() {
+        let registration = "N377QS".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+        let hm = axum::extract::Query(HashMap::new());
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let aircraft = ResponseAircraft {
+            aircraft_type: "Citation Sovereign".to_owned(),
+            icao_type: "C680".to_owned(),
+            manufacturer: "Cessna".to_owned(),
+            mode_s: "A44F3B".to_owned(),
+            registration,
             registered_owner: "NetJets".to_owned(),
             registered_owner_operator_flag_code: "EJA".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
@@ -290,7 +334,7 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_mode_s_ok_no_photo() {
         let mode_s = "A44917";
-        let path = ModeS::try_from(mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(mode_s).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
@@ -303,7 +347,40 @@ mod tests {
             icao_type: "B39M".to_owned(),
             manufacturer: "Boeing".to_owned(),
             mode_s: mode_s.to_owned(),
-            n_number: "N37522".to_owned(),
+            registration: "N37522".to_owned(),
+            registered_owner: "United Airlines".to_owned(),
+            registered_owner_operator_flag_code: "UAL".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        match &response.1.response.aircraft {
+            Some(x) => assert_eq!(x, &aircraft),
+            None => unreachable!(),
+        }
+
+        assert!(response.1.response.flightroute.is_none());
+    }
+
+    #[tokio::test]
+    async fn http_api_get_registration_ok_no_photo() {
+        let registration = "N37522";
+        let path = AircraftSearch::Registration(Registration::try_from(registration).unwrap());
+        let application_state = get_application_state().await;
+        let hm = axum::extract::Query(HashMap::new());
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let aircraft = ResponseAircraft {
+            aircraft_type: "737MAX 9".to_owned(),
+            icao_type: "B39M".to_owned(),
+            manufacturer: "Boeing".to_owned(),
+            mode_s: "A44917".to_owned(),
+            registration: registration.to_owned(),
             registered_owner: "United Airlines".to_owned(),
             registered_owner_operator_flag_code: "UAL".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
@@ -328,7 +405,43 @@ mod tests {
         let tmp_mode_s = ModeS::try_from(mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = ModeS::try_from(mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(mode_s).unwrap());
+        let hm = axum::extract::Query(HashMap::new());
+        let response = aircraft_get(application_state.clone(), path, hm)
+            .await
+            .unwrap();
+
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+
+        let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+    }
+
+    #[tokio::test]
+    // Make sure aircraft is inserted correctly into redis cache and has ttl of 604800
+    // this is with photo, need to use A44917 for without photo
+    async fn http_api_get_registration_cached_with_photo() {
+        let registration = "N377QS";
+        let tmp_registration = Registration::try_from(registration).unwrap();
+        let key = RedisKey::Registration(&tmp_registration);
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::try_from(registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -362,7 +475,41 @@ mod tests {
         let tmp_mode_s = ModeS::try_from(&mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = ModeS::try_from(&mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
+        let hm = axum::extract::Query(HashMap::new());
+        let response = aircraft_get(application_state.clone(), path, hm)
+            .await
+            .unwrap();
+
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+
+        let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+    }
+
+    #[tokio::test]
+    async fn http_api_get_registration_cached_no_photo() {
+        let registration = "N37522".to_owned();
+        let tmp_registration = Registration::try_from(&registration).unwrap();
+        let key = RedisKey::Registration(&tmp_registration);
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -398,7 +545,76 @@ mod tests {
         let tmp_mode_s = ModeS::try_from(&mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = ModeS::try_from(mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(mode_s).unwrap());
+        let hm = axum::extract::Query(HashMap::new());
+        let response = aircraft_get(application_state.clone(), path.clone(), hm)
+            .await
+            .unwrap_err();
+
+        match response {
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
+            _ => unreachable!(),
+        };
+
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+
+        sleep(1000).await;
+
+        // make sure a second requst to an unknown mode_s will extend cache ttl
+        let hm = axum::extract::Query(HashMap::new());
+        let response = aircraft_get(application_state.clone(), path, hm)
+            .await
+            .unwrap_err();
+
+        match response {
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
+            _ => unreachable!(),
+        };
+
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+    }
+
+    #[tokio::test]
+    // Make sure unknown aircraft gets placed into cache as ""
+    // and a second request will extend the ttl
+    async fn http_api_get_registration_unknown_cached() {
+        let registration = "AB-ABAB".to_owned();
+        let tmp_registration = Registration::try_from(&registration).unwrap();
+        let key = RedisKey::Registration(&tmp_registration);
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::try_from(registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path.clone(), hm)
             .await
@@ -807,11 +1023,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_and_flightroute_ok_with_photo() {
+    async fn http_api_get_callsign_and_flightroute_mode_s_ok_with_photo() {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = ModeS::try_from(&mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
         let hm = axum::extract::Query(hm);
@@ -853,7 +1069,7 @@ mod tests {
             icao_type: "C680".to_owned(),
             manufacturer: "Cessna".to_owned(),
             mode_s: mode_s.clone(),
-            n_number: "N377QS".to_owned(),
+            registration: "N377QS".to_owned(),
             registered_owner: "NetJets".to_owned(),
             registered_owner_operator_flag_code: "EJA".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
@@ -880,11 +1096,84 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_and_flightroute_ok_no_photo() {
+    async fn http_api_get_callsign_and_flightroute_registration_ok_with_photo() {
+        let callsign = "TOM35MR".to_owned();
+        let registration = "N377QS".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+        let mut hm = HashMap::new();
+        hm.insert("callsign".to_owned(), callsign.clone());
+        let hm = axum::extract::Query(hm);
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.clone(),
+            origin: Airport {
+                country_iso_name: "ES".to_owned(),
+                country_name: "Spain".to_owned(),
+                elevation: 27,
+                iata_code: "PMI".to_owned(),
+                icao_code: "LEPA".to_owned(),
+                latitude: 39.551_701,
+                longitude: 2.73881,
+                municipality: "Palma De Mallorca".to_owned(),
+                name: "Palma de Mallorca Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 622,
+                iata_code: "BRS".to_owned(),
+                icao_code: "EGGD".to_owned(),
+                latitude: 51.382_702,
+                longitude: -2.71909,
+                municipality: "Bristol".to_owned(),
+                name: "Bristol Airport".to_owned(),
+            },
+        };
+
+        let aircraft = ResponseAircraft {
+            aircraft_type: "Citation Sovereign".to_owned(),
+            icao_type: "C680".to_owned(),
+            manufacturer: "Cessna".to_owned(),
+            mode_s: "A44F3B".to_owned(),
+            registration: registration.to_owned(),
+            registered_owner: "NetJets".to_owned(),
+            registered_owner_operator_flag_code: "EJA".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: Some(format!(
+                "{}{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+            url_photo_thumbnail: Some(format!(
+                "{}thumbnails/{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        match &response.1.response.aircraft {
+            Some(d) => assert_eq!(d, &aircraft),
+            None => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    async fn http_api_get_callsign_mode_s_and_flightroute_ok_no_photo() {
         let callsign = "TOM35MR".to_owned();
         let mode_s = "A44917".to_owned();
         let application_state = get_application_state().await;
-        let path = ModeS::try_from(&mode_s).unwrap();
+        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
 
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
@@ -927,7 +1216,75 @@ mod tests {
             icao_type: "B39M".to_owned(),
             manufacturer: "Boeing".to_owned(),
             mode_s: mode_s.clone(),
-            n_number: "N37522".to_owned(),
+            registration: "N37522".to_owned(),
+            registered_owner: "United Airlines".to_owned(),
+            registered_owner_operator_flag_code: "UAL".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        match &response.1.response.aircraft {
+            Some(d) => assert_eq!(d, &aircraft),
+            None => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    async fn http_api_get_callsign_registration_and_flightroute_ok_no_photo() {
+        let callsign = "TOM35MR".to_owned();
+        let registration = "N37522".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+
+        let mut hm = HashMap::new();
+        hm.insert("callsign".to_owned(), callsign.clone());
+        let hm = axum::extract::Query(hm);
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.clone(),
+            origin: Airport {
+                country_iso_name: "ES".to_owned(),
+                country_name: "Spain".to_owned(),
+                elevation: 27,
+                iata_code: "PMI".to_owned(),
+                icao_code: "LEPA".to_owned(),
+                latitude: 39.551_701,
+                longitude: 2.73881,
+                municipality: "Palma De Mallorca".to_owned(),
+                name: "Palma de Mallorca Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 622,
+                iata_code: "BRS".to_owned(),
+                icao_code: "EGGD".to_owned(),
+                latitude: 51.382_702,
+                longitude: -2.71909,
+                municipality: "Bristol".to_owned(),
+                name: "Bristol Airport".to_owned(),
+            },
+        };
+
+        let aircraft = ResponseAircraft {
+            aircraft_type: "737MAX 9".to_owned(),
+            icao_type: "B39M".to_owned(),
+            manufacturer: "Boeing".to_owned(),
+            mode_s: "A44917".to_owned(),
+            registration: registration.clone(),
             registered_owner: "United Airlines".to_owned(),
             registered_owner_operator_flag_code: "UAL".to_owned(),
             registered_owner_country_name: "United States".to_owned(),

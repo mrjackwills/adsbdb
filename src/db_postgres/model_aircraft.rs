@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{
-    api::{AppError, ModeS},
-    n_number::mode_s_to_n_number,
+    api::{AircraftSearch, AppError},
     scraper::PhotoData,
 };
 
@@ -15,7 +14,7 @@ pub struct ModelAircraft {
     pub icao_type: String,
     pub manufacturer: String,
     pub mode_s: String,
-    pub n_number: String,
+    pub registration: String,
     pub registered_owner_country_iso_name: String,
     pub registered_owner_country_name: String,
     pub registered_owner_operator_flag_code: String,
@@ -32,26 +31,31 @@ struct AircraftPhoto {
 
 impl ModelAircraft {
     /// Seperated out, so can use in tests with a transaction
-    const fn get_query() -> &'static str {
+    /// Get aircraft by the mode_s value
+    const fn get_query_mode_s() -> &'static str {
         r#"
 SELECT
 	aa.aircraft_id,
 	$1 AS mode_s,
-	$2 AS n_number,
+	ar.registration,
 	aro.registered_owner,
 	aof.operator_flag_code AS registered_owner_operator_flag_code,
 	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
 	am.manufacturer,
 	at.type AS aircraft_type,
 	ait.icao_type,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, ap.url_photo) ELSE NULL END AS url_photo,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($3, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
+	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
 	aircraft aa
 JOIN
 	aircraft_mode_s ams
 ON
 	aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
+JOIN
+	aircraft_registration ar
+ON
+	aa.aircraft_registration_id = ar.aircraft_registration_id
 JOIN
 	country co
 ON
@@ -84,13 +88,77 @@ WHERE
 	ams.mode_s = $1"#
     }
 
-    pub async fn get(db: &PgPool, mode_s: &ModeS, prefix: &str) -> Result<Option<Self>, AppError> {
-        let n_number = mode_s_to_n_number(mode_s).map_or(String::new(), |data| data.to_string());
+    /// Seperated out, so can use in tests with a transaction
+    /// Get aircraft by the registration value
+    const fn get_query_registration() -> &'static str {
+        r#"
+SELECT
+	aa.aircraft_id,
+	ams.mode_s,
+	$1 AS registration,
+	aro.registered_owner,
+	aof.operator_flag_code AS registered_owner_operator_flag_code,
+	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
+	am.manufacturer,
+	at.type AS aircraft_type,
+	ait.icao_type,
+	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
+	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+FROM
+	aircraft aa
+JOIN
+	aircraft_mode_s ams
+ON
+	aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
+JOIN
+	aircraft_registration ar
+ON
+	aa.aircraft_registration_id = ar.aircraft_registration_id
+JOIN
+	country co
+ON
+	aa.country_id = co.country_id
+JOIN
+	aircraft_type at
+ON
+	aa.aircraft_type_id = at.aircraft_type_id
+JOIN
+	aircraft_registered_owner aro
+ON
+	aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
+JOIN
+	aircraft_icao_type ait
+ON
+	aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
+JOIN
+	aircraft_manufacturer am
+ON
+	aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
+JOIN
+	aircraft_operator_flag_code aof
+ON
+	aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
+LEFT JOIN
+	aircraft_photo ap
+ON
+	aa.aircraft_photo_id = ap.aircraft_photo_id
+WHERE
+	ar.registration = $1"#
+    }
 
-        Ok(sqlx::query_as::<_, Self>(Self::get_query())
-            .bind(&mode_s.to_string())
-            .bind(n_number)
-            .bind(prefix)
+    pub async fn get(
+        db: &PgPool,
+        aircraft_search: &AircraftSearch,
+        photo_prefix: &str,
+    ) -> Result<Option<Self>, AppError> {
+        let query = match aircraft_search {
+            AircraftSearch::ModeS(_) => Self::get_query_mode_s(),
+            AircraftSearch::Registration(_) => Self::get_query_registration(),
+        };
+
+        Ok(sqlx::query_as::<_, Self>(query)
+            .bind(aircraft_search.to_string())
+            .bind(photo_prefix)
             .fetch_optional(db)
             .await?)
     }
@@ -142,7 +210,7 @@ mod tests {
     use crate::api::tests::test_setup;
 
     #[tokio::test]
-    async fn model_aircraft_photo_transaction() {
+    async fn model_aircraft_photo_transaction_mode_s() {
         let test_setup = test_setup().await;
 
         let mut transaction = test_setup.postgres.begin().await.unwrap();
@@ -161,7 +229,7 @@ mod tests {
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "A51D23".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
             registered_owner_country_iso_name: "US".to_owned(),
             registered_owner_country_name: "United States".to_owned(),
             registered_owner_operator_flag_code: "AWI".to_owned(),
@@ -175,11 +243,10 @@ mod tests {
             .await
             .unwrap();
 
-        let query = ModelAircraft::get_query();
+        let query = ModelAircraft::get_query_mode_s();
 
         let result = sqlx::query_as::<_, ModelAircraft>(query)
             .bind(mode_s)
-            .bind("N429AW")
             .bind(url_prefix)
             .fetch_one(&mut *transaction)
             .await
@@ -188,7 +255,71 @@ mod tests {
         let expected = ModelAircraft {
             aircraft_id: 8415,
             aircraft_type: "CRJ 200LR".to_owned(),
-            n_number: "N429AW".to_owned(),
+            registration: "N429AW".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "A51D23".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: Some("http://www.example.com/example.jpg".to_owned()),
+            url_photo_thumbnail: Some("http://www.example.com/thumbnails/example.jpg".to_owned()),
+        };
+
+        assert_eq!(result, expected);
+
+        // Cancel transaction, so can continually re-test with this route
+        transaction.rollback().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn model_aircraft_photo_transaction_registration() {
+        let test_setup = test_setup().await;
+
+        let mut transaction = test_setup.postgres.begin().await.unwrap();
+
+        let photodata = PhotoData {
+            image: "example.jpg".to_owned(),
+        };
+
+        let registration = "N429AW";
+
+        let url_prefix = "http://www.example.com/";
+
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "A51D23".to_owned(),
+            registration: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        test_aircraft
+            .photo_transaction(&mut transaction, &photodata)
+            .await
+            .unwrap();
+
+        let query = ModelAircraft::get_query_registration();
+
+        let result = sqlx::query_as::<_, ModelAircraft>(query)
+            .bind(registration)
+            .bind(url_prefix)
+            .fetch_one(&mut *transaction)
+            .await
+            .unwrap();
+
+        let expected = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            registration: "N429AW".to_owned(),
             icao_type: "CRJ2".to_owned(),
             manufacturer: "Bombardier".to_owned(),
             mode_s: "A51D23".to_owned(),
