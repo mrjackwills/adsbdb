@@ -69,7 +69,7 @@ impl Scraper {
     #[cfg(not(test))]
     async fn client_get(url: String) -> Result<Response, AppError> {
         Ok(Client::builder()
-            .connect_timeout(std::time::Duration::from_millis(3000))
+            .connect_timeout(std::time::Duration::from_millis(10000))
             .gzip(true)
             .brotli(true)
             .build()?
@@ -78,7 +78,7 @@ impl Scraper {
             .await?)
     }
 
-    // Make sure that input is a valid callsignstring, validitiy is [a-z]{4-8}
+    // Make sure that input is a valid callsign string, validitiy is [a-z]{4-8}
     // Should accept str or string as input?
     fn validate_icao(input: &str) -> Option<String> {
         let valid = input.len() == 4
@@ -480,8 +480,6 @@ mod tests {
             destination_airport_municipality: "Tokyo".to_owned(),
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };
-
-        // assert_eq!(expected, result);
 
         assert_eq!(result.callsign, expected.callsign);
         assert_eq!(

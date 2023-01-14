@@ -11,7 +11,7 @@
 + `n_number` is now `registration`, the api now returns, or attempts to return, a registration for every aircraft, closes #13. The `/aircraft/x` route now accepts either mode_s hex code or aircraft registration for `x`, [b468fa824575322e64142ed031b9de158c46fb52]
 
 ### Fixes
-+ Use a reqwest::Client builder, to enable request timeout, and gzip & brotli encoding, [57bd31d95501c8ae6b1bc4ca88f92035ce137450]
++ Use a reqwest::Client builder, to enable request timeout, as well as gzip & brotli, [57bd31d95501c8ae6b1bc4ca88f92035ce137450]
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.19'>v0.0.19</a>
 ### 2023-01-04

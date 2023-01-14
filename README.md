@@ -238,7 +238,7 @@ cross build --target x86_64-unknown-linux-musl --release
 
 ## Tests
 
-Requires postgres & redis to both be operational and seeded with valid data
+Requires both postgres, seeded with data, and redis, operational
 
 ```bash
 # Watch
