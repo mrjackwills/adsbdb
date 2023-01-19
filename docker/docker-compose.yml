@@ -98,7 +98,7 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "16m"
+        max-size: "32m"
     healthcheck:
       test: ["CMD", "/healthcheck/health_redis.sh"]
       interval: 30s
