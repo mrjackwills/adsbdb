@@ -98,7 +98,7 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "32m"
+        max-size: "16m"
     healthcheck:
       test: ["CMD", "/healthcheck/health_redis.sh"]
       interval: 30s
@@ -107,7 +107,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 16M
+          memory: 32M
   adsbdb_api:
     image: adsbdb_api:0.1.0
     container_name: adsbdb_api
