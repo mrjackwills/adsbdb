@@ -318,7 +318,7 @@ mod tests {
         let prefix = "https://www.xxxxxxxxxxxx.xxx/xxxxxx/xxxxxxxx/xxxxxxxxxxx";
         let suffix = "/000/582/582407.jpg";
         let deserializer: StringDeserializer<ValueError> =
-            format!("{}{}", prefix, suffix).into_deserializer();
+            format!("{prefix}{suffix}").into_deserializer();
         let result = deserialize_url(deserializer);
 
         assert!(result.is_ok());
@@ -327,7 +327,7 @@ mod tests {
         let prefix = "https://www.xxxxxxxxxxxx.xxx";
         let suffix = "/000/582/582407.jpg";
         let deserializer: StringDeserializer<ValueError> =
-            format!("{}{}", prefix, suffix).into_deserializer();
+            format!("{prefix}{suffix}").into_deserializer();
         let result = deserialize_url(deserializer);
         assert!(result.is_err());
     }

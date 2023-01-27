@@ -58,7 +58,7 @@ impl AppEnv {
     }
 
     fn parse_string(key: &str, map: &EnvHashMap) -> Result<String, EnvError> {
-        map.get(key).map_or(
+        map.get(key).map_or_else(||
             Err(EnvError::NotFound(key.into())),
             |value| Ok(value.into()),
         )

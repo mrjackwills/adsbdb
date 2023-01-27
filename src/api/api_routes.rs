@@ -227,7 +227,7 @@ mod tests {
         let uri = "/test/uri".parse::<Uri>().unwrap();
         let response = fallback(OriginalUri(uri.clone())).await;
         assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
-        assert_eq!(response.1.response, format!("unknown endpoint: {}", uri));
+        assert_eq!(response.1.response, format!("unknown endpoint: {uri}"));
     }
 
     #[tokio::test]

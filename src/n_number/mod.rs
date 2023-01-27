@@ -171,7 +171,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     };
 
     for bucket in [Bucket::One, Bucket::Two, Bucket::Three, Bucket::Four] {
-        if let Bucket::Four = bucket {
+        if matches!(bucket, Bucket::Four) {
             rem = calc_rem(&mut output, rem, Bucket::Four);
             if rem == 0 {
                 return NNumber::try_from(output);

@@ -716,7 +716,7 @@ pub mod tests {
 
         let version = get_api_version();
         let rand_route = "asdasjkaj9ahsddasdasd";
-        let url = format!("http://127.0.0.1:8100{}/{}", version, rand_route);
+        let url = format!("http://127.0.0.1:8100{version}/{rand_route}");
         let resp = reqwest::get(url).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -725,7 +725,7 @@ pub mod tests {
 
         assert_eq!(
             result,
-            format!("unknown endpoint: {}/{}", version, rand_route)
+            format!("unknown endpoint: {version}/{rand_route}")
         );
     }
 
