@@ -51,17 +51,24 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $DB_NAME;
 EOSQL
 }
 
-main () {
+from_scratch() {
+	create_adsbdb_user
+	bootstrap_from_sql_file
+}
 
-	# If creating from scratch, with .sql file & .csv files
-	# create_adsbdb_user
-	# bootstrap_from_sql_file
-	# add_dev_adsbdb
-
-	# If restoring from pg_dump.tar
+from_pg_dump() {
 	create_adsbdb_user
 	create_adsbdb_database
 	restore_pg_dump
+}
+
+main () {
+	if [ -f "/init/pg_dump.tar" ];
+	then
+		from_pg_dump;
+	else
+		from_scratch;
+	fi
 	add_dev_adsbdb
 }
 

@@ -113,6 +113,7 @@ dev_up () {
 	DOCKER_UID=${DOCKER_UID} \
 	DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
 	DOCKER_TIME_CITY=${DOCKER_TIME_CITY} \
+	DOCKER_BUILDKIT=0 \
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
 }
 
