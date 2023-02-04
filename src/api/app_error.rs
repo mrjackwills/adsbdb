@@ -58,6 +58,11 @@ pub enum AppError {
 impl IntoResponse for AppError {
     #[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
+        let exit = || {
+            error!("EXITING");
+            std::process::exit(1);
+        };
+
         let prefix = self.to_string();
         let (status, body) = match self {
             Self::AxumExtension(e) => {
@@ -96,6 +101,9 @@ impl IntoResponse for AppError {
             ),
             Self::RedisError(e) => {
                 error!("{:?}", e);
+                if e.is_io_error() {
+                    exit();
+                };
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
@@ -117,6 +125,12 @@ impl IntoResponse for AppError {
             }
             Self::SqlxError(e) => {
                 error!("{:?}", e);
+                match e {
+                    sqlx::Error::Io(_) | sqlx::Error::PoolClosed | sqlx::Error::PoolTimedOut => {
+                        exit();
+                    }
+                    _ => (),
+                };
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
