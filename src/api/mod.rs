@@ -175,8 +175,7 @@ pub async fn serve(
         );
 
     let addr = get_addr(&app_env)?;
-    let starting = format!("starting server @ {addr}{}", get_api_version());
-    info!(%starting);
+    info!("starting server @ {addr}{}", get_api_version());
 
     match axum::Server::bind(&addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
