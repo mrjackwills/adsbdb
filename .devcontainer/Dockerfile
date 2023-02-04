@@ -1,6 +1,8 @@
 ARG VARIANT="bullseye"
 FROM mcr.microsoft.com/vscode/devcontainers/base:0-${VARIANT}
 
+RUN printf "alias cls='clear'\nalias ll='ls -l --human-readable --color=auto --group-directories-first --classify --time-style=long-iso -all'" >> /etc/bash.bashrc
+
 ENV PATH="/home/vscode/.cargo/bin:${PATH}"
 
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \

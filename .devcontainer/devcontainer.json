@@ -35,7 +35,7 @@
 				"serayuzgur.crates",
 				"tamasfe.even-better-toml",
 				"timonwong.shellcheck",
-				"vadimcn.vscode-lldb",
+				"vadimcn.vscode-lldb"
 			],
 			"settings": {
 				"lldb.executable": "/usr/bin/lldb",
@@ -49,6 +49,8 @@
 	},
 
 	"postCreateCommand": "cargo install cargo-watch typos-cli",
+
+	"postStartCommand": " mkdir -p /dev/shm/adsbdb/pg_data && mkdir -p /dev/shm/adsbdb/redis_data",
 
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
