@@ -132,13 +132,13 @@ impl Scraper {
             Ok(response) => match response.text().await {
                 Ok(text) => Ok(text),
                 Err(e) => {
-                    error!(%e);
+                    error!("{e:?}");
                     error!("can't transform into text");
                     Err(AppError::UnknownInDb(UnknownAC::Callsign))
                 }
             },
             Err(e) => {
-                error!(%e);
+                error!("{e:?}");
                 error!("can't scrape address");
                 Err(AppError::UnknownInDb(UnknownAC::Callsign))
             }
@@ -174,13 +174,13 @@ impl Scraper {
                     }
                 }
                 Err(e) => {
-                    error!(%e);
+                    error!("{e:?}");
                     error!("can't transform into json");
                     None
                 }
             },
             Err(e) => {
-                error!(%e);
+				error!("{e:?}");
                 error!("can't scrape address");
                 None
             }

@@ -30,7 +30,7 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError>
         }
         Err(e) => {
             error!("value::{:#?}", v);
-            error!("{:?}", e);
+            error!("{e:?}");
             Err(AppError::RedisError(e))
         }
     }

@@ -1,7 +1,7 @@
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.1.0'>v0.1.0</a>
 ### 2023-01-14
 
-**This release has breaking changes in the response Aircaft JSON object**
+**This release has breaking changes in the response Aircraft JSON object**
 
 ### Chores
 + dependencies updated, [680af9c7](https://github.com/mrjackwills/adsbdb/commit/680af9c7d94e2bb00b79a3e3e77f4058eeea4977), [227cb14a](https://github.com/mrjackwills/adsbdb/commit/227cb14a1aef740d818654a2dc20a85877e0cf1c)
@@ -24,7 +24,7 @@
 
 ### Refactors
 + put tracing_level into app_env, [4174a24f](https://github.com/mrjackwills/adsbdb/commit/4174a24fbbbd066d8439c06ed01ca65bfde84d0e)
-+ ratelimit into seperate file, [da31646c](https://github.com/mrjackwills/adsbdb/commit/da31646c204054b0a399dcc7d925184aa8c60f93), [c33449b6](https://github.com/mrjackwills/adsbdb/commit/c33449b69800e29dcfe916cea6d35ea0293df7f6)
++ ratelimit into separate file, [da31646c](https://github.com/mrjackwills/adsbdb/commit/da31646c204054b0a399dcc7d925184aa8c60f93), [c33449b6](https://github.com/mrjackwills/adsbdb/commit/c33449b69800e29dcfe916cea6d35ea0293df7f6)
 + get_cache simplifying, [b360492f](https://github.com/mrjackwills/adsbdb/commit/b360492ff53b330ddd45ed94a7e36772cbe906d0)
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.18'>v0.0.18</a>
@@ -187,7 +187,7 @@
 + create_release.sh update api.Dockerfile to download latest build from github, [9f29591d](https://github.com/mrjackwills/adsbdb/commit/9f29591d0018a499a982e380738bdff676dff456),
 
 ### Fixes
-+ Remove ModelAicraft get unwrap, [2a28831c](https://github.com/mrjackwills/adsbdb/commit/2a28831c58bf1b02915e9b6b49ff330864778a67),
++ Remove ModelAircraft get unwrap, [2a28831c](https://github.com/mrjackwills/adsbdb/commit/2a28831c58bf1b02915e9b6b49ff330864778a67),
 
 ### Refactors
 + Route handlers renamed from method_routename to routename_method, [aaba380c](https://github.com/mrjackwills/adsbdb/commit/aaba380cb217ba5ee3ca0142f1c4131eeb0a2692),
@@ -207,7 +207,7 @@
 + create_release.sh sed fix, removed hard-coded value, [d3dac1b9](https://github.com/mrjackwills/adsbdb/commit/d3dac1b94a576d8aa5d4ab704f04fb4f9e2a1f53),
 
 ### Refactors
-+ Change to flightroute response, use origin, destination, and occassionally midpoint, keys, all which contain an Airport Value, [2f52c9fc](https://github.com/mrjackwills/adsbdb/commit/2f52c9fcd010c51ae66521ec354ee333563a7f61),
++ Change to flightroute response, use origin, destination, and occasionally midpoint, keys, all which contain an Airport Value, [2f52c9fc](https://github.com/mrjackwills/adsbdb/commit/2f52c9fcd010c51ae66521ec354ee333563a7f61),
 + Api Dockerfile download binary from github instead of building, [d69ad32a](https://github.com/mrjackwills/adsbdb/commit/d69ad32a585be102959a38e5b3196817e0123a3b),
 + github workflow renamed, [5e7ee6fe](https://github.com/mrjackwills/adsbdb/commit/5e7ee6fe923aa886f894e4a765391709cc8e34d5),
 

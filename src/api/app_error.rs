@@ -66,7 +66,7 @@ impl IntoResponse for AppError {
         let prefix = self.to_string();
         let (status, body) = match self {
             Self::AxumExtension(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
@@ -82,14 +82,14 @@ impl IntoResponse for AppError {
             ),
 
             Self::Internal(e) => {
-                error!("internal: {:?}", e);
+                error!("internal: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(format!("{prefix} {e}")),
                 )
             }
             Self::ParseInt(e) => {
-                error!("parseint: {:?}", e);
+                error!("parseint: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
@@ -100,7 +100,7 @@ impl IntoResponse for AppError {
                 ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
             Self::RedisError(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
                 if e.is_io_error() {
                     exit();
                 };
@@ -110,21 +110,21 @@ impl IntoResponse for AppError {
                 )
             }
             Self::Reqwest(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
                 )
             }
             Self::SerdeJson(e) => {
-                error!("serde: {:?}", e);
+                error!("serde: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
                 )
             }
             Self::SqlxError(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
                 match e {
                     sqlx::Error::Io(_) | sqlx::Error::PoolClosed | sqlx::Error::PoolTimedOut => {
                         exit();

@@ -723,10 +723,7 @@ pub mod tests {
 
         let result = resp.json::<TestResponse>().await.unwrap().response;
 
-        assert_eq!(
-            result,
-            format!("unknown endpoint: {version}/{rand_route}")
-        );
+        assert_eq!(result, format!("unknown endpoint: {version}/{rand_route}"));
     }
 
     #[tokio::test]
@@ -793,8 +790,7 @@ pub mod tests {
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
-        let responses = ["rate limited for 59 seconds", "rate limited for 58 seconds"];
-        assert!(responses.contains(&result.as_str().unwrap()));
+        assert_eq!(result.as_str().unwrap(), "rate limited for 60 seconds");
 
         // 240+ request is rate limited for 300 seconds
         let resp = reqwest::get(&url).await.unwrap();
