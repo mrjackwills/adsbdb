@@ -576,7 +576,7 @@ mod tests {
 
         sleep(1000).await;
 
-        // make sure a second requst to an unknown mode_s will extend cache ttl
+        // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -645,7 +645,7 @@ mod tests {
 
         sleep(1000).await;
 
-        // make sure a second requst to an unknown mode_s will extend cache ttl
+        // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await

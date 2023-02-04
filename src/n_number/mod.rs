@@ -78,7 +78,7 @@ impl Bucket {
 
 /// Compute the suffix for the tail number given an offset
 /// offset < suffix_size
-/// An offset of 0 returns in a valid emtpy suffix
+/// An offset of 0 returns in a valid empty suffix
 /// A non-zero offset return a string containing one or two character from 'charset'
 /// Reverse function of suffix_shift()
 /// 0 -> ''

@@ -54,7 +54,7 @@ impl ApplicationState {
     }
 }
 
-/// extract `x-forwared-for` header
+/// extract `x-forwarded-for` header
 fn x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get(X_FORWARDED_FOR)

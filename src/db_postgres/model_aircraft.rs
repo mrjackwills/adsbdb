@@ -30,7 +30,7 @@ struct AircraftPhoto {
 }
 
 impl ModelAircraft {
-    /// Seperated out, so can use in tests with a transaction
+    /// Separated out, so can use in tests with a transaction
     /// Get aircraft by the mode_s value
     const fn get_query_mode_s() -> &'static str {
         r#"
@@ -88,7 +88,7 @@ WHERE
 	ams.mode_s = $1"#
     }
 
-    /// Seperated out, so can use in tests with a transaction
+    /// Separated out, so can use in tests with a transaction
     /// Get aircraft by the registration value
     const fn get_query_registration() -> &'static str {
         r#"
@@ -163,7 +163,7 @@ WHERE
             .await?)
     }
 
-    /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
+    /// Insert a new flightroute based on scraped data, separated transaction so can be tested with a rollback
     pub async fn insert_photo(&self, db: &PgPool, photo: &PhotoData) -> Result<(), AppError> {
         let mut transaction = db.begin().await?;
         self.photo_transaction(&mut transaction, photo).await?;

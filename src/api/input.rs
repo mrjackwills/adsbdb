@@ -115,7 +115,7 @@ impl TryFrom<String> for ModeS {
 }
 
 impl Validate for ModeS {
-    /// Make sure that input is an uppercase valid mode_s string, validitiy is [a-f]{6}
+    /// Make sure that input is an uppercase valid mode_s string, validity is [a-f]{6}
     fn validate(input: &str) -> Result<String, AppError> {
         if input.len() == 6 && Self::is_valid(input) {
             Ok(input.to_uppercase())
@@ -186,7 +186,7 @@ impl TryFrom<String> for NNumber {
 }
 
 impl Validate for NNumber {
-    /// Make sure that input is an uppercase valid n_number string, validitiy is N[0-9 a-z (but not I or O)]{1-5}
+    /// Make sure that input is an uppercase valid n_number string, validity is N[0-9 a-z (but not I or O)]{1-5}
     fn validate(input: &str) -> Result<String, AppError> {
         let input = input.to_uppercase();
         if input.starts_with('N')
@@ -246,7 +246,7 @@ impl fmt::Display for Callsign {
 }
 
 impl Validate for Callsign {
-    /// Make sure that input is a uppercaser valid callsign String, validitiy is [a-z]{4-8}
+    /// Make sure that input is a uppercaser valid callsign String, validity is [a-z]{4-8}
     fn validate(input: &str) -> Result<String, AppError> {
         if (4..=8).contains(&input.len()) && input.chars().all(|c| valid_char(c, 'z')) {
             Ok(input.to_uppercase())
@@ -358,7 +358,7 @@ mod tests {
         test("N");
         // Too long
         test("Naaaaaa");
-        // Doens't start with N
+        // Doesn't start with N
         test("Aaaaaaa");
         // contains invalid  char
         test("n1234o");

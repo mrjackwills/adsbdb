@@ -56,7 +56,7 @@ impl ModelFlightroute {
             .fetch_optional(db)
             .await?)
     }
-    /// Seperated out, so can use in tests with a transaction
+    /// Separated out, so can use in tests with a transaction
     /// Could also just be a const str
     const fn get_query() -> &'static str {
         r#"
@@ -114,7 +114,7 @@ WHERE
 	flc.callsign = $1"#
     }
 
-    /// Insert a new flightroute based on scraped data, seperated transaction so can be tested with a rollback
+    /// Insert a new flightroute based on scraped data, separated transaction so can be tested with a rollback
     pub async fn insert_scraped_flightroute(
         db: &PgPool,
         scraped_flightroute: ScrapedFlightroute,

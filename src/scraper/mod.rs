@@ -78,7 +78,7 @@ impl Scraper {
             .await?)
     }
 
-    // Make sure that input is a valid callsign string, validitiy is [a-z]{4-8}
+    // Make sure that input is a valid callsign string, validity is [a-z]{4-8}
     // Should accept str or string as input?
     fn validate_icao(input: &str) -> Option<String> {
         let valid = input.len() == 4
