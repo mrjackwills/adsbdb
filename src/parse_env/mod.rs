@@ -11,6 +11,8 @@ enum EnvError {
 
 #[derive(Debug, Clone)]
 pub struct AppEnv {
+    pub allow_scrape_flightroute: Option<()>,
+    pub allow_scrape_photo: Option<()>,
     pub api_host: String,
     pub api_port: u16,
     pub domain: String,
@@ -26,8 +28,8 @@ pub struct AppEnv {
     pub redis_password: String,
     pub redis_port: u16,
     pub url_aircraft_photo: String,
-    pub url_photo_prefix: String,
     pub url_callsign: String,
+    pub url_photo_prefix: String,
     pub www_domain: String,
 }
 
@@ -64,6 +66,19 @@ impl AppEnv {
         )
     }
 
+    fn parse_allow_scrape(key: &str, map: &EnvHashMap) -> Result<Option<()>, EnvError> {
+        map.get(key).map_or_else(
+            || Err(EnvError::NotFound(key.into())),
+            |value| {
+                if value.to_uppercase() == "TRUE" {
+                    Ok(Some(()))
+                } else {
+                    Ok(None)
+                }
+            },
+        )
+    }
+
     /// Load, and parse .env file, return AppEnv
     fn generate() -> Result<Self, EnvError> {
         let env_map = env::vars()
@@ -86,6 +101,8 @@ impl AppEnv {
             redis_host: Self::parse_string("REDIS_HOST", &env_map)?,
             redis_password: Self::parse_string("REDIS_PASSWORD", &env_map)?,
             redis_port: Self::parse_number("REDIS_PORT", &env_map)?,
+            allow_scrape_flightroute: Self::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &env_map)?,
+            allow_scrape_photo: Self::parse_allow_scrape("SCRAPE_PHOTO", &env_map)?,
             url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &env_map)?,
             url_photo_prefix: Self::parse_string("URL_PHOTO_PREFIX", &env_map)?,
             url_callsign: Self::parse_string("URL_CALLSIGN", &env_map)?,
@@ -161,6 +178,54 @@ mod tests {
     }
 
     #[test]
+    fn env_parse_scrape_allow() {
+        // FIXTURES
+        let mut map = HashMap::new();
+        map.insert("SCRAPE_PHOTO".to_owned(), "true".to_owned());
+        map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "true".to_owned());
+
+        // ACTION
+        let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
+
+        // CHECK
+        assert!(result01.is_ok());
+        assert!(result01.unwrap().is_some());
+        assert!(result02.is_ok());
+        assert!(result02.unwrap().is_some());
+
+        // FIXTURES
+        let mut map = HashMap::new();
+        map.insert("SCRAPE_PHOTO".to_owned(), "false".to_owned());
+        map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "false".to_owned());
+
+        // ACTION
+        let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
+
+        // CHECK
+        assert!(result01.is_ok());
+        assert!(result01.unwrap().is_none());
+        assert!(result02.is_ok());
+        assert!(result02.unwrap().is_none());
+
+        // FIXTURES
+        let mut map = HashMap::new();
+        map.insert("SCRAPE_PHOTO".to_owned(), "tru".to_owned());
+        map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "tre".to_owned());
+
+        // ACTION
+        let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
+
+        // CHECK
+        assert!(result01.is_ok());
+        assert!(result01.unwrap().is_none());
+        assert!(result02.is_ok());
+        assert!(result02.unwrap().is_none());
+    }
+
+	#[test]
     fn env_parse_boolean_ok() {
         // FIXTURES
         let mut map = HashMap::new();
@@ -180,7 +245,7 @@ mod tests {
         assert!(!result03);
         assert!(!result04);
     }
-
+	
     #[test]
     fn env_return_appenv() {
         dotenvy::dotenv().ok();

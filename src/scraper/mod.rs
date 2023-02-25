@@ -33,7 +33,9 @@ struct PhotoResponse {
 #[allow(unused)]
 pub struct Scraper {
     flight_scrape_url: String,
+    allow_scrape_flightroute: Option<()>,
     photo_url: String,
+    allow_scrape_photo: Option<()>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +63,8 @@ impl Scraper {
         Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
+            allow_scrape_flightroute: app_env.allow_scrape_flightroute,
+            allow_scrape_photo: app_env.allow_scrape_photo,
         }
     }
 
@@ -235,9 +239,11 @@ impl Scraper {
         db: &PgPool,
         aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
-        if let Some(photo) = self.request_photo(aircraft).await {
-            if let Some([data_0, ..]) = photo.data.as_ref() {
-                aircraft.insert_photo(db, data_0).await?;
+        if self.allow_scrape_photo.is_some() {
+            if let Some(photo) = self.request_photo(aircraft).await {
+                if let Some([data_0, ..]) = photo.data.as_ref() {
+                    aircraft.insert_photo(db, data_0).await?;
+                }
             }
         }
         Ok(())
@@ -250,15 +256,20 @@ impl Scraper {
         callsign: &Callsign,
     ) -> Result<Option<ModelFlightroute>, AppError> {
         let mut output = None;
-        if let Ok(html) = self.request_callsign(callsign).await {
-            if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
-                if Self::check_icao_in_db(postgres, &scraped_flightroute).await {
-                    output =
-                        ModelFlightroute::insert_scraped_flightroute(postgres, scraped_flightroute)
-                            .await?;
+        if self.allow_scrape_flightroute.is_some() {
+            if let Ok(html) = self.request_callsign(callsign).await {
+                if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
+                    if Self::check_icao_in_db(postgres, &scraped_flightroute).await {
+                        output = ModelFlightroute::insert_scraped_flightroute(
+                            postgres,
+                            scraped_flightroute,
+                        )
+                        .await?;
+                    }
                 }
             }
         }
+        println!("{output:#?}");
         Ok(output)
     }
 }
@@ -452,7 +463,7 @@ mod tests {
 
     #[tokio::test]
     /// in test mode, live site is actually just include_str()
-    async fn scraper_scraper_for_route_insert() {
+    async fn scraper_scrape_for_route_insert() {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let setup = setup().await;
         let scraper = Scraper::new(&setup.0);
@@ -503,7 +514,20 @@ mod tests {
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };
         assert_eq!(result, expected);
-        // remove_scraped_data(&setup.1).await;
+    }
+
+    #[tokio::test]
+    /// if callsign_scrape is none, doesn't scrape
+    async fn scraper_scrape_for_route_null() {
+        let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
+        let mut setup = setup().await;
+        setup.0.allow_scrape_flightroute = None;
+        let scraper = Scraper::new(&setup.0);
+        let result = scraper.scrape_flightroute(&setup.1, &callsign).await;
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.is_none());
     }
 
     #[tokio::test]
@@ -526,7 +550,6 @@ mod tests {
             url_photo_thumbnail: None,
         };
 
-        // let mode_s = ModeS::new("393C00".to_owned()).unwrap();
         let result = scraper.request_photo(&test_aircraft).await;
         assert!(result.is_some());
         let expected = PhotoResponse {
@@ -573,6 +596,31 @@ mod tests {
 
         let result = scraper.request_photo(&test_aircraft).await;
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn scraper_get_photo_null() {
+        let mut setup = setup().await;
+        setup.0.allow_scrape_photo = None;
+        let scraper = Scraper::new(&setup.0);
+
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "393C00".to_owned(),
+            registration: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
