@@ -137,7 +137,7 @@ update_version_number_in_files () {
 	sed -i -r -E "s=https://api.adsbdb.com/v[0-9]+=https://api.adsbdb.com/v${MAJOR}=g" ./site/index.html
 
 	# Update version number on api dockerfile, to download latest release from github
-	sed -i -r -E "s=download/v[0-9]+.[0-9]+.[0-9]+=download/v${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dockerfile/api.Dockerfile
+	# sed -i -r -E "s=download/v[0-9]+.[0-9]+.[0-9]+=download/v${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dockerfile/api.Dockerfile
 }
 
 # Work out the current version, based on git tags
@@ -208,17 +208,15 @@ release_continue () {
 	ask_continue
 }
 
-# $1 text to colourise
 check_typos () {
 	echo -e "\n${YELLOW}checking for typos${RESET}"
 	typos
 	ask_continue
 }
 
-
 # Full flow to create a new release
 release_flow() {
-	check_typos
+		check_typos
 
 	check_git
 	get_git_remote_url
@@ -247,7 +245,7 @@ release_flow() {
 
 	echo -e "\n${PURPLE}cargo check${RESET}"
 	cargo check
-	
+
 	release_continue "git add ."
 	git add .
 
@@ -255,12 +253,8 @@ release_flow() {
 	git commit -m "chore: release ${NEW_TAG_WITH_V}"
 
 	release_continue "git checkout main"
+	echo -e "git merge --no-ff \"${RELEASE_BRANCH}\" -m \"chore: merge ${RELEASE_BRANCH} into main\"" 
 	git checkout main
-
-	cargo build
-	git commit -am 'chore: main build'
-	
-	release_continue "git merge --no-ff \"${RELEASE_BRANCH}\" -m \"chore: merge ${RELEASE_BRANCH} into main\"" 
 	git merge --no-ff "$RELEASE_BRANCH" -m "chore: merge ${RELEASE_BRANCH} into main"
 
 	release_continue "git tag -am \"${RELEASE_BRANCH}\" \"$NEW_TAG_WITH_V\""
