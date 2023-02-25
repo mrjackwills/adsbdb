@@ -43,9 +43,6 @@ gzip "$TEMP_DIR_NAME/combined.tar"
 # Encrypt file using age
 age -r "$AGE_PASSWORD" -o "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME" "$TEMP_DIR_NAME/combined.tar.gz"
 
-# Encrypt data using pass file
-# gpg --output "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME" --batch --passphrase "$GPG_PASSWORD" -c "$TEMP_DIR_NAME/combined.tar.gz"
-
 chmod 440 "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME"
 
 # Remove tmp dir

@@ -181,6 +181,32 @@ If an unknown callsign is provided as a query param, but the aircraft is known, 
 
 ---
 
+```https://api.adsbdb.com/v[semver.major]/airline/[AIRLINE_ICAO || AIRLINE_IATA ]```
+```json
+{
+	"response":{
+		[
+			{
+				"name": string,
+				"icao": string,
+				"iata": string || null,
+				"country": string,
+				"country_iso": string,
+				"callsign": stinrg || null
+			},
+			...
+		]
+	}
+}
+
+```
+
+Unknown airline return status 404 with
+```json
+{ "response": "unknown airline"}
+```
+---
+
 Convert from MODE-S string to N-Number string
 ```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
 ```json

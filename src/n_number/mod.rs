@@ -7,9 +7,8 @@
 // But it seems to work as expected, although probably inefficient
 use std::fmt;
 
+use crate::api::{AppError, ModeS, NNumber, Validate};
 use once_cell::sync::Lazy;
-
-use crate::api::{AppError, ModeS, NNumber};
 
 const ICAO_SIZE: usize = 6;
 
@@ -147,7 +146,7 @@ fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
         Err(NError::FormatModeS.error())
     } else {
         let to_fill = format!("{:0^width$}", "", width = ICAO_SIZE - l);
-        ModeS::try_from(format!("{prefix}{to_fill}{as_hex}").to_uppercase())
+        ModeS::validate(&format!("{prefix}{to_fill}{as_hex}").to_uppercase())
     }
 }
 
@@ -174,12 +173,12 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
         if matches!(bucket, Bucket::Four) {
             rem = calc_rem(&mut output, rem, Bucket::Four);
             if rem == 0 {
-                return NNumber::try_from(output);
+                return NNumber::validate(&output);
             }
         } else {
             rem = calc_rem(&mut output, rem, bucket);
             if rem < SUFFIX_SIZE {
-                return NNumber::try_from(format!("{output}{}", get_suffix(rem)?));
+                return NNumber::validate(&format!("{output}{}", get_suffix(rem)?));
             }
             rem -= SUFFIX_SIZE;
         }
@@ -189,7 +188,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
         || Err(NError::FinalChar.error()),
         |final_char| {
             output.push(final_char);
-            NNumber::try_from(output)
+            NNumber::validate(&output)
         },
     )
 }
@@ -283,7 +282,7 @@ mod tests {
     #[test]
     fn n_number_mod_mode_s_to_n() {
         let test = |mode_s: &str, n_number: &str| {
-            let mode_s = ModeS::try_from(mode_s).unwrap();
+            let mode_s = ModeS::validate(mode_s).unwrap();
             let result = mode_s_to_n_number(&mode_s);
             assert_eq!(result.unwrap().to_string(), n_number);
         };
@@ -355,7 +354,7 @@ mod tests {
     /// Only works with American mode_s, which start with 'A'
     fn n_number_mod_mode_s_to_n_err() {
         let test = |mode_s: &str| {
-            let mode_s = ModeS::try_from(mode_s).unwrap();
+            let mode_s = ModeS::validate(mode_s).unwrap();
             let result = mode_s_to_n_number(&mode_s);
             assert!(result.is_err());
         };
@@ -369,7 +368,7 @@ mod tests {
     #[test]
     fn n_number_mod_n_to_mode_s() {
         let test = |n_number: &str, mode_s: &str| {
-            let result = n_number_to_mode_s(&NNumber::try_from(n_number).unwrap());
+            let result = n_number_to_mode_s(&NNumber::validate(n_number).unwrap());
             assert_eq!(result.unwrap().to_string(), mode_s);
         };
 
