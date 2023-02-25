@@ -28,7 +28,7 @@ mod response;
 
 use crate::{db_redis::ratelimit, parse_env::AppEnv, scraper::Scraper};
 pub use app_error::{AppError, UnknownAC};
-pub use input::{AircraftSearch, Callsign, ModeS, NNumber, Registration};
+pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -54,7 +54,7 @@ impl ApplicationState {
     }
 }
 
-/// extract `x-forwared-for` header
+/// extract `x-forwarded-for` header
 fn x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get(X_FORWARDED_FOR)
@@ -106,6 +106,7 @@ fn get_api_version() -> String {
 
 enum Routes {
     Aircraft,
+    Airline,
     Callsign,
     Online,
     NNumber,
@@ -116,6 +117,7 @@ impl fmt::Display for Routes {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let disp = match self {
             Self::Aircraft => "aircraft/:mode_s",
+            Self::Airline => "airline/:airline",
             Self::Callsign => "callsign/:callsign",
             Self::Online => "online",
             Self::NNumber => "n-number/:n-number",
@@ -149,6 +151,7 @@ pub async fn serve(
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.to_string(), get(api_routes::aircraft_get))
+        .route(&Routes::Airline.to_string(), get(api_routes::airline_get))
         .route(&Routes::Callsign.to_string(), get(api_routes::callsign_get))
         .route(&Routes::Online.to_string(), get(api_routes::online_get))
         .route(&Routes::NNumber.to_string(), get(api_routes::n_number_get))
@@ -175,8 +178,7 @@ pub async fn serve(
         );
 
     let addr = get_addr(&app_env)?;
-    let starting = format!("starting server @ {addr}{}", get_api_version());
-    info!(%starting);
+    info!("starting server @ {addr}{prefix}");
 
     match axum::Server::bind(&addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
@@ -291,10 +293,9 @@ pub mod tests {
     }
 
     #[tokio::test]
-    // test midpoint
-    async fn http_mod_get_callsign() {
+    async fn http_mod_get_icao_callsign() {
         start_server().await;
-        let callsign = "TOM35MR";
+        let callsign = "ACA959";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
             get_api_version(),
@@ -310,36 +311,41 @@ pub mod tests {
         assert!(result.get("aircraft").is_none());
 
         assert_eq!(result["callsign"], callsign.to_uppercase());
-        assert_eq!(result["origin"]["country_iso_name"], "ES".to_uppercase());
-        assert_eq!(result["origin"]["country_name"], "Spain");
-        assert_eq!(result["origin"]["elevation"], 27);
-        assert_eq!(result["origin"]["country_iso_name"], "ES");
-        assert_eq!(result["origin"]["country_name"], "Spain");
-        assert_eq!(result["origin"]["elevation"], 27);
-        assert_eq!(result["origin"]["iata_code"], "PMI");
-        assert_eq!(result["origin"]["icao_code"], "LEPA");
-        assert_eq!(result["origin"]["latitude"], 39.551_701);
-        assert_eq!(result["origin"]["longitude"], 2.738_81);
-        assert_eq!(result["origin"]["municipality"], "Palma De Mallorca");
-        assert_eq!(result["origin"]["name"], "Palma de Mallorca Airport");
+        assert_eq!(result["callsign_icao"], callsign.to_owned());
+        assert_eq!(result["callsign_iata"], "AC959".to_uppercase());
+        assert_eq!(result["origin"]["country_name"], "Canada");
+        assert_eq!(result["origin"]["elevation"], 118);
+        assert_eq!(result["origin"]["country_iso_name"], "CA");
+        assert_eq!(result["origin"]["iata_code"], "YUL");
+        assert_eq!(result["origin"]["icao_code"], "CYUL");
+        assert_eq!(result["origin"]["latitude"], 45.470_600_128_2);
+        assert_eq!(result["origin"]["longitude"], -73.740_798_950_2,);
+        assert_eq!(result["origin"]["municipality"], "Montréal");
+        assert_eq!(
+            result["origin"]["name"],
+            "Montreal / Pierre Elliott Trudeau International Airport"
+        );
 
         assert!(result.get("midpoint").is_none());
 
-        assert_eq!(result["destination"]["country_iso_name"], "GB");
-        assert_eq!(result["destination"]["country_name"], "United Kingdom");
-        assert_eq!(result["destination"]["elevation"], 622);
-        assert_eq!(result["destination"]["iata_code"], "BRS");
-        assert_eq!(result["destination"]["icao_code"], "EGGD");
-        assert_eq!(result["destination"]["latitude"], 51.382_702);
-        assert_eq!(result["destination"]["longitude"], -2.719_09);
-        assert_eq!(result["destination"]["municipality"], "Bristol");
-        assert_eq!(result["destination"]["name"], "Bristol Airport");
+        assert_eq!(result["destination"]["country_iso_name"], "CR");
+        assert_eq!(result["destination"]["country_name"], "Costa Rica");
+        assert_eq!(result["destination"]["elevation"], 3021);
+        assert_eq!(result["destination"]["iata_code"], "SJO");
+        assert_eq!(result["destination"]["icao_code"], "MROC");
+        assert_eq!(result["destination"]["latitude"], 9.993_86);
+        assert_eq!(result["destination"]["longitude"], -84.208801);
+        assert_eq!(result["destination"]["municipality"], "San José (Alajuela)");
+        assert_eq!(
+            result["destination"]["name"],
+            "Juan Santamaría International Airport"
+        );
     }
 
     #[tokio::test]
-    async fn http_mod_get_callsign_with_midpoint() {
+    async fn http_mod_get_iata_callsign() {
         start_server().await;
-        let callsign = "QFA031";
+        let callsign = "AC959";
         let url = format!(
             "http://127.0.0.1:8100{}/callsign/{}",
             get_api_version(),
@@ -355,6 +361,113 @@ pub mod tests {
         assert!(result.get("aircraft").is_none());
 
         assert_eq!(result["callsign"], callsign.to_uppercase());
+        assert_eq!(result["callsign_icao"], "ACA959".to_owned());
+        assert_eq!(result["callsign_iata"], callsign.to_uppercase());
+        assert_eq!(result["origin"]["country_name"], "Canada");
+        assert_eq!(result["origin"]["elevation"], 118);
+        assert_eq!(result["origin"]["country_iso_name"], "CA");
+        assert_eq!(result["origin"]["iata_code"], "YUL");
+        assert_eq!(result["origin"]["icao_code"], "CYUL");
+        assert_eq!(result["origin"]["latitude"], 45.470_600_128_2);
+        assert_eq!(result["origin"]["longitude"], -73.740_798_950_2,);
+        assert_eq!(result["origin"]["municipality"], "Montréal");
+        assert_eq!(
+            result["origin"]["name"],
+            "Montreal / Pierre Elliott Trudeau International Airport"
+        );
+
+        assert!(result.get("midpoint").is_none());
+
+        assert_eq!(result["destination"]["country_iso_name"], "CR");
+        assert_eq!(result["destination"]["country_name"], "Costa Rica");
+        assert_eq!(result["destination"]["elevation"], 3021);
+        assert_eq!(result["destination"]["iata_code"], "SJO");
+        assert_eq!(result["destination"]["icao_code"], "MROC");
+        assert_eq!(result["destination"]["latitude"], 9.993_86);
+        assert_eq!(result["destination"]["longitude"], -84.208801);
+        assert_eq!(result["destination"]["municipality"], "San José (Alajuela)");
+        assert_eq!(
+            result["destination"]["name"],
+            "Juan Santamaría International Airport"
+        );
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_icao_callsign_with_midpoint() {
+        start_server().await;
+        let callsign = "QFA31";
+        let url = format!(
+            "http://127.0.0.1:8100{}/callsign/{}",
+            get_api_version(),
+            callsign
+        );
+        let resp = reqwest::get(url).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = result.get("flightroute").unwrap();
+
+        assert!(result.get("aircraft").is_none());
+
+        assert_eq!(result["callsign"], callsign.to_uppercase());
+        assert_eq!(result["callsign_iata"], "QF31".to_uppercase());
+        assert_eq!(result["callsign_icao"], callsign.to_uppercase());
+        assert_eq!(result["origin"]["country_iso_name"], "AU".to_uppercase());
+        assert_eq!(result["origin"]["country_name"], "Australia");
+        assert_eq!(result["origin"]["elevation"], 21);
+        assert_eq!(result["origin"]["iata_code"], "SYD");
+        assert_eq!(result["origin"]["icao_code"], "YSSY");
+        assert_eq!(result["origin"]["latitude"], -33.946_098_327_636_72);
+        assert_eq!(result["origin"]["longitude"], 151.177_001_953_125);
+        assert_eq!(result["origin"]["municipality"], "Sydney");
+        assert_eq!(
+            result["origin"]["name"],
+            "Sydney Kingsford Smith International Airport"
+        );
+
+        assert_eq!(result["midpoint"]["country_iso_name"], "SG".to_uppercase());
+        assert_eq!(result["midpoint"]["country_name"], "Singapore");
+        assert_eq!(result["midpoint"]["elevation"], 22);
+        assert_eq!(result["midpoint"]["iata_code"], "SIN");
+        assert_eq!(result["midpoint"]["icao_code"], "WSSS");
+        assert_eq!(result["midpoint"]["latitude"], 1.35019);
+        assert_eq!(result["midpoint"]["longitude"], 103.994_003);
+        assert_eq!(result["midpoint"]["municipality"], "Singapore");
+        assert_eq!(result["midpoint"]["name"], "Singapore Changi Airport");
+
+        assert_eq!(result["destination"]["country_iso_name"], "GB");
+        assert_eq!(result["destination"]["country_name"], "United Kingdom");
+        assert_eq!(result["destination"]["elevation"], 83);
+        assert_eq!(result["destination"]["iata_code"], "LHR");
+        assert_eq!(result["destination"]["icao_code"], "EGLL");
+        assert_eq!(result["destination"]["latitude"], 51.4706);
+        assert_eq!(result["destination"]["longitude"], -0.461_941);
+        assert_eq!(result["destination"]["municipality"], "London");
+        assert_eq!(result["destination"]["name"], "London Heathrow Airport");
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_iata_callsign_with_midpoint() {
+        start_server().await;
+        let callsign = "QF31";
+        let url = format!(
+            "http://127.0.0.1:8100{}/callsign/{}",
+            get_api_version(),
+            callsign
+        );
+        let resp = reqwest::get(url).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = result.get("flightroute").unwrap();
+
+        assert!(result.get("aircraft").is_none());
+
+        assert_eq!(result["callsign"], callsign.to_uppercase());
+        assert_eq!(result["callsign_iata"], callsign.to_uppercase());
+        assert_eq!(result["callsign_icao"], "QFA31");
         assert_eq!(result["origin"]["country_iso_name"], "AU".to_uppercase());
         assert_eq!(result["origin"]["country_name"], "Australia");
         assert_eq!(result["origin"]["elevation"], 21);
@@ -436,10 +549,10 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn http_mod_get_aircraft_and_callsign() {
+    async fn http_mod_get_aircraft_and_icao_callsign() {
         start_server().await;
         let mode_s = "A6D27B";
-        let callsign = "TOM35MR";
+        let callsign = "ACA959";
         let url = format!(
             "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
             get_api_version(),
@@ -474,49 +587,244 @@ pub mod tests {
         assert!(flightroute_result.is_some());
         let flightroute_result = flightroute_result.unwrap();
         assert_eq!(flightroute_result["callsign"], callsign.to_uppercase());
-        assert_eq!(
-            flightroute_result["origin"]["country_iso_name"],
-            "ES".to_uppercase()
-        );
-        assert_eq!(flightroute_result["origin"]["country_name"], "Spain");
-        assert_eq!(flightroute_result["origin"]["elevation"], 27);
-        assert_eq!(flightroute_result["origin"]["country_iso_name"], "ES");
-        assert_eq!(flightroute_result["origin"]["country_name"], "Spain");
-        assert_eq!(flightroute_result["origin"]["elevation"], 27);
-        assert_eq!(flightroute_result["origin"]["iata_code"], "PMI");
-        assert_eq!(flightroute_result["origin"]["icao_code"], "LEPA");
-        assert_eq!(flightroute_result["origin"]["latitude"], 39.551_701);
-        assert_eq!(flightroute_result["origin"]["longitude"], 2.73881);
-        assert_eq!(
-            flightroute_result["origin"]["municipality"],
-            "Palma De Mallorca"
-        );
+        assert_eq!(flightroute_result["callsign_iata"], "AC959");
+        assert_eq!(flightroute_result["callsign_icao"], callsign.to_uppercase());
+
+        assert_eq!(flightroute_result["airline"]["name"], "Air Canada");
+        assert_eq!(flightroute_result["airline"]["icao"], "ACA");
+        assert_eq!(flightroute_result["airline"]["iata"], "AC");
+        assert_eq!(flightroute_result["airline"]["callsign"], "AIR CANADA");
+        assert_eq!(flightroute_result["airline"]["country"], "Canada");
+        assert_eq!(flightroute_result["airline"]["country_iso"], "CA");
+
+        assert_eq!(flightroute_result["origin"]["country_name"], "Canada");
+        assert_eq!(flightroute_result["origin"]["elevation"], 118);
+        assert_eq!(flightroute_result["origin"]["country_iso_name"], "CA");
+        assert_eq!(flightroute_result["origin"]["iata_code"], "YUL");
+        assert_eq!(flightroute_result["origin"]["icao_code"], "CYUL");
+        assert_eq!(flightroute_result["origin"]["latitude"], 45.470_600_128_2);
+        assert_eq!(flightroute_result["origin"]["longitude"], -73.740_798_950_2,);
+        assert_eq!(flightroute_result["origin"]["municipality"], "Montréal");
         assert_eq!(
             flightroute_result["origin"]["name"],
-            "Palma de Mallorca Airport"
+            "Montreal / Pierre Elliott Trudeau International Airport"
         );
 
         assert!(result.get("midpoint").is_none());
+
+        assert_eq!(flightroute_result["destination"]["country_iso_name"], "CR");
+        assert_eq!(
+            flightroute_result["destination"]["country_name"],
+            "Costa Rica"
+        );
+        assert_eq!(flightroute_result["destination"]["elevation"], 3021);
+        assert_eq!(flightroute_result["destination"]["iata_code"], "SJO");
+        assert_eq!(flightroute_result["destination"]["icao_code"], "MROC");
+        assert_eq!(flightroute_result["destination"]["latitude"], 9.993_86);
+        assert_eq!(flightroute_result["destination"]["longitude"], -84.208801);
+        assert_eq!(
+            flightroute_result["destination"]["municipality"],
+            "San José (Alajuela)"
+        );
+        assert_eq!(
+            flightroute_result["destination"]["name"],
+            "Juan Santamaría International Airport"
+        );
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_aircraft_and_iata_callsign() {
+        start_server().await;
+        let mode_s = "A6D27B";
+        let callsign = "AC959";
+        let url = format!(
+            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            get_api_version(),
+            mode_s,
+            callsign
+        );
+        let resp = reqwest::get(url).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        let aircraft_result = result.get("aircraft").unwrap();
+
+        assert_eq!(aircraft_result["icao_type"], "CRJ7");
+        assert_eq!(aircraft_result["manufacturer"], "Bombardier");
+        assert_eq!(aircraft_result["mode_s"], mode_s);
+        assert_eq!(aircraft_result["registration"], "N539GJ");
+        assert_eq!(aircraft_result["registered_owner"], "United Express");
+        assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
+        assert_eq!(
+            aircraft_result["registered_owner_country_name"],
+            "United States"
+        );
+        assert_eq!(
+            aircraft_result["registered_owner_operator_flag_code"],
+            "GJS"
+        );
+        assert_eq!(aircraft_result["type"], "CRJ 700 702");
+
+        let flightroute_result = result.get("flightroute");
+        assert!(flightroute_result.is_some());
+        let flightroute_result = flightroute_result.unwrap();
+        assert_eq!(flightroute_result["callsign"], callsign.to_uppercase());
+        assert_eq!(flightroute_result["callsign_iata"], callsign);
+        assert_eq!(flightroute_result["callsign_icao"], "ACA959".to_uppercase());
+
+        assert_eq!(flightroute_result["airline"]["name"], "Air Canada");
+        assert_eq!(flightroute_result["airline"]["icao"], "ACA");
+        assert_eq!(flightroute_result["airline"]["iata"], "AC");
+        assert_eq!(flightroute_result["airline"]["callsign"], "AIR CANADA");
+        assert_eq!(flightroute_result["airline"]["country"], "Canada");
+        assert_eq!(flightroute_result["airline"]["country_iso"], "CA");
+
+        assert_eq!(flightroute_result["origin"]["country_name"], "Canada");
+        assert_eq!(flightroute_result["origin"]["elevation"], 118);
+        assert_eq!(flightroute_result["origin"]["country_iso_name"], "CA");
+        assert_eq!(flightroute_result["origin"]["iata_code"], "YUL");
+        assert_eq!(flightroute_result["origin"]["icao_code"], "CYUL");
+        assert_eq!(flightroute_result["origin"]["latitude"], 45.470_600_128_2);
+        assert_eq!(flightroute_result["origin"]["longitude"], -73.740_798_950_2,);
+        assert_eq!(flightroute_result["origin"]["municipality"], "Montréal");
+        assert_eq!(
+            flightroute_result["origin"]["name"],
+            "Montreal / Pierre Elliott Trudeau International Airport"
+        );
+
+        assert!(result.get("midpoint").is_none());
+
+        assert_eq!(flightroute_result["destination"]["country_iso_name"], "CR");
+        assert_eq!(
+            flightroute_result["destination"]["country_name"],
+            "Costa Rica"
+        );
+        assert_eq!(flightroute_result["destination"]["elevation"], 3021);
+        assert_eq!(flightroute_result["destination"]["iata_code"], "SJO");
+        assert_eq!(flightroute_result["destination"]["icao_code"], "MROC");
+        assert_eq!(flightroute_result["destination"]["latitude"], 9.993_86);
+        assert_eq!(flightroute_result["destination"]["longitude"], -84.208801);
+        assert_eq!(
+            flightroute_result["destination"]["municipality"],
+            "San José (Alajuela)"
+        );
+        assert_eq!(
+            flightroute_result["destination"]["name"],
+            "Juan Santamaría International Airport"
+        );
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_aircraft_and_midpoint_icao_callsign() {
+        start_server().await;
+        let mode_s = "A6D27B";
+        let callsign = "QFA31";
+        let url = format!(
+            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            get_api_version(),
+            mode_s,
+            callsign
+        );
+        let resp = reqwest::get(url).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        let aircraft_result = result.get("aircraft").unwrap();
+
+        assert_eq!(aircraft_result["icao_type"], "CRJ7");
+        assert_eq!(aircraft_result["manufacturer"], "Bombardier");
+        assert_eq!(aircraft_result["mode_s"], mode_s);
+        assert_eq!(aircraft_result["registration"], "N539GJ");
+        assert_eq!(aircraft_result["registered_owner"], "United Express");
+        assert_eq!(aircraft_result["registered_owner_country_iso_name"], "US");
+        assert_eq!(
+            aircraft_result["registered_owner_country_name"],
+            "United States"
+        );
+        assert_eq!(
+            aircraft_result["registered_owner_operator_flag_code"],
+            "GJS"
+        );
+        assert_eq!(aircraft_result["type"], "CRJ 700 702");
+
+        let flightroute_result = result.get("flightroute");
+        assert!(flightroute_result.is_some());
+        let flightroute_result = flightroute_result.unwrap();
+
+        assert_eq!(flightroute_result["airline"]["name"], "Qantas");
+        assert_eq!(flightroute_result["airline"]["icao"], "QFA");
+        assert_eq!(flightroute_result["airline"]["iata"], "QF");
+        assert_eq!(flightroute_result["airline"]["callsign"], "QANTAS");
+        assert_eq!(flightroute_result["airline"]["country"], "Australia");
+        assert_eq!(flightroute_result["airline"]["country_iso"], "AU");
+
+        assert_eq!(flightroute_result["callsign"], callsign.to_uppercase());
+        assert_eq!(flightroute_result["callsign_icao"], callsign);
+        assert_eq!(flightroute_result["callsign_iata"], "QF31");
+        assert_eq!(
+            flightroute_result["origin"]["country_iso_name"],
+            "AU".to_uppercase()
+        );
+        assert_eq!(flightroute_result["origin"]["country_name"], "Australia");
+        assert_eq!(flightroute_result["origin"]["elevation"], 21);
+        assert_eq!(flightroute_result["origin"]["iata_code"], "SYD");
+        assert_eq!(flightroute_result["origin"]["icao_code"], "YSSY");
+        assert_eq!(
+            flightroute_result["origin"]["latitude"],
+            -33.946_098_327_636_72
+        );
+        assert_eq!(
+            flightroute_result["origin"]["longitude"],
+            151.177_001_953_125
+        );
+        assert_eq!(flightroute_result["origin"]["municipality"], "Sydney");
+        assert_eq!(
+            flightroute_result["origin"]["name"],
+            "Sydney Kingsford Smith International Airport"
+        );
+
+        assert_eq!(
+            flightroute_result["midpoint"]["country_iso_name"],
+            "SG".to_uppercase()
+        );
+        assert_eq!(flightroute_result["midpoint"]["country_name"], "Singapore");
+        assert_eq!(flightroute_result["midpoint"]["elevation"], 22);
+        assert_eq!(flightroute_result["midpoint"]["iata_code"], "SIN");
+        assert_eq!(flightroute_result["midpoint"]["icao_code"], "WSSS");
+        assert_eq!(flightroute_result["midpoint"]["latitude"], 1.35019);
+        assert_eq!(flightroute_result["midpoint"]["longitude"], 103.994_003);
+        assert_eq!(flightroute_result["midpoint"]["municipality"], "Singapore");
+        assert_eq!(
+            flightroute_result["midpoint"]["name"],
+            "Singapore Changi Airport"
+        );
 
         assert_eq!(flightroute_result["destination"]["country_iso_name"], "GB");
         assert_eq!(
             flightroute_result["destination"]["country_name"],
             "United Kingdom"
         );
-        assert_eq!(flightroute_result["destination"]["elevation"], 622);
-        assert_eq!(flightroute_result["destination"]["iata_code"], "BRS");
-        assert_eq!(flightroute_result["destination"]["icao_code"], "EGGD");
-        assert_eq!(flightroute_result["destination"]["latitude"], 51.382_702);
-        assert_eq!(flightroute_result["destination"]["longitude"], -2.71909);
-        assert_eq!(flightroute_result["destination"]["municipality"], "Bristol");
-        assert_eq!(flightroute_result["destination"]["name"], "Bristol Airport");
+        assert_eq!(flightroute_result["destination"]["elevation"], 83);
+        assert_eq!(flightroute_result["destination"]["iata_code"], "LHR");
+        assert_eq!(flightroute_result["destination"]["icao_code"], "EGLL");
+        assert_eq!(flightroute_result["destination"]["latitude"], 51.4706);
+        assert_eq!(flightroute_result["destination"]["longitude"], -0.461_941);
+        assert_eq!(flightroute_result["destination"]["municipality"], "London");
+        assert_eq!(
+            flightroute_result["destination"]["name"],
+            "London Heathrow Airport"
+        );
     }
 
     #[tokio::test]
-    async fn http_mod_get_aircraft_and_midpoint_callsign() {
+    async fn http_mod_get_aircraft_and_midpoint_iata_callsign() {
         start_server().await;
         let mode_s = "A6D27B";
-        let callsign = "QFA031";
+        let callsign = "QF31";
         let url = format!(
             "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
             get_api_version(),
@@ -550,7 +858,17 @@ pub mod tests {
         let flightroute_result = result.get("flightroute");
         assert!(flightroute_result.is_some());
         let flightroute_result = flightroute_result.unwrap();
+
+        assert_eq!(flightroute_result["airline"]["name"], "Qantas");
+        assert_eq!(flightroute_result["airline"]["icao"], "QFA");
+        assert_eq!(flightroute_result["airline"]["iata"], "QF");
+        assert_eq!(flightroute_result["airline"]["callsign"], "QANTAS");
+        assert_eq!(flightroute_result["airline"]["country"], "Australia");
+        assert_eq!(flightroute_result["airline"]["country_iso"], "AU");
+
         assert_eq!(flightroute_result["callsign"], callsign.to_uppercase());
+        assert_eq!(flightroute_result["callsign_iata"], callsign.to_uppercase());
+        assert_eq!(flightroute_result["callsign_icao"], "QFA31");
         assert_eq!(
             flightroute_result["origin"]["country_iso_name"],
             "AU".to_uppercase()
@@ -716,17 +1034,14 @@ pub mod tests {
 
         let version = get_api_version();
         let rand_route = "asdasjkaj9ahsddasdasd";
-        let url = format!("http://127.0.0.1:8100{}/{}", version, rand_route);
+        let url = format!("http://127.0.0.1:8100{version}/{rand_route}");
         let resp = reqwest::get(url).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let result = resp.json::<TestResponse>().await.unwrap().response;
 
-        assert_eq!(
-            result,
-            format!("unknown endpoint: {}/{}", version, rand_route)
-        );
+        assert_eq!(result, format!("unknown endpoint: {version}/{rand_route}"));
     }
 
     #[tokio::test]
@@ -793,8 +1108,7 @@ pub mod tests {
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
-        let responses = ["rate limited for 59 seconds", "rate limited for 58 seconds"];
-        assert!(responses.contains(&result.as_str().unwrap()));
+        assert_eq!(result.as_str().unwrap(), "rate limited for 60 seconds");
 
         // 240+ request is rate limited for 300 seconds
         let resp = reqwest::get(&url).await.unwrap();

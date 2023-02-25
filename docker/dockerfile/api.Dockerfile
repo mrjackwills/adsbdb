@@ -1,4 +1,37 @@
-FROM ubuntu:22.04
+#############
+## Builder ##
+#############
+
+FROM rust:slim as BUILDER
+
+WORKDIR /usr/src
+
+# Create blank project
+RUN cargo new adsbdb
+
+# We want dependencies cached, so copy those first
+COPY Cargo.* /usr/src/adsbdb/
+
+# Set the working directory
+WORKDIR /usr/src/adsbdb
+
+# This is a dummy build to get the dependencies cached - probably not needed - as run via a github action
+RUN cargo build --release
+
+# Now copy in the rest of the sources
+COPY src /usr/src/adsbdb/src/
+
+## Touch main.rs to prevent cached release build
+RUN touch /usr/src/adsbdb/src/main.rs
+
+# This is the actual application build
+RUN cargo build --release
+
+#############
+## Runtime ##
+#############
+
+FROM ubuntu:22.04 AS RUNTIME
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
@@ -21,12 +54,9 @@ WORKDIR /app
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_api.sh /healthcheck
 
-# Download latest release from github
-# This gets automatically updated via create_release.sh
-RUN wget https://github.com/mrjackwills/adsbdb/releases/download/v0.1.0/adsbdb_linux_x86_64.tar.gz \
-	&& tar xzvf adsbdb_linux_x86_64.tar.gz adsbdb && rm adsbdb_linux_x86_64.tar.gz \
-	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /app/adsbdb /logs \
-	&& chmod +x /healthcheck/health_api.sh
+RUN chmod +x /healthcheck/health_api.sh
+
+COPY --from=BUILDER /usr/src/adsbdb/target/release/adsbdb /app/
 
 # Use an unprivileged user
 USER ${DOCKER_APP_USER}

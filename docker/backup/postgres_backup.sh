@@ -19,7 +19,7 @@ LOCATION_ALL_LOGS=/logs
 LOCATION_REDIS=/redis_data
 
 # Final filename
-FINAL_OUTPUT_NAME="adsbdb_${TIMESTAMP}_SQL_REDIS_LOGS_${FILE_SUFFIX}.tar.gz.gpg"
+FINAL_OUTPUT_NAME="adsbdb_${TIMESTAMP}_SQL_REDIS_LOGS_${FILE_SUFFIX}.tar.gz.age"
 
 # Move into temp directory
 cd "$LOCATION_BACKUPS" || exit 1
@@ -40,8 +40,8 @@ tar -C "$TEMP_DIR_NAME" -cf "$TEMP_DIR_NAME/combined.tar" logs.tar pg_dump.tar r
 
 gzip "$TEMP_DIR_NAME/combined.tar"
 
-# Encrypt data using pass file
-gpg --output "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME" --batch --passphrase "$GPG_PASSWORD" -c "$TEMP_DIR_NAME/combined.tar.gz"
+# Encrypt file using age
+age -r "$AGE_PASSWORD" -o "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME" "$TEMP_DIR_NAME/combined.tar.gz"
 
 chmod 440 "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME"
 
@@ -49,6 +49,6 @@ chmod 440 "$LOCATION_BACKUPS/$FINAL_OUTPUT_NAME"
 rm -rf "$TEMP_DIR_NAME"
 
 # remove backup files that are older than 6 days
-find "$LOCATION_BACKUPS" -type f -name '*tar.gz.gpg' -mtime +6 -delete
+find "$LOCATION_BACKUPS" -type f -name '*tar.gz.age' -mtime +6 -delete
 
 exit 0

@@ -20,7 +20,6 @@ bootstrap_from_sql_file() {
 	psql -U "${POSTGRES_USER}" -d postgres -f /init/init_db.sql
 }
 
-
 # restore a db from a pg_dump file
 restore_pg_dump() {
 	echo "restore_pg_dump"
@@ -30,18 +29,25 @@ GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO ${DB_NAME};
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${DB_NAME};
 EOSQL
 }
-# if pg_dump then restore_pg_dump, else from bootstrap_from_sql_file
-main () {
 
-	# If creating from scratch, with .sql file & .csv files
-	# create_adsbdb_user
-	# bootstrap_from_sql_file
-	# add_dev_adsbdb
-
-	# If restoring from pg_dump.tar
+from_pg_dump() {
 	create_adsbdb_user
 	create_adsbdb_database
 	restore_pg_dump
+}
+
+from_scratch() {
+	create_adsbdb_user
+	bootstrap_from_sql_file
+}
+
+main () {
+	if [ -f "/init/pg_dump.tar" ];
+	then
+		from_pg_dump;
+	else
+		from_scratch;
+	fi
 }
 
 main

@@ -13,11 +13,11 @@ impl ModelAirport {
     pub async fn get(db: &PgPool, airport_icao: &str) -> Result<Option<Self>, AppError> {
         let query = r#"
 SELECT
-	airport_icao_code_id
+    airport_icao_code_id
 FROM
-	airport_icao_code
+    airport_icao_code
 WHERE
-	icao_code = $1"#;
+    icao_code = $1"#;
         Ok(sqlx::query_as::<_, Self>(query)
             .bind(airport_icao)
             .fetch_optional(db)

@@ -1,7 +1,41 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.2.0'>v0.2.0</a>
+### 2023-02-25
+
+**This release has, potential, Breaking Changes**
+
+### Chores
++ dev container updated, [1ac83bdb](https://github.com/mrjackwills/adsbdb/commit/1ac83bdb561145e101b6b3bc2c27c35471b25b50), [a398c8cc](https://github.com/mrjackwills/adsbdb/commit/a398c8cc09ce4f37520137ae8f91087d55f36efd)
++ create_release updated, [eb8f871d](https://github.com/mrjackwills/adsbdb/commit/eb8f871deba42e035595918c0c492e2ca4f0d156), [ea93d0b6](https://github.com/mrjackwills/adsbdb/commit/ea93d0b6c585d7fe5f0d050822631ad8cad46cb1)
++ dependencies updated, [01204465](https://github.com/mrjackwills/adsbdb/commit/01204465e1a36bbb15cf4d37cdf44398e394449c), [87c9c0e6](https://github.com/mrjackwills/adsbdb/commit/87c9c0e63e2e86027a07b44e031b0e1614950cdb), [a8d138e0](https://github.com/mrjackwills/adsbdb/commit/a8d138e0f2775e96fa4dc6516fa905e3b007446a), [5322f1de](https://github.com/mrjackwills/adsbdb/commit/5322f1de46881984003a83d7d2063ea0172cb3da), [6e83e199](https://github.com/mrjackwills/adsbdb/commit/6e83e199ef4e99773b9d4790c11ff4098fb3abb9), [a4821b9a](https://github.com/mrjackwills/adsbdb/commit/a4821b9ac28c2e563916e40c18aac8900bfc35c9)
+
+### Docs
++ site updated, [3c4bcb49](https://github.com/mrjackwills/adsbdb/commit/3c4bcb49e6f0d23cc7377fcecf399f74d8067b66)
++ various comment typos, [1af07db8](https://github.com/mrjackwills/adsbdb/commit/1af07db8faaeeda55a45b386cebd851193ace79e)
++ site uptime automatically increase, [678bb062](https://github.com/mrjackwills/adsbdb/commit/678bb062895215f6b8de3dcf6bd5e585a3a8db3a)
+
+### Features
+**Breaking Changes**
++ Callsigns & Flightroutes are now stored much more efficiently in the database, split, if possible, by IATA/ICAO prefix, and a suffix. This means that when searching for a Flightroute, one can use either the IATA or ICAO callsign.
+The callsign response now includes a `callsign_iata` and `callsign_icao` key, as well as an Airline object (see the [README.md](https://github.com/mrjackwills/adsbdb/blob/main/README.md) or [adsbdb.com](https://www.adsbdb.com) for more information). A new `/airline` route is now available, which will search
+for Airlines, again based on either `ICAO` or `IATA` airline codes, and will either return an array of Airlines, or a 404 response, [d1f614d3](https://github.com/mrjackwills/adsbdb/commit/d1f614d3b5288dc000aa026a825e6f9f14b06f54)
++ Add an env to disable flightroute & photo scraping, [1024d7f7](https://github.com/mrjackwills/adsbdb/commit/1024d7f7715f97c86a5e0ca40a906633b8f6029a)
++ Dockerfiles updated, build from source, [7c9e4861](https://github.com/mrjackwills/adsbdb/commit/7c9e4861f77191d9cca904dd3c32e8ada8bae294), [2bd3df6d](https://github.com/mrjackwills/adsbdb/commit/2bd3df6d93505cb9132a72b0524946040f56317d)
++ openssl dependency removed, [7870c7d1](https://github.com/mrjackwills/adsbdb/commit/7870c7d19c260906b1f21610a4a09dc9a5a46cad)
++ force exit if database connection error, [d950b39f](https://github.com/mrjackwills/adsbdb/commit/d950b39f0527d0419ff1219c7033ae6782d2cba3)
++ dev postgres run from /dev/shm, auto pg_dump restoration, [c5eb2466](https://github.com/mrjackwills/adsbdb/commit/c5eb2466b67fa45608c8c6356389ab5f91b4aaaf), [ad171abd](https://github.com/mrjackwills/adsbdb/commit/ad171abdb487d1db90635eea866fa11ca0edaeb6)
++ backup use age, [00c9d63d](https://github.com/mrjackwills/adsbdb/commit/00c9d63da8b891fdfb0b6651aef643a1b62ff4b8)
+
+### Fixes
++ increase redis docker memory limit, [a58b6a7e](https://github.com/mrjackwills/adsbdb/commit/a58b6a7eaf219d2ac5c2d0becbd149b4aa1522af), [ce228249](https://github.com/mrjackwills/adsbdb/commit/ce22824918bd56b48d077506d0edffa8dfde5905)
+
+### Refactors
++ Rust 1.67.0 clippy linting, [b3ff5c49](https://github.com/mrjackwills/adsbdb/commit/b3ff5c4965f05ba0eecdb71569dc6908296d16f6)
++ dead code removed, [427bb899](https://github.com/mrjackwills/adsbdb/commit/427bb899439b313ba3df0278f4dbc99f9d324c81)
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.1.0'>v0.1.0</a>
 ### 2023-01-14
 
-**This release has breaking changes in the response Aircaft JSON object**
+**This release has breaking changes in the response Aircraft JSON object**
 
 ### Chores
 + dependencies updated, [680af9c7](https://github.com/mrjackwills/adsbdb/commit/680af9c7d94e2bb00b79a3e3e77f4058eeea4977), [227cb14a](https://github.com/mrjackwills/adsbdb/commit/227cb14a1aef740d818654a2dc20a85877e0cf1c)
@@ -24,7 +58,7 @@
 
 ### Refactors
 + put tracing_level into app_env, [4174a24f](https://github.com/mrjackwills/adsbdb/commit/4174a24fbbbd066d8439c06ed01ca65bfde84d0e)
-+ ratelimit into seperate file, [da31646c](https://github.com/mrjackwills/adsbdb/commit/da31646c204054b0a399dcc7d925184aa8c60f93), [c33449b6](https://github.com/mrjackwills/adsbdb/commit/c33449b69800e29dcfe916cea6d35ea0293df7f6)
++ ratelimit into separate file, [da31646c](https://github.com/mrjackwills/adsbdb/commit/da31646c204054b0a399dcc7d925184aa8c60f93), [c33449b6](https://github.com/mrjackwills/adsbdb/commit/c33449b69800e29dcfe916cea6d35ea0293df7f6)
 + get_cache simplifying, [b360492f](https://github.com/mrjackwills/adsbdb/commit/b360492ff53b330ddd45ed94a7e36772cbe906d0)
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.0.18'>v0.0.18</a>
@@ -187,7 +221,7 @@
 + create_release.sh update api.Dockerfile to download latest build from github, [9f29591d](https://github.com/mrjackwills/adsbdb/commit/9f29591d0018a499a982e380738bdff676dff456),
 
 ### Fixes
-+ Remove ModelAicraft get unwrap, [2a28831c](https://github.com/mrjackwills/adsbdb/commit/2a28831c58bf1b02915e9b6b49ff330864778a67),
++ Remove ModelAircraft get unwrap, [2a28831c](https://github.com/mrjackwills/adsbdb/commit/2a28831c58bf1b02915e9b6b49ff330864778a67),
 
 ### Refactors
 + Route handlers renamed from method_routename to routename_method, [aaba380c](https://github.com/mrjackwills/adsbdb/commit/aaba380cb217ba5ee3ca0142f1c4131eeb0a2692),
@@ -207,7 +241,7 @@
 + create_release.sh sed fix, removed hard-coded value, [d3dac1b9](https://github.com/mrjackwills/adsbdb/commit/d3dac1b94a576d8aa5d4ab704f04fb4f9e2a1f53),
 
 ### Refactors
-+ Change to flightroute response, use origin, destination, and occassionally midpoint, keys, all which contain an Airport Value, [2f52c9fc](https://github.com/mrjackwills/adsbdb/commit/2f52c9fcd010c51ae66521ec354ee333563a7f61),
++ Change to flightroute response, use origin, destination, and occasionally midpoint, keys, all which contain an Airport Value, [2f52c9fc](https://github.com/mrjackwills/adsbdb/commit/2f52c9fcd010c51ae66521ec354ee333563a7f61),
 + Api Dockerfile download binary from github instead of building, [d69ad32a](https://github.com/mrjackwills/adsbdb/commit/d69ad32a585be102959a38e5b3196817e0123a3b),
 + github workflow renamed, [5e7ee6fe](https://github.com/mrjackwills/adsbdb/commit/5e7ee6fe923aa886f894e4a765391709cc8e34d5),
 

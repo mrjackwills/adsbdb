@@ -1,5 +1,5 @@
 use crate::{
-    api::{AircraftSearch, AppError, Callsign, ModeS, Registration},
+    api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
     parse_env::AppEnv,
 };
 use redis::{
@@ -16,22 +16,22 @@ const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
 /// Convert a redis string result into a Option<T>
-fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Result<Option<T>, AppError> {
+fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Option<T> {
     if v == &Value::Nil {
-        return Ok(None);
+        return None;
     }
     match from_redis_value::<String>(v) {
         Ok(string_value) => {
             if string_value.is_empty() {
-                Ok(None)
+                None
             } else {
-                Ok(Some(serde_json::from_str::<T>(&string_value)?))
+                serde_json::from_str::<T>(&string_value).ok()
             }
         }
         Err(e) => {
             error!("value::{:#?}", v);
-            error!("{:?}", e);
-            Err(AppError::RedisError(e))
+            error!("{e:?}");
+            None
         }
     }
 }
@@ -48,7 +48,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
         .await?
     {
         redis.expire(&key, ONE_WEEK).await?;
-        Ok(Some(redis_to_serde(&value)?))
+        Ok(Some(redis_to_serde(&value)))
     } else {
         Ok(None)
     }
@@ -90,6 +90,7 @@ pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
 
 #[derive(Debug, Clone)]
 pub enum RedisKey<'a> {
+    Airline(&'a AirlineCode),
     Callsign(&'a Callsign),
     Registration(&'a Registration),
     ModeS(&'a ModeS),
@@ -99,6 +100,7 @@ pub enum RedisKey<'a> {
 impl<'a> fmt::Display for RedisKey<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::Airline(airline) => write!(f, "airline::{airline}"),
             Self::Callsign(callsign) => write!(f, "callsign::{callsign}"),
             Self::ModeS(mode_s) => write!(f, "mode_s::{mode_s}"),
             Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),

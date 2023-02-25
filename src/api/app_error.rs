@@ -11,12 +11,14 @@ use super::response::ResponseJson;
 pub enum UnknownAC {
     Aircraft,
     Callsign,
+    Airline,
 }
 
 impl fmt::Display for UnknownAC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let disp = match self {
             Self::Aircraft => "aircraft",
+            Self::Airline => "airline",
             Self::Callsign => "callsign",
         };
         write!(f, "{disp}")
@@ -27,6 +29,8 @@ impl fmt::Display for UnknownAC {
 pub enum AppError {
     #[error("invalid modeS or registration:")]
     AircraftSearch(String),
+    #[error("invalid airline:")]
+    Airline(String),
     #[error("Axum")]
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
     #[error("invalid callsign:")]
@@ -58,10 +62,15 @@ pub enum AppError {
 impl IntoResponse for AppError {
     #[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
+        let exit = || {
+            error!("EXITING");
+            std::process::exit(1);
+        };
+
         let prefix = self.to_string();
         let (status, body) = match self {
             Self::AxumExtension(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
@@ -69,6 +78,7 @@ impl IntoResponse for AppError {
             }
             Self::Callsign(err)
             | Self::AircraftSearch(err)
+            | Self::Airline(err)
             | Self::ModeS(err)
             | Self::NNumber(err)
             | Self::Registration(err) => (
@@ -77,14 +87,14 @@ impl IntoResponse for AppError {
             ),
 
             Self::Internal(e) => {
-                error!("internal: {:?}", e);
+                error!("internal: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(format!("{prefix} {e}")),
                 )
             }
             Self::ParseInt(e) => {
-                error!("parseint: {:?}", e);
+                error!("parseint: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
@@ -95,28 +105,37 @@ impl IntoResponse for AppError {
                 ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
             Self::RedisError(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
+                if e.is_io_error() {
+                    exit();
+                };
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
                 )
             }
             Self::Reqwest(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
                 )
             }
             Self::SerdeJson(e) => {
-                error!("serde: {:?}", e);
+                error!("serde: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),
                 )
             }
             Self::SqlxError(e) => {
-                error!("{:?}", e);
+                error!("{e:?}");
+                match e {
+                    sqlx::Error::Io(_) | sqlx::Error::PoolClosed | sqlx::Error::PoolTimedOut => {
+                        exit();
+                    }
+                    _ => (),
+                };
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(prefix),

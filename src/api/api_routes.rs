@@ -2,32 +2,33 @@ use std::collections::HashMap;
 
 use axum::extract::{OriginalUri, State};
 
-use super::input::{AircraftSearch, Callsign, ModeS, NNumber};
+use super::input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Validate};
 use super::response::{
-    AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseFlightRoute, ResponseJson,
+    AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseAirline, ResponseFlightRoute,
+    ResponseJson,
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
-use crate::db_postgres::{ModelAircraft, ModelFlightroute};
+use crate::db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute};
 use crate::db_redis::{get_cache, insert_cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
-/// Check redis cache for Option<ModelFlightroute>, else query postgres
+/// Check redis cache for Option\<ModelFlightroute>, else query postgres
 async fn find_flightroute(
-    path: &Callsign,
     state: ApplicationState,
+    callsign: &Callsign,
 ) -> Result<Option<ModelFlightroute>, AppError> {
-    let redis_key = RedisKey::Callsign(path);
+    let redis_key = RedisKey::Callsign(callsign);
     if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
         flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| {
             Ok(Some(route))
         })
     } else {
-        let mut flightroute = ModelFlightroute::get(&state.postgres, path).await?;
+        let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await?;
         if flightroute.is_none() {
             flightroute = state
                 .scraper
-                .scrape_flightroute(&state.postgres, path)
+                .scrape_flightroute(&state.postgres, callsign)
                 .await?;
         }
         insert_cache(&state.redis, &flightroute, &redis_key).await?;
@@ -35,10 +36,10 @@ async fn find_flightroute(
     }
 }
 
-/// Check redis cache for Option<ModelAircraft>, else query postgres
+/// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    aircraft_search: &AircraftSearch,
     state: ApplicationState,
+    aircraft_search: &AircraftSearch,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::from(aircraft_search);
 
@@ -61,6 +62,25 @@ async fn find_aircraft(
     }
 }
 
+/// Check redis cache for Option\<ModelAircraft>, else query postgres
+async fn find_airline(
+    state: ApplicationState,
+    airline: &AirlineCode,
+) -> Result<Option<Vec<ModelAirline>>, AppError> {
+    let redis_key = RedisKey::Airline(airline);
+
+    if let Some(airline) = get_cache::<Vec<ModelAirline>>(&state.redis, &redis_key).await? {
+        airline.map_or(Err(AppError::UnknownInDb(UnknownAC::Airline)), |airline| {
+            Ok(Some(airline))
+        })
+    } else {
+        let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
+        insert_cache(&state.redis, &airline, &redis_key).await?;
+        Ok(airline)
+        // Ok(None)
+    }
+}
+
 /// Return an aircraft detail from a modes input
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 /// TODO turn this optional into an extractor?
@@ -71,10 +91,10 @@ pub async fn aircraft_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
-        let callsign = Callsign::try_from(query_param)?;
+        let callsign = Callsign::validate(query_param)?;
         let (aircraft, flightroute) = tokio::try_join!(
-            find_aircraft(&aircraft_search, state.clone()),
-            find_flightroute(&callsign, state)
+            find_aircraft(state.clone(), &aircraft_search),
+            find_flightroute(state, &callsign),
         )?;
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |a| {
             Ok((
@@ -86,7 +106,7 @@ pub async fn aircraft_get(
             ))
         })
     } else {
-        find_aircraft(&aircraft_search, state).await?.map_or(
+        find_aircraft(state, &aircraft_search).await?.map_or(
             Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
             |aircraft| {
                 Ok((
@@ -101,12 +121,29 @@ pub async fn aircraft_get(
     }
 }
 
+/// Return an airline detail from a ICAO or IATA airline prefix
+pub async fn airline_get(
+    State(state): State<ApplicationState>,
+    // this will be a airline
+    airline_code: AirlineCode,
+) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
+    find_airline(state, &airline_code).await?.map_or(
+        Err(AppError::UnknownInDb(UnknownAC::Airline)),
+        |a| {
+            Ok((
+                axum::http::StatusCode::OK,
+                ResponseJson::new(a.into_iter().map(ResponseAirline::from).collect::<Vec<_>>()),
+            ))
+        },
+    )
+}
+
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
     State(state): State<ApplicationState>,
-    path: Callsign,
+    callsign: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    find_flightroute(&path, state).await?.map_or(
+    find_flightroute(state, &callsign).await?.map_or(
         Err(AppError::UnknownInDb(UnknownAC::Callsign)),
         |a| {
             Ok((
@@ -178,9 +215,10 @@ mod tests {
 
     use axum::http::Uri;
     use redis::{AsyncCommands, RedisError};
-    use sqlx::PgPool;
     use tokio::sync::Mutex;
 
+    use crate::api::input::Validate;
+    use crate::api::response::Airline;
     use crate::api::response::Airport;
     use crate::api::Registration;
     use crate::db_postgres;
@@ -208,26 +246,13 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
     }
 
-    async fn remove_scraped_flightroute(db: &PgPool) {
-        let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
-        let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-        sqlx::query(query).bind(CALLSIGN).execute(db).await.unwrap();
-        let app_env = parse_env::AppEnv::get_env();
-        let mut redis = Redis::get_connection(&app_env).await.unwrap();
-        redis::cmd("FLUSHDB")
-            .query_async::<_, ()>(&mut redis)
-            .await
-            .unwrap();
-    }
-
     #[tokio::test]
     // basically a 404 handler
     async fn http_api_fallback_route() {
         let uri = "/test/uri".parse::<Uri>().unwrap();
         let response = fallback(OriginalUri(uri.clone())).await;
         assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
-        assert_eq!(response.1.response, format!("unknown endpoint: {}", uri));
+        assert_eq!(response.1.response, format!("unknown endpoint: {uri}"));
     }
 
     #[tokio::test]
@@ -244,7 +269,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_n_number_route() {
-        let n_number = NNumber::try_from("N123AB").unwrap();
+        let n_number = NNumber::validate("N123AB").unwrap();
         let response = n_number_get(n_number).await;
 
         assert!(response.is_ok());
@@ -257,7 +282,7 @@ mod tests {
     async fn http_api_get_mode_s_ok_with_photo() {
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -296,7 +321,7 @@ mod tests {
     async fn http_api_get_registration_ok_with_photo() {
         let registration = "N377QS".to_owned();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -334,7 +359,7 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_mode_s_ok_no_photo() {
         let mode_s = "A44917";
-        let path = AircraftSearch::ModeS(ModeS::try_from(mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
@@ -367,7 +392,7 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_registration_ok_no_photo() {
         let registration = "N37522";
-        let path = AircraftSearch::Registration(Registration::try_from(registration).unwrap());
+        let path = AircraftSearch::Registration(Registration::validate(registration).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm).await;
@@ -402,10 +427,10 @@ mod tests {
     // this is with photo, need to use A44917 for without photo
     async fn http_api_get_mode_s_cached_with_photo() {
         let mode_s = "A44F3B";
-        let tmp_mode_s = ModeS::try_from(mode_s).unwrap();
+        let tmp_mode_s = ModeS::validate(mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::try_from(mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -438,10 +463,10 @@ mod tests {
     // this is with photo, need to use A44917 for without photo
     async fn http_api_get_registration_cached_with_photo() {
         let registration = "N377QS";
-        let tmp_registration = Registration::try_from(registration).unwrap();
+        let tmp_registration = Registration::validate(registration).unwrap();
         let key = RedisKey::Registration(&tmp_registration);
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::try_from(registration).unwrap());
+        let path = AircraftSearch::Registration(Registration::validate(registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -472,10 +497,10 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_mode_s_cached_no_photo() {
         let mode_s = "A44917".to_owned();
-        let tmp_mode_s = ModeS::try_from(&mode_s).unwrap();
+        let tmp_mode_s = ModeS::validate(&mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -506,10 +531,10 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_registration_cached_no_photo() {
         let registration = "N37522".to_owned();
-        let tmp_registration = Registration::try_from(&registration).unwrap();
+        let tmp_registration = Registration::validate(&registration).unwrap();
         let key = RedisKey::Registration(&tmp_registration);
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -542,10 +567,10 @@ mod tests {
     // and a second request will extend the ttl
     async fn http_api_get_mode_s_unknown_cached() {
         let mode_s = "ABABAB".to_owned();
-        let tmp_mode_s = ModeS::try_from(&mode_s).unwrap();
+        let tmp_mode_s = ModeS::validate(&mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::try_from(mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path.clone(), hm)
             .await
@@ -576,7 +601,7 @@ mod tests {
 
         sleep(1000).await;
 
-        // make sure a second requst to an unknown mode_s will extend cache ttl
+        // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -611,10 +636,10 @@ mod tests {
     // and a second request will extend the ttl
     async fn http_api_get_registration_unknown_cached() {
         let registration = "AB-ABAB".to_owned();
-        let tmp_registration = Registration::try_from(&registration).unwrap();
+        let tmp_registration = Registration::validate(&registration).unwrap();
         let key = RedisKey::Registration(&tmp_registration);
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::try_from(registration).unwrap());
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path.clone(), hm)
             .await
@@ -645,7 +670,7 @@ mod tests {
 
         sleep(1000).await;
 
-        // make sure a second requst to an unknown mode_s will extend cache ttl
+        // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
@@ -676,39 +701,50 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_ok() {
-        let callsign = "TOM35MR";
+    async fn http_api_get_icao_callsign_ok() {
+        let callsign = "ACA959";
         let application_state = get_application_state().await;
-        let path = Callsign::try_from(callsign).unwrap();
+        let path = Callsign::validate(callsign).unwrap();
         let response = callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
+
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
+            callsign_icao: Some(callsign.to_owned()),
+            callsign_iata: Some("AC959".to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
             origin: Airport {
-                country_iso_name: "ES".to_owned(),
-                country_name: "Spain".to_owned(),
-                elevation: 27,
-                iata_code: "PMI".to_owned(),
-                icao_code: "LEPA".to_owned(),
-                latitude: 39.551_701,
-                longitude: 2.73881,
-                municipality: "Palma De Mallorca".to_owned(),
-                name: "Palma de Mallorca Airport".to_owned(),
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
-                elevation: 622,
-                iata_code: "BRS".to_owned(),
-                icao_code: "EGGD".to_owned(),
-                latitude: 51.382_702,
-                longitude: -2.71909,
-                municipality: "Bristol".to_owned(),
-                name: "Bristol Airport".to_owned(),
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
             },
         };
 
@@ -721,10 +757,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_with_midpoint_ok() {
-        let callsign = "QFA031";
+    async fn http_api_get_iata_callsign_ok() {
+        let callsign = "AC959";
         let application_state = get_application_state().await;
-        let path = Callsign::try_from(callsign).unwrap();
+        let path = Callsign::validate(callsign).unwrap();
         let response = callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
@@ -733,6 +769,72 @@ mod tests {
 
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
+            callsign_icao: Some("ACA959".to_owned()),
+            callsign_iata: Some(callsign.to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
+            origin: Airport {
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
+            },
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        assert!(response.1.response.aircraft.is_none());
+    }
+
+    #[tokio::test]
+    async fn http_api_get_icao_callsign_with_midpoint_ok() {
+        let callsign = "QFA31";
+        let application_state = get_application_state().await;
+        let path = Callsign::validate(callsign).unwrap();
+        let response = callsign_get(application_state.clone(), path).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.to_owned(),
+            callsign_iata: Some("QF31".to_owned()),
+            callsign_icao: Some(callsign.to_owned()),
+            airline: Some(Airline {
+                name: "Qantas".to_owned(),
+                icao: "QFA".to_owned(),
+                iata: Some("QF".to_owned()),
+                callsign: Some("QANTAS".to_owned()),
+                country: "Australia".to_owned(),
+                country_iso: "AU".to_owned(),
+            }),
             origin: Airport {
                 country_iso_name: "AU".to_owned(),
                 country_name: "Australia".to_owned(),
@@ -777,14 +879,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn http_api_get_iata_callsign_with_midpoint_ok() {
+        let callsign = "QF31";
+        let application_state = get_application_state().await;
+        let path = Callsign::validate(callsign).unwrap();
+        let response = callsign_get(application_state.clone(), path).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.to_owned(),
+            callsign_iata: Some(callsign.to_owned()),
+            callsign_icao: Some("QFA31".to_owned()),
+            airline: Some(Airline {
+                name: "Qantas".to_owned(),
+                icao: "QFA".to_owned(),
+                iata: Some("QF".to_owned()),
+                callsign: Some("QANTAS".to_owned()),
+                country: "Australia".to_owned(),
+                country_iso: "AU".to_owned(),
+            }),
+            origin: Airport {
+                country_iso_name: "AU".to_owned(),
+                country_name: "Australia".to_owned(),
+                elevation: 21,
+                iata_code: "SYD".to_owned(),
+                icao_code: "YSSY".to_owned(),
+                latitude: -33.946_098_327_636_72,
+                longitude: 151.177_001_953_125,
+                municipality: "Sydney".to_owned(),
+                name: "Sydney Kingsford Smith International Airport".to_owned(),
+            },
+            midpoint: Some(Airport {
+                country_iso_name: "SG".to_owned(),
+                country_name: "Singapore".to_owned(),
+                elevation: 22,
+                iata_code: "SIN".to_owned(),
+                icao_code: "WSSS".to_owned(),
+                latitude: 1.35019,
+                longitude: 103.994_003,
+                municipality: "Singapore".to_owned(),
+                name: "Singapore Changi Airport".to_owned(),
+            }),
+            destination: Airport {
+                country_iso_name: "GB".to_owned(),
+                country_name: "United Kingdom".to_owned(),
+                elevation: 83,
+                iata_code: "LHR".to_owned(),
+                icao_code: "EGLL".to_owned(),
+                latitude: 51.4706,
+                longitude: -0.461_941,
+                municipality: "London".to_owned(),
+                name: "London Heathrow Airport".to_owned(),
+            },
+        };
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        assert!(response.1.response.aircraft.is_none());
+    }
+
+    #[tokio::test]
     /// Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
     async fn http_api_get_callsign_cached() {
-        let callsign = "TOM35MR";
+        let callsign = "AC959";
         let application_state = get_application_state().await;
-        let path = Callsign::try_from(callsign).unwrap();
+        let path = Callsign::validate(callsign).unwrap();
         callsign_get(application_state.clone(), path).await.unwrap();
 
-        let tmp_callsign = Callsign::try_from(callsign).unwrap();
+        let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
@@ -794,16 +961,27 @@ mod tests {
             .await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(result.airline_callsign, Some("AIR CANADA".to_owned()));
+        assert_eq!(result.airline_country_iso_name, Some("CA".to_owned()));
+        assert_eq!(result.airline_country_name, Some("Canada".to_owned()));
+        assert_eq!(result.airline_iata, Some("AC".to_owned()));
+        assert_eq!(result.airline_icao, Some("ACA".to_owned()));
+        assert_eq!(result.airline_name, Some("Air Canada".to_owned()));
+
         assert_eq!(result.callsign, callsign);
-        assert_eq!(result.origin_airport_country_iso_name, "ES");
-        assert_eq!(result.origin_airport_country_name, "Spain");
-        assert_eq!(result.origin_airport_elevation, 27);
-        assert_eq!(result.origin_airport_iata_code, "PMI");
-        assert_eq!(result.origin_airport_icao_code, "LEPA");
-        assert_eq!(result.origin_airport_latitude, 39.551_701);
-        assert_eq!(result.origin_airport_longitude, 2.73881);
-        assert_eq!(result.origin_airport_municipality, "Palma De Mallorca");
-        assert_eq!(result.origin_airport_name, "Palma de Mallorca Airport");
+        assert_eq!(result.origin_airport_country_iso_name, "CA");
+        assert_eq!(result.origin_airport_country_name, "Canada");
+        assert_eq!(result.origin_airport_elevation, 118);
+        assert_eq!(result.origin_airport_iata_code, "YUL");
+        assert_eq!(result.origin_airport_icao_code, "CYUL");
+        assert_eq!(result.origin_airport_latitude, 45.470_600_128_2);
+        assert_eq!(result.origin_airport_longitude, -73.740_798_950_2);
+        assert_eq!(result.origin_airport_municipality, "Montréal");
+        assert_eq!(
+            result.origin_airport_name,
+            "Montreal / Pierre Elliott Trudeau International Airport"
+        );
         assert!(result.midpoint_airport_country_iso_name.is_none());
         assert!(result.midpoint_airport_country_name.is_none());
         assert!(result.midpoint_airport_elevation.is_none());
@@ -813,15 +991,21 @@ mod tests {
         assert!(result.midpoint_airport_longitude.is_none());
         assert!(result.midpoint_airport_municipality.is_none());
         assert!(result.midpoint_airport_name.is_none());
-        assert_eq!(result.destination_airport_country_iso_name, "GB");
-        assert_eq!(result.destination_airport_country_name, "United Kingdom");
-        assert_eq!(result.destination_airport_elevation, 622);
-        assert_eq!(result.destination_airport_iata_code, "BRS");
-        assert_eq!(result.destination_airport_icao_code, "EGGD");
-        assert_eq!(result.destination_airport_latitude, 51.382_702);
-        assert_eq!(result.destination_airport_longitude, -2.719_09);
-        assert_eq!(result.destination_airport_municipality, "Bristol");
-        assert_eq!(result.destination_airport_name, "Bristol Airport");
+        assert_eq!(result.destination_airport_country_iso_name, "CR");
+        assert_eq!(result.destination_airport_country_name, "Costa Rica");
+        assert_eq!(result.destination_airport_elevation, 3021);
+        assert_eq!(result.destination_airport_iata_code, "SJO");
+        assert_eq!(result.destination_airport_icao_code, "MROC");
+        assert_eq!(result.destination_airport_latitude, 9.993_86);
+        assert_eq!(result.destination_airport_longitude, -84.208_801);
+        assert_eq!(
+            result.destination_airport_municipality,
+            "San José (Alajuela)"
+        );
+        assert_eq!(
+            result.destination_airport_name,
+            "Juan Santamaría International Airport"
+        );
 
         let ttl: usize = application_state
             .redis
@@ -836,11 +1020,11 @@ mod tests {
     #[tokio::test]
     // Make sure flightroute is inserted correctly into redis cache and has ttl of 604800
     async fn http_api_get_midpoint_callsign_cached() {
-        let callsign = "QFA031";
+        let callsign = "QFA31";
         let application_state = get_application_state().await;
-        let path = Callsign::try_from(callsign).unwrap();
+        let path = Callsign::validate(callsign).unwrap();
         callsign_get(application_state.clone(), path).await.unwrap();
-        let tmp_callsign = Callsign::try_from(callsign).unwrap();
+        let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
@@ -852,6 +1036,13 @@ mod tests {
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(result.callsign, callsign);
+
+        assert_eq!(result.airline_callsign, Some("QANTAS".to_owned()));
+        assert_eq!(result.airline_country_iso_name, Some("AU".to_owned()));
+        assert_eq!(result.airline_country_name, Some("Australia".to_owned()));
+        assert_eq!(result.airline_iata, Some("QF".to_owned()));
+        assert_eq!(result.airline_icao, Some("QFA".to_owned()));
+        assert_eq!(result.airline_name, Some("Qantas".to_owned()));
 
         assert_eq!(result.origin_airport_country_iso_name, "AU");
         assert_eq!(result.origin_airport_country_name, "Australia");
@@ -912,7 +1103,7 @@ mod tests {
     /// Insert a new flightroute using the scraper
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
-        let path = Callsign::try_from(CALLSIGN).unwrap();
+        let path = Callsign::validate(CALLSIGN).unwrap();
 
         let response = callsign_get(application_state.clone(), path).await;
 
@@ -922,7 +1113,16 @@ mod tests {
 
         let expected = ResponseFlightRoute {
             callsign: "ANA460".to_owned(),
-
+            callsign_icao: Some("ANA460".to_owned()),
+            callsign_iata: Some("NH460".to_owned()),
+            airline: Some(Airline {
+                name: "All Nippon Airways".to_owned(),
+                icao: "ANA".to_owned(),
+                iata: Some("NH".to_owned()),
+                country: "Japan".to_owned(),
+                country_iso: "JP".to_owned(),
+                callsign: Some("ALL NIPPON".to_owned()),
+            }),
             origin: Airport {
                 country_iso_name: "JP".to_owned(),
                 country_name: "Japan".to_owned(),
@@ -948,11 +1148,9 @@ mod tests {
             },
         };
 
-        match &response.1.response.flightroute {
-            Some(x) => assert_eq!(x, &expected),
-            None => unreachable!(),
-        }
-        remove_scraped_flightroute(&application_state.postgres).await;
+        assert!(response.1.response.flightroute.is_some());
+        let result = response.1.response.flightroute.clone().unwrap();
+        assert_eq!(result, expected);
     }
 
     #[tokio::test]
@@ -961,7 +1159,7 @@ mod tests {
     async fn http_api_get_callsign_none_cached() {
         let callsign = "ABABAB";
         let application_state = get_application_state().await;
-        let path = Callsign::try_from(callsign).unwrap();
+        let path = Callsign::validate(callsign).unwrap();
 
         let response = callsign_get(application_state.clone(), path.clone())
             .await
@@ -970,7 +1168,7 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Callsign),
             _ => unreachable!(),
         };
-        let tmp_callsign = Callsign::try_from(callsign).unwrap();
+        let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
@@ -1023,11 +1221,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_and_flightroute_mode_s_ok_with_photo() {
-        let callsign = "TOM35MR".to_owned();
+    async fn http_api_get_icao_callsign_and_flightroute_mode_s_ok_with_photo() {
+        let callsign = "ACA959".to_owned();
         let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
         let hm = axum::extract::Query(hm);
@@ -1038,29 +1236,39 @@ mod tests {
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
-            callsign: callsign.clone(),
+            callsign: callsign.to_owned(),
+            callsign_icao: Some(callsign.to_owned()),
+            callsign_iata: Some("AC959".to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
             origin: Airport {
-                country_iso_name: "ES".to_owned(),
-                country_name: "Spain".to_owned(),
-                elevation: 27,
-                iata_code: "PMI".to_owned(),
-                icao_code: "LEPA".to_owned(),
-                latitude: 39.551_701,
-                longitude: 2.73881,
-                municipality: "Palma De Mallorca".to_owned(),
-                name: "Palma de Mallorca Airport".to_owned(),
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
-                elevation: 622,
-                iata_code: "BRS".to_owned(),
-                icao_code: "EGGD".to_owned(),
-                latitude: 51.382_702,
-                longitude: -2.71909,
-                municipality: "Bristol".to_owned(),
-                name: "Bristol Airport".to_owned(),
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
             },
         };
 
@@ -1096,11 +1304,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_and_flightroute_registration_ok_with_photo() {
-        let callsign = "TOM35MR".to_owned();
-        let registration = "N377QS".to_owned();
+    async fn http_api_get_iata_callsign_and_flightroute_mode_s_ok_with_photo() {
+        let callsign = "AC959".to_owned();
+        let mode_s = "A44F3B".to_owned();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
         let hm = axum::extract::Query(hm);
@@ -1111,32 +1319,124 @@ mod tests {
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
-            callsign: callsign.clone(),
+            callsign: callsign.to_owned(),
+            callsign_icao: Some("ACA959".to_owned()),
+            callsign_iata: Some(callsign.to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
             origin: Airport {
-                country_iso_name: "ES".to_owned(),
-                country_name: "Spain".to_owned(),
-                elevation: 27,
-                iata_code: "PMI".to_owned(),
-                icao_code: "LEPA".to_owned(),
-                latitude: 39.551_701,
-                longitude: 2.73881,
-                municipality: "Palma De Mallorca".to_owned(),
-                name: "Palma de Mallorca Airport".to_owned(),
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
-                elevation: 622,
-                iata_code: "BRS".to_owned(),
-                icao_code: "EGGD".to_owned(),
-                latitude: 51.382_702,
-                longitude: -2.71909,
-                municipality: "Bristol".to_owned(),
-                name: "Bristol Airport".to_owned(),
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
             },
         };
 
+        let aircraft = ResponseAircraft {
+            aircraft_type: "Citation Sovereign".to_owned(),
+            icao_type: "C680".to_owned(),
+            manufacturer: "Cessna".to_owned(),
+            mode_s: mode_s.clone(),
+            registration: "N377QS".to_owned(),
+            registered_owner: "NetJets".to_owned(),
+            registered_owner_operator_flag_code: "EJA".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: Some(format!(
+                "{}{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+            url_photo_thumbnail: Some(format!(
+                "{}thumbnails/{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        match &response.1.response.aircraft {
+            Some(d) => assert_eq!(d, &aircraft),
+            None => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    async fn http_api_get_icao_callsign_and_flightroute_registration_ok_with_photo() {
+        let callsign = "ACA959".to_owned();
+        let registration = "N377QS".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
+        let mut hm = HashMap::new();
+        hm.insert("callsign".to_owned(), callsign.clone());
+        let hm = axum::extract::Query(hm);
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.to_owned(),
+            callsign_icao: Some(callsign.to_owned()),
+            callsign_iata: Some("AC959".to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
+            origin: Airport {
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
+            },
+        };
         let aircraft = ResponseAircraft {
             aircraft_type: "Citation Sovereign".to_owned(),
             icao_type: "C680".to_owned(),
@@ -1169,11 +1469,93 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_mode_s_and_flightroute_ok_no_photo() {
-        let callsign = "TOM35MR".to_owned();
+    async fn http_api_get_iata_callsign_and_flightroute_registration_ok_with_photo() {
+        let callsign = "AC959".to_owned();
+        let registration = "N377QS".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
+        let mut hm = HashMap::new();
+        hm.insert("callsign".to_owned(), callsign.clone());
+        let hm = axum::extract::Query(hm);
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.to_owned(),
+            callsign_icao: Some("ACA959".to_owned()),
+            callsign_iata: Some(callsign.to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
+            origin: Airport {
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
+            },
+        };
+        let aircraft = ResponseAircraft {
+            aircraft_type: "Citation Sovereign".to_owned(),
+            icao_type: "C680".to_owned(),
+            manufacturer: "Cessna".to_owned(),
+            mode_s: "A44F3B".to_owned(),
+            registration: registration.to_owned(),
+            registered_owner: "NetJets".to_owned(),
+            registered_owner_operator_flag_code: "EJA".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: Some(format!(
+                "{}{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+            url_photo_thumbnail: Some(format!(
+                "{}thumbnails/{}",
+                application_state.url_prefix, "001/572/001572354.jpg"
+            )),
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        match &response.1.response.aircraft {
+            Some(d) => assert_eq!(d, &aircraft),
+            None => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    async fn http_api_get_icao_callsign_mode_s_and_flightroute_ok_no_photo() {
+        let callsign = "ACA959".to_owned();
         let mode_s = "A44917".to_owned();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::try_from(&mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
 
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
@@ -1185,29 +1567,39 @@ mod tests {
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
-            callsign: callsign.clone(),
+            callsign: callsign.to_owned(),
+            callsign_icao: Some(callsign.to_owned()),
+            callsign_iata: Some("AC959".to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
             origin: Airport {
-                country_iso_name: "ES".to_owned(),
-                country_name: "Spain".to_owned(),
-                elevation: 27,
-                iata_code: "PMI".to_owned(),
-                icao_code: "LEPA".to_owned(),
-                latitude: 39.551_701,
-                longitude: 2.73881,
-                municipality: "Palma De Mallorca".to_owned(),
-                name: "Palma de Mallorca Airport".to_owned(),
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
-                elevation: 622,
-                iata_code: "BRS".to_owned(),
-                icao_code: "EGGD".to_owned(),
-                latitude: 51.382_702,
-                longitude: -2.71909,
-                municipality: "Bristol".to_owned(),
-                name: "Bristol Airport".to_owned(),
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
             },
         };
 
@@ -1237,11 +1629,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_get_callsign_registration_and_flightroute_ok_no_photo() {
-        let callsign = "TOM35MR".to_owned();
-        let registration = "N37522".to_owned();
+    async fn http_api_get_iata_callsign_mode_s_and_flightroute_ok_no_photo() {
+        let callsign = "AC959".to_owned();
+        let mode_s = "A44917".to_owned();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::try_from(&registration).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
 
         let mut hm = HashMap::new();
         hm.insert("callsign".to_owned(), callsign.clone());
@@ -1253,29 +1645,117 @@ mod tests {
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
-            callsign: callsign.clone(),
+            callsign: callsign.to_owned(),
+            callsign_icao: Some("ACA959".to_owned()),
+            callsign_iata: Some(callsign.to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
             origin: Airport {
-                country_iso_name: "ES".to_owned(),
-                country_name: "Spain".to_owned(),
-                elevation: 27,
-                iata_code: "PMI".to_owned(),
-                icao_code: "LEPA".to_owned(),
-                latitude: 39.551_701,
-                longitude: 2.73881,
-                municipality: "Palma De Mallorca".to_owned(),
-                name: "Palma de Mallorca Airport".to_owned(),
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
-                elevation: 622,
-                iata_code: "BRS".to_owned(),
-                icao_code: "EGGD".to_owned(),
-                latitude: 51.382_702,
-                longitude: -2.71909,
-                municipality: "Bristol".to_owned(),
-                name: "Bristol Airport".to_owned(),
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
+            },
+        };
+
+        let aircraft = ResponseAircraft {
+            aircraft_type: "737MAX 9".to_owned(),
+            icao_type: "B39M".to_owned(),
+            manufacturer: "Boeing".to_owned(),
+            mode_s: mode_s.clone(),
+            registration: "N37522".to_owned(),
+            registered_owner: "United Airlines".to_owned(),
+            registered_owner_operator_flag_code: "UAL".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        match &response.1.response.aircraft {
+            Some(d) => assert_eq!(d, &aircraft),
+            None => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    async fn http_api_get_icao_callsign_registration_and_flightroute_ok_no_photo() {
+        let callsign = "ACA959".to_owned();
+        let registration = "N37522".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
+
+        let mut hm = HashMap::new();
+        hm.insert("callsign".to_owned(), callsign.clone());
+        let hm = axum::extract::Query(hm);
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.to_owned(),
+            callsign_icao: Some(callsign.to_owned()),
+            callsign_iata: Some("AC959".to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
+            origin: Airport {
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
             },
         };
 
@@ -1302,5 +1782,371 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
+    }
+
+    #[tokio::test]
+    async fn http_api_get_iata_callsign_registration_and_flightroute_ok_no_photo() {
+        let callsign = "AC959".to_owned();
+        let registration = "N37522".to_owned();
+        let application_state = get_application_state().await;
+        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
+
+        let mut hm = HashMap::new();
+        hm.insert("callsign".to_owned(), callsign.clone());
+        let hm = axum::extract::Query(hm);
+        let response = aircraft_get(application_state.clone(), path, hm).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let flightroute = ResponseFlightRoute {
+            callsign: callsign.to_owned(),
+            callsign_icao: Some("ACA959".to_owned()),
+            callsign_iata: Some(callsign.to_owned()),
+            airline: Some(Airline {
+                name: "Air Canada".to_owned(),
+                icao: "ACA".to_owned(),
+                iata: Some("AC".to_owned()),
+                country: "Canada".to_owned(),
+                country_iso: "CA".to_owned(),
+                callsign: Some("AIR CANADA".to_owned()),
+            }),
+            origin: Airport {
+                country_iso_name: "CA".to_owned(),
+                country_name: "Canada".to_owned(),
+                elevation: 118,
+                iata_code: "YUL".to_owned(),
+                icao_code: "CYUL".to_owned(),
+                latitude: 45.4706001282,
+                longitude: -73.7407989502,
+                municipality: "Montréal".to_owned(),
+                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+            },
+            midpoint: None,
+            destination: Airport {
+                country_iso_name: "CR".to_owned(),
+                country_name: "Costa Rica".to_owned(),
+                elevation: 3021,
+                iata_code: "SJO".to_owned(),
+                icao_code: "MROC".to_owned(),
+                latitude: 9.99386,
+                longitude: -84.208801,
+                municipality: "San José (Alajuela)".to_owned(),
+                name: "Juan Santamaría International Airport".to_owned(),
+            },
+        };
+
+        let aircraft = ResponseAircraft {
+            aircraft_type: "737MAX 9".to_owned(),
+            icao_type: "B39M".to_owned(),
+            manufacturer: "Boeing".to_owned(),
+            mode_s: "A44917".to_owned(),
+            registration: registration.clone(),
+            registered_owner: "United Airlines".to_owned(),
+            registered_owner_operator_flag_code: "UAL".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        match &response.1.response.flightroute {
+            Some(d) => assert_eq!(d, &flightroute),
+            None => unreachable!(),
+        }
+
+        match &response.1.response.aircraft {
+            Some(d) => assert_eq!(d, &aircraft),
+            None => unreachable!(),
+        }
+    }
+
+    /// Airline Route
+    /// `/airline/[short_code]`
+
+    #[tokio::test]
+    /// Make sure that an unknown iata Airline is inserted correctly into redis cache as NULL and has ttl of 604800
+    /// and another request extends the tll to 604800 again
+    async fn http_api_get_iata_airline_none_cached() {
+        let callsign = "R56";
+        let application_state = get_application_state().await;
+        let path = AirlineCode::Iata(callsign.to_owned());
+
+        let response = airline_get(application_state.clone(), path.clone())
+            .await
+            .unwrap_err();
+        match response {
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Airline),
+            _ => unreachable!(),
+        };
+        let key = RedisKey::Airline(&path);
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+
+        sleep(1000).await;
+
+        // Check second request is also in redis, and cache ttl gets reset
+        let response = airline_get(application_state.clone(), path.clone())
+            .await
+            .unwrap_err();
+
+        match response {
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Airline),
+            _ => unreachable!(),
+        };
+
+        let key = RedisKey::Airline(&path);
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+    }
+
+    #[tokio::test]
+    /// Make sure that an unknown icao Airline is inserted correctly into redis cache as NULL and has ttl of 604800
+    /// and another request extends the tll to 604800 again
+    async fn http_api_get_icao_airline_none_cached() {
+        let callsign = "RTT";
+        let application_state = get_application_state().await;
+        let path = AirlineCode::Icao(callsign.to_owned());
+
+        let response = airline_get(application_state.clone(), path.clone())
+            .await
+            .unwrap_err();
+        match response {
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Airline),
+            _ => unreachable!(),
+        };
+        let key = RedisKey::Airline(&path);
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+
+        sleep(1000).await;
+
+        // Check second request is also in redis, and cache ttl gets reset
+        let response = airline_get(application_state.clone(), path.clone())
+            .await
+            .unwrap_err();
+
+        match response {
+            AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Airline),
+            _ => unreachable!(),
+        };
+
+        let key = RedisKey::Airline(&path);
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+    }
+
+    #[tokio::test]
+    /// Make sure that a known icao Airline is returned, and inserted correctly into redis cache
+    /// and another request extends the tll to 604800 again
+    async fn http_api_get_icao_airline_ok_and_cached() {
+        let callsign = "RCK";
+        let application_state = get_application_state().await;
+        let path = AirlineCode::Icao(callsign.to_owned());
+
+        let response = airline_get(application_state.clone(), path.clone()).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let expected = [ResponseAirline {
+            name: "Faroejet".to_owned(),
+            icao: "RCK".to_owned(),
+            iata: Some("F6".to_owned()),
+            country: "Faroe Islands".to_owned(),
+            country_iso: "FO".to_owned(),
+            callsign: Some("ROCKROSE".to_owned()),
+        }];
+        assert_eq!(response.1.response, expected);
+
+        let key = RedisKey::Airline(&path);
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+
+        let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].airline_name, "Faroejet".to_owned());
+        assert_eq!(result[0].country_name, "Faroe Islands".to_owned());
+        assert_eq!(result[0].country_iso_name, "FO".to_owned());
+        assert_eq!(result[0].iata_prefix, Some("F6".to_owned()));
+        assert_eq!(result[0].icao_prefix, "RCK".to_owned());
+        assert_eq!(result[0].airline_callsign, Some("ROCKROSE".to_owned()));
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+
+        sleep(1000).await;
+        let response = airline_get(application_state.clone(), path.clone()).await;
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+    }
+
+    #[tokio::test]
+    /// Make sure that a known iata code returns multiple Airlines, and inserted correctly into redis cache
+    /// and another request extends the tll to 604800 again
+    async fn http_api_get_iata_airline_ok_and_cached() {
+        let callsign = "JR";
+        let application_state = get_application_state().await;
+        let path = AirlineCode::Iata(callsign.to_owned());
+
+        let response = airline_get(application_state.clone(), path.clone()).await;
+
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+
+        let expected = [
+            ResponseAirline {
+                name: "Aero California".to_owned(),
+                icao: "SER".to_owned(),
+                iata: Some("JR".to_owned()),
+                country: "Mexico".to_owned(),
+                country_iso: "MX".to_owned(),
+                callsign: Some("AEROCALIFORNIA".to_owned()),
+            },
+            ResponseAirline {
+                name: "Joy Air".to_owned(),
+                icao: "JOY".to_owned(),
+                iata: Some("JR".to_owned()),
+                country: "China".to_owned(),
+                country_iso: "CN".to_owned(),
+                callsign: Some("JOY AIR".to_owned()),
+            },
+        ];
+        assert_eq!(response.1.response, expected);
+
+        let key = RedisKey::Airline(&path);
+        let result: Result<String, RedisError> = application_state
+            .redis
+            .lock()
+            .await
+            .hget(key.to_string(), "data")
+            .await;
+        assert!(result.is_ok());
+
+        let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].airline_name, "Aero California".to_owned());
+        assert_eq!(result[0].country_name, "Mexico".to_owned());
+        assert_eq!(result[0].country_iso_name, "MX".to_owned());
+        assert_eq!(result[0].iata_prefix, Some("JR".to_owned()));
+        assert_eq!(result[0].icao_prefix, "SER".to_owned());
+        assert_eq!(
+            result[0].airline_callsign,
+            Some("AEROCALIFORNIA".to_owned())
+        );
+
+        assert_eq!(result[1].airline_name, "Joy Air".to_owned());
+        assert_eq!(result[1].country_name, "China".to_owned());
+        assert_eq!(result[1].country_iso_name, "CN".to_owned());
+        assert_eq!(result[1].iata_prefix, Some("JR".to_owned()));
+        assert_eq!(result[1].icao_prefix, "JOY".to_owned());
+        assert_eq!(result[1].airline_callsign, Some("JOY AIR".to_owned()));
+
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
+
+        sleep(1000).await;
+        let response = airline_get(application_state.clone(), path.clone()).await;
+        assert!(response.is_ok());
+        let response = response.unwrap();
+        assert_eq!(response.0, axum::http::StatusCode::OK);
+        let ttl: usize = application_state
+            .redis
+            .lock()
+            .await
+            .ttl(key.to_string())
+            .await
+            .unwrap();
+        assert_eq!(ttl, 604_800);
     }
 }

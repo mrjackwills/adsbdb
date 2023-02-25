@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # rust create_release
-# v0.1.1
+# v0.2.3
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -137,7 +137,7 @@ update_version_number_in_files () {
 	sed -i -r -E "s=https://api.adsbdb.com/v[0-9]+=https://api.adsbdb.com/v${MAJOR}=g" ./site/index.html
 
 	# Update version number on api dockerfile, to download latest release from github
-	sed -i -r -E "s=download/v[0-9]+.[0-9]+.[0-9]+=download/v${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dockerfile/api.Dockerfile
+	# sed -i -r -E "s=download/v[0-9]+.[0-9]+.[0-9]+=download/v${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dockerfile/api.Dockerfile
 }
 
 # Work out the current version, based on git tags
@@ -176,7 +176,6 @@ check_tag () {
 				break;;
 			*)
 				error_close "invalid option $REPLY"
-				break;;
 		esac
 	done
 }
@@ -198,6 +197,7 @@ cargo_test () {
 
 # build for production, imitate GitHub workflow
 cargo_build () {
+	echo -e "\n${YELLOW}cargo build --release${RESET}"
 	cargo build --release
 	ask_continue
 }
@@ -208,12 +208,22 @@ release_continue () {
 	ask_continue
 }
 
+check_typos () {
+	echo -e "\n${YELLOW}checking for typos${RESET}"
+	typos
+	ask_continue
+}
+
 # Full flow to create a new release
 release_flow() {
+		check_typos
+
 	check_git
 	get_git_remote_url
+
 	cargo_test
 	cargo_build
+
 	cd "${CWD}" || error_close "Can't find ${CWD}"
 	check_tag
 	
@@ -232,7 +242,10 @@ release_flow() {
 	
 	echo "cargo fmt"
 	cargo fmt
-	
+
+	echo -e "\n${PURPLE}cargo check${RESET}"
+	cargo check
+
 	release_continue "git add ."
 	git add .
 
@@ -240,9 +253,8 @@ release_flow() {
 	git commit -m "chore: release ${NEW_TAG_WITH_V}"
 
 	release_continue "git checkout main"
+	echo -e "git merge --no-ff \"${RELEASE_BRANCH}\" -m \"chore: merge ${RELEASE_BRANCH} into main\"" 
 	git checkout main
-
-	release_continue "git merge --no-ff \"${RELEASE_BRANCH}\" -m \"chore: merge ${RELEASE_BRANCH} into main\"" 
 	git merge --no-ff "$RELEASE_BRANCH" -m "chore: merge ${RELEASE_BRANCH} into main"
 
 	release_continue "git tag -am \"${RELEASE_BRANCH}\" \"$NEW_TAG_WITH_V\""
@@ -281,8 +293,7 @@ main() {
 	do
 		case $choice in
 			0)
-				exit
-				break;;
+				exit;;
 			1)
 				cargo_test
 				main
