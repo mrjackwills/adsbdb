@@ -269,7 +269,6 @@ impl Scraper {
                 }
             }
         }
-        println!("{output:#?}");
         Ok(output)
     }
 }
