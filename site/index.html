@@ -80,7 +80,20 @@
 		</p>
 		<hr>
 		<h4>Routes & Responses</h4>
-		<code>https://api.adsbdb.com/v0/online</code>
+		<strong><a href="#href_online">/online</a></strong>
+		<br>
+		<strong><a href="#href_aircraft">/aircraft</a></strong>
+		<br>
+		<strong><a href="#href_callsign">/callsign</a></strong>
+		<br>
+		<strong><a href="#href_airline">/airline</a></strong>
+		<br>
+		<strong><a href="#href_n-number">/n-number</a></strong>
+		<br>
+		<strong><a href="#href_mode-s">/mode-s</a></strong>
+
+		<hr>
+		<code id="href_online">https://api.adsbdb.com/v0/online</code>
 		<br>
 		<pre><code>{ response: {...} }</code></pre>
 		<table>
@@ -103,7 +116,7 @@
 		</table>
 		<hr>
 
-		<code>https://api.adsbdb.com/v0/aircraft/[MODE_S || REGISTRATION]</code>
+		<code id="href_aircraft">https://api.adsbdb.com/v0/aircraft/[MODE_S || REGISTRATION]</code>
 		<br>
 		<pre><code>{ response: { aircraft: {...} } }</code></pre>
 		<table>
@@ -162,7 +175,7 @@
 			</tbody>
 		</table>
 		<hr>
-		<code>https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
+		<code id="href_callsign">https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
 		<br>
 		<pre><code>{ response: { flightroute: {...} } }</code></pre>
 		<table>
@@ -351,21 +364,21 @@
 		</table>
 		<hr>
 
-		<code>https://api.adsbdb.com/v0/airline/[AIRLINE_CODE]</code>
+		<code id="href_airline">https://api.adsbdb.com/v0/airline/[AIRLINE_CODE]</code>
 		<br>
 		Query for an Airline based on an Airlines ICAO or IATA short code, if found, this will return an array with one or more Airlines
 		<br>
-		<pre><code>{ response: [ <a href="#airline_value">Airline</a> ] }</code></pre>
+		<pre><code>{ response: [ <a href="#airline_value">Airline</a>, ...] }</code></pre>
 		<hr>
 
-		<code>https://api.adsbdb.com/v0/mode-s/[MODE_S]</code>
+		<code id="href_mode-s">https://api.adsbdb.com/v0/mode-s/[MODE_S]</code>
 		<br>
 		Convert from MODE-S string to N-Number string
 		<br>
 		<pre><code>{ response: string }</code></pre>
 		<hr>
 
-		<code>https://api.adsbdb.com/v0/n-number/[N-NUMBER]</code>
+		<code id="href_n-number">https://api.adsbdb.com/v0/n-number/[N-NUMBER]</code>
 		<br>
 		Convert from N-Number string to MODE-S string
 		<br>
