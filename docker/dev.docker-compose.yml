@@ -7,7 +7,7 @@ services:
     image: adsbdb_postgres:0.1.0
     container_name: adsbdb_postgres
     build:
-      context: .
+      context: /workspaces/adsbdb/
       dockerfile: /workspaces/adsbdb/docker/dockerfile/dev.postgres.Dockerfile
       args:
         - DOCKER_UID=${DOCKER_UID}
@@ -49,7 +49,7 @@ services:
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
-      context: .
+      context: /workspaces/adsbdb/
       dockerfile: /workspaces/adsbdb/docker/dockerfile/redis.Dockerfile
       args:
         - DOCKER_UID=${DOCKER_UID}
@@ -86,7 +86,7 @@ services:
     image: adsbdb_postgres_backup:0.1.0
     container_name: adsbdb_postgres_backup
     build:
-      context: .
+      context: /workspaces/adsbdb/
       dockerfile: /workspaces/adsbdb/docker/dockerfile/dev.postgres_backup.Dockerfile
       args:
         - DOCKER_UID=${DOCKER_UID}
@@ -102,7 +102,7 @@ services:
     volumes:
       - /dev/shm/adsbdb/backups:/backups
       - /dev/shm/adsbdb/redis_data:/redis_data:ro
-      - $HOME/adsbdb/logs:/logs:ro
+      - /dev/shm/adsbdb/logs:/logs
     networks:
       - dev-adsbdb-net
     logging:
@@ -130,7 +130,7 @@ services:
         - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
         - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     volumes:
-      - /workspaces/adsbdb/logs:/logs
+      - /dev/shm/adsbdb/logs:/logs
       - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8100:8100"

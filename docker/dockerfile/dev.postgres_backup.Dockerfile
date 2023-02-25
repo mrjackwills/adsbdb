@@ -16,7 +16,8 @@ RUN apk add --update --no-cache age gnupg tzdata postgresql-client \
 	&& adduser -u ${DOCKER_UID} -S -G ${DOCKER_APP_GROUP} ${DOCKER_APP_USER} \
 	&& mkdir /backups /redis_data /logs
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./backup/postgres_backup.sh /postgres_backup.sh
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/backup/postgres_backup.sh /postgres_backup.sh
+
 RUN chmod +x /postgres_backup.sh
 
 USER ${DOCKER_APP_USER}

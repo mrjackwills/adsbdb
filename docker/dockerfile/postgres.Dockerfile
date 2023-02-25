@@ -19,13 +19,14 @@ RUN apk add --update --no-cache tzdata \
 	&& chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /healthcheck /init /backups /logs
 
 # From dump OR scratch
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} init/init_postgres.sh /docker-entrypoint-initdb.d/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/init_postgres.sh /docker-entrypoint-initdb.d/
 # This is a bit of a hack, for pg_dump.tar
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} init/init_db.sql data/pg_dump.tar* /init/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/init_db.sql ./data/pg_dump.tar* /init/
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} confs/.psqlrc /home/app_user/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/confs/.psqlrc /home/app_user/
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} healthcheck/health_postgres.sh /healthcheck/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_postgres.sh /healthcheck/
+
 RUN chmod +x /healthcheck/health_postgres.sh /docker-entrypoint-initdb.d/postgres_init.sh
 
 

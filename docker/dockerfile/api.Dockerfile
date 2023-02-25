@@ -31,7 +31,7 @@ RUN cargo build --release
 ## Runtime ##
 #############
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS RUNTIME
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
