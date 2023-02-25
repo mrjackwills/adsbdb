@@ -19,7 +19,7 @@ RUN apk add --update --no-cache tzdata \
 	&& chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /healthcheck /init /backups /logs
 
 # From dump OR scratch
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/init_postgres.sh /docker-entrypoint-initdb.d/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/postgres_init.sh /docker-entrypoint-initdb.d/
 # This is a bit of a hack, for pg_dump.tar
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/init_db.sql ./data/pg_dump.tar* /init/
 
