@@ -21,7 +21,7 @@ sqlx = {version="0.6", features = ["runtime-tokio-rustls", "postgres", "time"]}
 thiserror = "1.0"
 tokio = {version = "1.25", features=["full"]}
 tower = { version = "0.4", features = ["full"] }
-tower-http = {version="0.3", features = ["full"] }
+tower-http = {version="0.4", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = {version="0.3", features = ["json"]}
