@@ -1,19 +1,35 @@
-### 2023-01-14
+### 2023-02-25
 
-**This release has breaking changes in the response Aircaft JSON object**
+**This release has, potential, Breaking Changes**
 
 ### Chores
-+ dependencies updated, [680af9c7d94e2bb00b79a3e3e77f4058eeea4977], [227cb14a1aef740d818654a2dc20a85877e0cf1c]
++ dev container updated, [1ac83bdb561145e101b6b3bc2c27c35471b25b50], [a398c8cc09ce4f37520137ae8f91087d55f36efd]
++ create_release updated, [eb8f871deba42e035595918c0c492e2ca4f0d156], [ea93d0b6c585d7fe5f0d050822631ad8cad46cb1]
++ dependencies updated, [01204465e1a36bbb15cf4d37cdf44398e394449c], [87c9c0e63e2e86027a07b44e031b0e1614950cdb], [a8d138e0f2775e96fa4dc6516fa905e3b007446a], [5322f1de46881984003a83d7d2063ea0172cb3da], [6e83e199ef4e99773b9d4790c11ff4098fb3abb9], [a4821b9ac28c2e563916e40c18aac8900bfc35c9]
 
-### Debug
-+ ratelimit tracing, [f68df99caf4bb533afa1daf9439e593de25a8f92]
+### Docs
++ site updated, [3c4bcb49e6f0d23cc7377fcecf399f74d8067b66]
++ various comment typos, [1af07db8faaeeda55a45b386cebd851193ace79e]
++ site uptime automatically increase, [678bb062895215f6b8de3dcf6bd5e585a3a8db3a]
 
 ### Features
-**Breaking Change**
-+ `n_number` is now `registration`, the api now returns, or attempts to return, a registration for every aircraft, closes #13. The `/aircraft/x` route now accepts either mode_s hex code or aircraft registration for `x`, [b468fa824575322e64142ed031b9de158c46fb52]
+**Breaking Changes**
++ Callsigns & Flightroutes are now stored much more efficiently in the database, split, if possible, by IATA/ICAO prefix, and a suffix. This means that when searching for a Flightroute, one can use either the IATA or ICAO callsign.
+The callsign response now includes a `callsign_iata` and `callsign_icao` key, as well as an Airline object (see the [README.md](https://github.com/mrjackwills/adsbdb/blob/main/README.md) or [adsbdb.com](https://www.adsbdb.com) for more information). A new `/airline` route is now available, which will search
+for Airlines, again based on either `ICAO` or `IATA` airline codes, and will either return an array of Airlines, or a 404 response, [d1f614d3b5288dc000aa026a825e6f9f14b06f54]
++ Add an env to disable flightroute & photo scraping, [1024d7f7715f97c86a5e0ca40a906633b8f6029a]
++ Dockerfiles updated, build from source, [7c9e4861f77191d9cca904dd3c32e8ada8bae294], [2bd3df6d93505cb9132a72b0524946040f56317d]
++ openssl dependency removed, [7870c7d19c260906b1f21610a4a09dc9a5a46cad]
++ force exit if database connection error, [d950b39f0527d0419ff1219c7033ae6782d2cba3]
++ dev postgres run from /dev/shm, auto pg_dump restoration, [c5eb2466b67fa45608c8c6356389ab5f91b4aaaf], [ad171abdb487d1db90635eea866fa11ca0edaeb6]
++ backup use age, [00c9d63da8b891fdfb0b6651aef643a1b62ff4b8]
 
 ### Fixes
-+ Use a reqwest::Client builder, to enable request timeout, as well as gzip & brotli, [57bd31d95501c8ae6b1bc4ca88f92035ce137450]
++ increase redis docker memory limit, [a58b6a7eaf219d2ac5c2d0becbd149b4aa1522af], [ce22824918bd56b48d077506d0edffa8dfde5905]
+
+### Refactors
++ Rust 1.67.0 clippy linting, [b3ff5c4965f05ba0eecdb71569dc6908296d16f6]
++ dead code removed, [427bb899439b313ba3df0278f4dbc99f9d324c81]
 
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
