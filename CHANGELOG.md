@@ -1,4 +1,4 @@
-**This release has breaking changes**
+**This release has, potential, Breaking Changes**
 
 ### Chores
 + dev container updated, [1ac83bdb561145e101b6b3bc2c27c35471b25b50], [a398c8cc09ce4f37520137ae8f91087d55f36efd]
@@ -11,7 +11,7 @@
 + site uptime automatically increase, [678bb062895215f6b8de3dcf6bd5e585a3a8db3a]
 
 ### Features
-**Breaking Change**
+**Breaking Changes**
 + Callsigns & Flightroutes are now stored much more efficiently in the database, split, if possible, by IATA/ICAO prefix, and a suffix. This means that when searching for a Flightroute, one can use either the IATA or ICAO callsign.
 The callsign response now includes a `callsign_iata` and `callsign_icao` key, as well as an Airline object (see the [README.md](https://github.com/mrjackwills/adsbdb/blob/main/README.md) or [adsbdb.com](https://www.adsbdb.com) for more information). A new `/airline` route is now available, which will search
 for Airlines, again based on either `ICAO` or `IATA` airline codes, and will either return an array of Airlines, or a 404 response, [d1f614d3b5288dc000aa026a825e6f9f14b06f54]
