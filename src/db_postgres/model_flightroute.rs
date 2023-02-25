@@ -371,13 +371,13 @@ AND
                 .await?;
             let query = r"
 INSERT INTO
-	flightroute
-		(airport_origin_id, airport_destination_id, flightroute_callsign_id)
+    flightroute
+        (airport_origin_id, airport_destination_id, flightroute_callsign_id)
     VALUES (
-		(SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic ON aa.airport_icao_code_id = aic.airport_icao_code_id WHERE aic.icao_code = $2),
+        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic ON aa.airport_icao_code_id = aic.airport_icao_code_id WHERE aic.icao_code = $2),
         (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic ON aa.airport_icao_code_id = aic.airport_icao_code_id WHERE aic.icao_code = $3),
         $1
-	)";
+    )";
             sqlx::query(query)
                 .bind(flighroute_callsign_id.id)
                 .bind(&scraped_flightroute.origin)

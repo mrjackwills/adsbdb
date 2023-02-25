@@ -225,7 +225,7 @@ mod tests {
         assert!(result02.unwrap().is_none());
     }
 
-	#[test]
+    #[test]
     fn env_parse_boolean_ok() {
         // FIXTURES
         let mut map = HashMap::new();
@@ -245,7 +245,7 @@ mod tests {
         assert!(!result03);
         assert!(!result04);
     }
-	
+
     #[test]
     fn env_return_appenv() {
         dotenvy::dotenv().ok();

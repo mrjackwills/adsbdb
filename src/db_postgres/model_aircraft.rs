@@ -35,57 +35,57 @@ impl ModelAircraft {
     const fn get_query_mode_s() -> &'static str {
         r#"
 SELECT
-	aa.aircraft_id,
-	$1 AS mode_s,
-	ar.registration,
-	aro.registered_owner,
-	aof.operator_flag_code AS registered_owner_operator_flag_code,
-	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
-	am.manufacturer,
-	at.type AS aircraft_type,
-	ait.icao_type,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+    aa.aircraft_id,
+    $1 AS mode_s,
+    ar.registration,
+    aro.registered_owner,
+    aof.operator_flag_code AS registered_owner_operator_flag_code,
+    co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
+    am.manufacturer,
+    at.type AS aircraft_type,
+    ait.icao_type,
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
-	aircraft aa
+    aircraft aa
 JOIN
-	aircraft_mode_s ams
+    aircraft_mode_s ams
 ON
-	aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
+    aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
 JOIN
-	aircraft_registration ar
+    aircraft_registration ar
 ON
-	aa.aircraft_registration_id = ar.aircraft_registration_id
+    aa.aircraft_registration_id = ar.aircraft_registration_id
 JOIN
-	country co
+    country co
 ON
-	aa.country_id = co.country_id
+    aa.country_id = co.country_id
 JOIN
-	aircraft_type at
+    aircraft_type at
 ON
-	aa.aircraft_type_id = at.aircraft_type_id
+    aa.aircraft_type_id = at.aircraft_type_id
 JOIN
-	aircraft_registered_owner aro
+    aircraft_registered_owner aro
 ON
-	aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
+    aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
 JOIN
-	aircraft_icao_type ait
+    aircraft_icao_type ait
 ON
-	aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
+    aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
 JOIN
-	aircraft_manufacturer am
+    aircraft_manufacturer am
 ON
-	aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
+    aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
 JOIN
-	aircraft_operator_flag_code aof
+    aircraft_operator_flag_code aof
 ON
-	aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
+    aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
 LEFT JOIN
-	aircraft_photo ap
+    aircraft_photo ap
 ON
-	aa.aircraft_photo_id = ap.aircraft_photo_id
+    aa.aircraft_photo_id = ap.aircraft_photo_id
 WHERE
-	ams.mode_s = $1"#
+    ams.mode_s = $1"#
     }
 
     /// Separated out, so can use in tests with a transaction
@@ -93,57 +93,57 @@ WHERE
     const fn get_query_registration() -> &'static str {
         r#"
 SELECT
-	aa.aircraft_id,
-	ams.mode_s,
-	$1 AS registration,
-	aro.registered_owner,
-	aof.operator_flag_code AS registered_owner_operator_flag_code,
-	co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
-	am.manufacturer,
-	at.type AS aircraft_type,
-	ait.icao_type,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
-	CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+    aa.aircraft_id,
+    ams.mode_s,
+    $1 AS registration,
+    aro.registered_owner,
+    aof.operator_flag_code AS registered_owner_operator_flag_code,
+    co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
+    am.manufacturer,
+    at.type AS aircraft_type,
+    ait.icao_type,
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
-	aircraft aa
+    aircraft aa
 JOIN
-	aircraft_mode_s ams
+    aircraft_mode_s ams
 ON
-	aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
+    aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
 JOIN
-	aircraft_registration ar
+    aircraft_registration ar
 ON
-	aa.aircraft_registration_id = ar.aircraft_registration_id
+    aa.aircraft_registration_id = ar.aircraft_registration_id
 JOIN
-	country co
+    country co
 ON
-	aa.country_id = co.country_id
+    aa.country_id = co.country_id
 JOIN
-	aircraft_type at
+    aircraft_type at
 ON
-	aa.aircraft_type_id = at.aircraft_type_id
+    aa.aircraft_type_id = at.aircraft_type_id
 JOIN
-	aircraft_registered_owner aro
+    aircraft_registered_owner aro
 ON
-	aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
+    aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
 JOIN
-	aircraft_icao_type ait
+    aircraft_icao_type ait
 ON
-	aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
+    aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
 JOIN
-	aircraft_manufacturer am
+    aircraft_manufacturer am
 ON
-	aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
+    aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
 JOIN
-	aircraft_operator_flag_code aof
+    aircraft_operator_flag_code aof
 ON
-	aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
+    aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
 LEFT JOIN
-	aircraft_photo ap
+    aircraft_photo ap
 ON
-	aa.aircraft_photo_id = ap.aircraft_photo_id
+    aa.aircraft_photo_id = ap.aircraft_photo_id
 WHERE
-	ar.registration = $1"#
+    ar.registration = $1"#
     }
 
     pub async fn get(
@@ -185,11 +185,11 @@ WHERE
 
         let query = r#"
 UPDATE
-	aircraft
+    aircraft
 SET
-	aircraft_photo_id = $1
+    aircraft_photo_id = $1
 WHERE
-	aircraft_id = $2"#;
+    aircraft_id = $2"#;
 
         sqlx::query(query)
             .bind(aircraft_photo.aircraft_photo_id)

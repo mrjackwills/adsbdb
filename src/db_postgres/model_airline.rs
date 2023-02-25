@@ -23,21 +23,21 @@ impl ModelAirline {
             Callsign::Icao(x) => {
                 let query = r#"
 SELECT
-	co.country_name,
-	co.country_iso_name,
-	ai.airline_id,
-	ai.airline_callsign,
-	ai.airline_name,
-	ai.iata_prefix,
-	ai.icao_prefix
+    co.country_name,
+    co.country_iso_name,
+    ai.airline_id,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix,
+    ai.icao_prefix
 FROM
-	airline ai
+    airline ai
 LEFT JOIN
-	country co
+    country co
 ON
-	ai.country_id = co.country_id
+    ai.country_id = co.country_id
 WHERE
-	icao_prefix = $1"#;
+    icao_prefix = $1"#;
                 Ok(sqlx::query_as::<_, Self>(query)
                     .bind(&x.0)
                     .fetch_optional(&mut *transaction)
@@ -51,30 +51,30 @@ WHERE
         db: &PgPool,
         airline_code: &AirlineCode,
     ) -> Result<Option<Vec<Self>>, AppError> {
-        let (where_clause, bind) = match airline_code {
-            AirlineCode::Iata(x) => ("iata_prefix = $1", x),
-            AirlineCode::Icao(x) => ("icao_prefix = $1", x),
+        let (where_prefix, bind) = match airline_code {
+            AirlineCode::Iata(x) => ("iata", x),
+            AirlineCode::Icao(x) => ("icao", x),
         };
         let query = format!(
             "
 SELECT
-	co.country_name,
-	co.country_iso_name,
-	ai.airline_id,
-	ai.airline_callsign,
-	ai.airline_name,
-	ai.iata_prefix,
-	ai.icao_prefix
+    co.country_name,
+    co.country_iso_name,
+    ai.airline_id,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix,
+    ai.icao_prefix
 FROM
-	airline ai
+    airline ai
 LEFT JOIN
-	country co
+    country co
 ON
-	ai.country_id = co.country_id
+    ai.country_id = co.country_id
 WHERE
-	{where_clause}
+    {where_prefix}_prefix = $1
 ORDER BY
-	ai.airline_name"
+    ai.airline_name"
         );
         let abc = sqlx::query_as::<_, Self>(&query)
             .bind(bind)
