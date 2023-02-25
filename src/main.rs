@@ -1,15 +1,16 @@
 #![forbid(unsafe_code)]
 #![warn(
-	clippy::expect_used,
+    clippy::expect_used,
     clippy::nursery,
     clippy::pedantic,
-	clippy::todo,
+    clippy::todo,
     clippy::unused_async,
-    clippy::unwrap_used,
+    clippy::unwrap_used
 )]
 #![allow(clippy::module_name_repetitions, clippy::doc_markdown)]
+
 // Only allow when debugging
-// #![allow(unused)]
+// #![allow(unused, clippy::todo)]
 
 mod api;
 mod db_postgres;

@@ -75,6 +75,18 @@ Unknown aircraft return status 404 with
 		"flightroute":{
 			"callsign": string,
 
+			"callsign_icao": string || null,
+			"callsign_iata": string || null,
+
+			"airline": {
+				"name": string,
+				"icao": string,
+				"iata": string || null,
+				"country": string,
+				"country_iso": string,
+				"callsign": string || null
+			} || null,
+
 			"origin": {
 				"country_iso_name": string,
 				"country_name": string,
@@ -149,6 +161,18 @@ Unknown callsign return status 404 with
 		"flightroute":{
 			"callsign": string,
 
+			"callsign_icao": string || null,
+			"callsign_iata": string || null,
+
+			"airline": {
+				"name": string,
+				"icao": string,
+				"iata": string || null,
+				"country": string,
+				"country_iso": string,
+				"callsign": string || null
+			} || null,
+
 			"origin": {
 				"country_iso_name": string,
 				"country_name": string,
@@ -179,6 +203,32 @@ Unknown callsign return status 404 with
 
 If an unknown callsign is provided as a query param, but the aircraft is known, response will be status 200 with just aircraft
 
+---
+
+```https://api.adsbdb.com/v[semver.major]/airline/[AIRLINE_ICAO || AIRLINE_IATA ]```
+```json
+{
+	"response":{
+		[
+			{
+				"name": string,
+				"icao": string,
+				"iata": string || null,
+				"country": string,
+				"country_iso": string,
+				"callsign": string || null
+			},
+			...
+		]
+	}
+}
+
+```
+
+Unknown airline return status 404 with
+```json
+{ "response": "unknown airline"}
+```
 ---
 
 Convert from MODE-S string to N-Number string

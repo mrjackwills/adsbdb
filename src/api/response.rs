@@ -1,7 +1,7 @@
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::db_postgres::{ModelAircraft, ModelFlightroute};
+use crate::db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute};
 
 pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
@@ -54,6 +54,54 @@ impl From<ModelAircraft> for ResponseAircraft {
             url_photo: model.url_photo,
             url_photo_thumbnail: model.url_photo_thumbnail,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ResponseAirline {
+    pub name: String,
+    pub icao: String,
+    pub iata: Option<String>,
+    pub country: String,
+    pub country_iso: String,
+    pub callsign: Option<String>,
+}
+
+impl From<ModelAirline> for ResponseAirline {
+    fn from(model: ModelAirline) -> Self {
+        Self {
+            name: model.airline_name,
+            icao: model.icao_prefix,
+            iata: model.iata_prefix,
+            country: model.country_name,
+            country_iso: model.country_iso_name,
+            callsign: model.airline_callsign,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct Airline {
+    pub name: String,
+    pub icao: String,
+    pub iata: Option<String>,
+    pub country: String,
+    pub country_iso: String,
+    pub callsign: Option<String>,
+}
+
+// should be option none
+// impl From<&ModelFlightroute> for Option<Airline> {
+impl Airline {
+    fn from_model(value: &ModelFlightroute) -> Option<Self> {
+        value.airline_name.as_ref().map(|name| Self {
+            name: name.clone(),
+            icao: value.airline_icao.clone().unwrap_or_default(),
+            iata: value.airline_iata.clone(),
+            country: value.airline_country_name.clone().unwrap_or_default(),
+            country_iso: value.airline_country_iso_name.clone().unwrap_or_default(),
+            callsign: value.airline_callsign.clone(),
+        })
     }
 }
 
@@ -138,6 +186,9 @@ impl Airport {
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct ResponseFlightRoute {
     pub callsign: String,
+    pub callsign_icao: Option<String>,
+    pub callsign_iata: Option<String>,
+    pub airline: Option<Airline>,
     pub origin: Airport,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint: Option<Airport>,
@@ -145,12 +196,15 @@ pub struct ResponseFlightRoute {
 }
 
 impl ResponseFlightRoute {
-    pub fn from_model(op_flightroute: &Option<ModelFlightroute>) -> Option<Self> {
-        op_flightroute.as_ref().map(|flightroute| {
+    pub fn from_model(flightroute_airline: &Option<ModelFlightroute>) -> Option<Self> {
+        flightroute_airline.as_ref().map(|flightroute| {
             let airports = Airport::from_model(flightroute);
             Self {
                 callsign: flightroute.callsign.clone(),
+                callsign_icao: flightroute.callsign_icao.clone(),
+                callsign_iata: flightroute.callsign_iata.clone(),
                 origin: airports.0,
+                airline: Airline::from_model(flightroute),
                 midpoint: airports.1,
                 destination: airports.2,
             }

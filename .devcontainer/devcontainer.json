@@ -8,12 +8,15 @@
 			// Use bullseye when on local on arm64/Apple Silicon.
 			"VARIANT": "bullseye",
 			"BUILDKIT_INLINE_CACHE": "0"
+			
 		}
+		
 	},
 	"runArgs": [
 		"--cap-add=SYS_PTRACE",
 		"--security-opt",
-		"seccomp=unconfined"
+		"seccomp=unconfined",
+		"--net=host"
 	],
 
 	// Set *default* container specific settings.json values on container create.
@@ -50,7 +53,7 @@
 
 	"postCreateCommand": "cargo install cargo-watch typos-cli",
 
-	"postStartCommand": " mkdir -p /dev/shm/adsbdb/pg_data && mkdir -p /dev/shm/adsbdb/redis_data",
+	"postStartCommand": "sudo mkdir -p /dev/shm/adsbdb/pg_data /dev/shm/adsbdb/redis_data /dev/shm/adsbdb/logs /dev/shm/adsbdb/backups && sudo chown -R vscode:vscode /dev/shm/adsbdb",
 
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",

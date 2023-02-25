@@ -11,12 +11,14 @@ use super::response::ResponseJson;
 pub enum UnknownAC {
     Aircraft,
     Callsign,
+    Airline,
 }
 
 impl fmt::Display for UnknownAC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let disp = match self {
             Self::Aircraft => "aircraft",
+            Self::Airline => "airline",
             Self::Callsign => "callsign",
         };
         write!(f, "{disp}")
@@ -27,6 +29,8 @@ impl fmt::Display for UnknownAC {
 pub enum AppError {
     #[error("invalid modeS or registration:")]
     AircraftSearch(String),
+    #[error("invalid airline:")]
+    Airline(String),
     #[error("Axum")]
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
     #[error("invalid callsign:")]
@@ -74,6 +78,7 @@ impl IntoResponse for AppError {
             }
             Self::Callsign(err)
             | Self::AircraftSearch(err)
+            | Self::Airline(err)
             | Self::ModeS(err)
             | Self::NNumber(err)
             | Self::Registration(err) => (

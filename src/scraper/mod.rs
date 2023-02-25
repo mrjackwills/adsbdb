@@ -1,13 +1,12 @@
+use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 
 #[cfg(not(test))]
-use reqwest::{Client, Response};
-#[cfg(not(test))]
 use tracing::error;
 
 use crate::{
-    api::{AppError, Callsign},
+    api::{AppError, Callsign, Validate},
     db_postgres::{ModelAircraft, ModelAirport, ModelFlightroute},
     parse_env::AppEnv,
 };
@@ -34,12 +33,15 @@ struct PhotoResponse {
 #[allow(unused)]
 pub struct Scraper {
     flight_scrape_url: String,
+    allow_scrape_flightroute: Option<()>,
     photo_url: String,
+    allow_scrape_photo: Option<()>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScrapedFlightroute {
-    pub callsign: String,
+    pub callsign_icao: Callsign,
+    pub callsign_iata: Callsign,
     pub origin: String,
     pub destination: String,
 }
@@ -61,12 +63,14 @@ impl Scraper {
         Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
+            allow_scrape_flightroute: app_env.allow_scrape_flightroute,
+            allow_scrape_photo: app_env.allow_scrape_photo,
         }
     }
 
     /// Build a reqwest client, with a default timeout, and compression enabled
     /// Then send a get request to the url given
-    #[cfg(not(test))]
+    #[allow(dead_code)]
     async fn client_get(url: String) -> Result<Response, AppError> {
         Ok(Client::builder()
             .connect_timeout(std::time::Duration::from_millis(10000))
@@ -78,35 +82,63 @@ impl Scraper {
             .await?)
     }
 
-    // Make sure that input is a valid callsign string, validity is [a-z]{4-8}
-    // Should accept str or string as input?
-    fn validate_icao(input: &str) -> Option<String> {
-        let valid = input.len() == 4
-            && input
-                .chars()
-                .all(|c| c.is_ascii_digit() || ('a'..='z').contains(&c.to_ascii_lowercase()));
-        if valid {
+    /// Check that a given airport ICAO is valid, and return as uppercase
+    fn validate_airport(input: &str) -> Option<String> {
+        if (3..=4).contains(&input.chars().count())
+            && input.chars().all(|i| i.is_ascii_alphabetic())
+        {
             Some(input.to_uppercase())
         } else {
             None
         }
     }
 
-    /// Search a &str for "icao":", take the next 4 chars, and see if they match the icao spec ([a-z]{4})
-    /// Will only return a Option<Vec>, where the Vec has a length of 2
-    fn extract_icao_codes(html: &str, callsign: &Callsign) -> Option<ScrapedFlightroute> {
-        let output: Vec<_> = html
+    /// Try to extract the ICAO callsign, IATA callsign, and ICAO origin/destination airports
+    fn extract_flightroute(html: &str) -> Option<ScrapedFlightroute> {
+        let title_callsigns = html
+            .split_once("<title>")
+            .unwrap_or_default()
+            .1
+            .split_once("</title>")
+            .unwrap_or_default()
+            .0
+            .split_once(')')
+            .unwrap_or_default()
+            .0
+            .replace('(', "");
+        let title_callsigns = title_callsigns.split_whitespace().collect::<Vec<_>>();
+
+        let icao_callsign =
+            Callsign::validate(title_callsigns.get(1).unwrap_or(&"")).map_or(None, |x| match x {
+                Callsign::Icao(_) => Some(x),
+                _ => None,
+            });
+
+        let iata_callsign =
+            Callsign::validate(title_callsigns.first().unwrap_or(&"")).map_or(None, |x| match x {
+                Callsign::Iata(_) => Some(x),
+                _ => None,
+            });
+
+        let output = html
             .match_indices(ICAO)
             .filter_map(|i| {
                 let icao_code = &html.split_at(i.0 + 8).1.chars().take(4).collect::<String>();
-                Self::validate_icao(icao_code)
+                Self::validate_airport(icao_code)
             })
             .collect::<Vec<_>>();
-        if output.len() >= 2 {
+
+        let origin = output.get(0).map(std::borrow::ToOwned::to_owned);
+        let destination = output.get(1).map(std::borrow::ToOwned::to_owned);
+
+        if let (Some(callsign_icao), Some(callsign_iata), Some(origin), Some(destination)) =
+            (icao_callsign, iata_callsign, origin, destination)
+        {
             Some(ScrapedFlightroute {
-                callsign: callsign.to_string(),
-                origin: output[0].clone(),
-                destination: output[1].clone(),
+                callsign_icao,
+                callsign_iata,
+                origin,
+                destination,
             })
         } else {
             None
@@ -114,15 +146,12 @@ impl Scraper {
     }
 
     /// Return true if BOTH airport_icao_code's are in db
-    async fn check_icao_in_db(
-        db: &PgPool,
-        scraped_flightroute: &ScrapedFlightroute,
-    ) -> Result<bool, AppError> {
-        let (start, end) = tokio::try_join!(
+    async fn check_icao_in_db(db: &PgPool, scraped_flightroute: &ScrapedFlightroute) -> bool {
+        let (start, end) = tokio::join!(
             ModelAirport::get(db, &scraped_flightroute.origin),
             ModelAirport::get(db, &scraped_flightroute.destination)
-        )?;
-        Ok(start.is_some() && end.is_some())
+        );
+        start.map_or(false, |f| f.is_some()) && end.map_or(false, |f| f.is_some())
     }
 
     /// Scrape callsign url for whole page html string
@@ -180,7 +209,7 @@ impl Scraper {
                 }
             },
             Err(e) => {
-				error!("{e:?}");
+                error!("{e:?}");
                 error!("can't scrape address");
                 None
             }
@@ -210,32 +239,33 @@ impl Scraper {
         db: &PgPool,
         aircraft: &ModelAircraft,
     ) -> Result<(), AppError> {
-        if let Some(photo) = self.request_photo(aircraft).await {
-            if let Some([data_0, ..]) = photo.data.as_ref() {
-                aircraft.insert_photo(db, data_0).await?;
+        if self.allow_scrape_photo.is_some() {
+            if let Some(photo) = self.request_photo(aircraft).await {
+                if let Some([data_0, ..]) = photo.data.as_ref() {
+                    aircraft.insert_photo(db, data_0).await?;
+                }
             }
         }
         Ok(())
     }
 
     /// Scrape third party site for a flightroute, and try to insert into db
-    /// Has a timeout of 3 seconds
     pub async fn scrape_flightroute(
         &self,
-        db: &PgPool,
+        postgres: &PgPool,
         callsign: &Callsign,
     ) -> Result<Option<ModelFlightroute>, AppError> {
         let mut output = None;
-        if let Ok(Ok(html)) = tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            self.request_callsign(callsign),
-        )
-        .await
-        {
-            if let Some(scraped_flightroute) = Self::extract_icao_codes(&html, callsign) {
-                if Self::check_icao_in_db(db, &scraped_flightroute).await? {
-                    ModelFlightroute::insert_scraped_flightroute(db, scraped_flightroute).await?;
-                    output = ModelFlightroute::get(db, callsign).await.unwrap_or(None);
+        if self.allow_scrape_flightroute.is_some() {
+            if let Ok(html) = self.request_callsign(callsign).await {
+                if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
+                    if Self::check_icao_in_db(postgres, &scraped_flightroute).await {
+                        output = ModelFlightroute::insert_scraped_flightroute(
+                            postgres,
+                            scraped_flightroute,
+                        )
+                        .await?;
+                    }
                 }
             }
         }
@@ -250,7 +280,7 @@ impl Scraper {
 #[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::api::{AircraftSearch, ModeS, Registration};
+    use crate::api::{AircraftSearch, ModeS, Registration, Validate};
     use crate::{db_postgres, db_redis};
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
@@ -268,30 +298,15 @@ mod tests {
     }
 
     async fn remove_scraped_data(db: &PgPool) {
-        let query = "DELETE FROM flightroute WHERE flightroute_callsign_id = (SELECT flightroute_callsign_id FROM flightroute_callsign WHERE callsign = $1)";
-        sqlx::query(query)
-            .bind(TEST_CALLSIGN)
-            .execute(db)
-            .await
-            .unwrap();
-        let query = "DELETE FROM flightroute_callsign WHERE callsign = $1";
-        sqlx::query(query)
-            .bind(TEST_CALLSIGN)
-            .execute(db)
-            .await
-            .unwrap();
         let query = r#"
-		UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_id = (
-			SELECT
-				aa.aircraft_id
-			FROM
-				aircraft aa
-			JOIN
-				aircraft_mode_s ams
-			ON
-				aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
-			WHERE
-				ams.mode_s = $1)"#;
+        UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_photo_id = (
+            SELECT
+                ap.aircraft_photo_id
+            FROM
+                aircraft_photo ap
+            WHERE
+                ap.url_photo = '001/001/example.jpg'
+        )"#;
 
         sqlx::query(query)
             .bind(TEST_MODE_S)
@@ -336,26 +351,26 @@ mod tests {
     fn scraper_validate_icao_codes() {
         // Too long
         let valid = String::from("AaBb12");
-        let result = Scraper::validate_icao(&valid);
+        let result = Scraper::validate_airport(&valid);
         assert!(result.is_none());
 
         // Too short
-        let valid = String::from("aaa");
-        let result = Scraper::validate_icao(&valid);
+        let valid = String::from("aa");
+        let result = Scraper::validate_airport(&valid);
         assert!(result.is_none());
 
         // Invalid char short
         let valid = String::from("AAA*");
-        let result = Scraper::validate_icao(&valid);
+        let result = Scraper::validate_airport(&valid);
         assert!(result.is_none());
 
         // Valid against known ORIGIN
-        let result = Scraper::validate_icao("roah");
+        let result = Scraper::validate_airport("roah");
         assert!(result.is_some());
         assert_eq!(result.unwrap(), TEST_ORIGIN);
 
         // Valid against known DESTINATION
-        let result = Scraper::validate_icao("rjtt");
+        let result = Scraper::validate_airport("rjtt");
         assert!(result.is_some());
         assert_eq!(result.unwrap(), TEST_DESTINATION);
     }
@@ -363,50 +378,53 @@ mod tests {
     #[tokio::test]
     async fn scraper_check_icao_in_db_true() {
         let setup = setup().await;
+
         let expected = ScrapedFlightroute {
-            callsign: TEST_CALLSIGN.to_owned(),
+            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
+            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
             origin: TEST_ORIGIN.to_owned(),
             destination: TEST_DESTINATION.to_owned(),
         };
         let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
+        assert!(result);
     }
 
     #[tokio::test]
     async fn scraper_check_icao_in_db_false_origin() {
         let setup = setup().await;
+
         let expected = ScrapedFlightroute {
-            callsign: TEST_CALLSIGN.to_owned(),
+            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
+            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
             origin: "AAAA".to_owned(),
             destination: TEST_DESTINATION.to_owned(),
         };
         let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
+        assert!(!result);
     }
 
     #[tokio::test]
     async fn scraper_check_icao_in_db_false_destination() {
         let setup = setup().await;
+
         let expected = ScrapedFlightroute {
-            callsign: TEST_CALLSIGN.to_owned(),
+            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
+            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
             origin: TEST_ORIGIN.to_owned(),
             destination: "AAAA".to_owned(),
         };
         let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
+        assert!(!result);
     }
 
     #[test]
-    fn scraper_extract_icao_codes() {
+    fn scraper_extract_flightroute() {
         let html_string = include_str!("./test_scrape.txt");
-        let result =
-            Scraper::extract_icao_codes(html_string, &Callsign::try_from(TEST_CALLSIGN).unwrap());
+        let result = Scraper::extract_flightroute(html_string);
 
         let expected = ScrapedFlightroute {
-            callsign: TEST_CALLSIGN.to_owned(),
+            callsign_icao: Callsign::Icao(("ANA".to_owned(), "460".to_owned())),
+            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
             origin: TEST_ORIGIN.to_owned(),
             destination: TEST_DESTINATION.to_owned(),
         };
@@ -416,30 +434,36 @@ mod tests {
     }
 
     #[tokio::test]
-    /// in test mode, live site is actually just include_str()
-    async fn scraper_use_live_site() {
-        let callsign = Callsign::try_from(TEST_CALLSIGN).unwrap();
-        let setup = setup().await;
-        let scraper = Scraper::new(&setup.0);
-        let result = scraper.request_callsign(&callsign).await;
+    // WARNING - this will test against a live, third party, website
+    async fn scraper_extract_flightroute_live() {
+        unimplemented!("`scraper_extract_flightroute_live` test currently disabled");
 
-        assert!(result.is_ok());
+        //     let setup = setup().await;
 
-        let result = Scraper::extract_icao_codes(&result.unwrap(), &callsign);
-        let expected = ScrapedFlightroute {
-            callsign: TEST_CALLSIGN.to_owned(),
-            origin: TEST_ORIGIN.to_owned(),
-            destination: TEST_DESTINATION.to_owned(),
-        };
+        //     let url = format!("{}/{TEST_CALLSIGN}", setup.0.url_callsign);
+        //     let html = Scraper::client_get(url)
+        //         .await
+        //         .unwrap()
+        //         .text()
+        //         .await
+        //         .unwrap();
 
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), expected);
+        //     let result = Scraper::extract_flightroute(&html);
+        //     let expected = ScrapedFlightroute {
+        //         callsign_icao: Callsign::Icao(("ANA".to_owned(), "460".to_owned())),
+        //         callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+        //         origin: TEST_ORIGIN.to_owned(),
+        //         destination: TEST_DESTINATION.to_owned(),
+        //     };
+
+        //     assert!(result.is_some());
+        //     assert_eq!(result.unwrap(), expected);
     }
 
     #[tokio::test]
     /// in test mode, live site is actually just include_str()
-    async fn scraper_scraper_for_route_insert() {
-        let callsign = Callsign::try_from(TEST_CALLSIGN).unwrap();
+    async fn scraper_scrape_for_route_insert() {
+        let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let setup = setup().await;
         let scraper = Scraper::new(&setup.0);
         let result = scraper.scrape_flightroute(&setup.1, &callsign).await;
@@ -450,8 +474,16 @@ mod tests {
         let result = result.unwrap();
 
         let expected = ModelFlightroute {
-            flightroute_id: 0,
+            flightroute_id: result.flightroute_id,
             callsign: "ANA460".to_owned(),
+            callsign_iata: Some("NH460".to_owned()),
+            callsign_icao: Some("ANA460".to_owned()),
+            airline_name: Some("All Nippon Airways".to_owned()),
+            airline_country_name: Some("Japan".to_owned()),
+            airline_country_iso_name: Some("JP".to_owned()),
+            airline_callsign: Some("ALL NIPPON".to_owned()),
+            airline_iata: Some("NH".to_owned()),
+            airline_icao: Some("ANA".to_owned()),
             origin_airport_country_iso_name: "JP".to_owned(),
             origin_airport_country_name: "Japan".to_owned(),
             origin_airport_elevation: 12,
@@ -480,112 +512,21 @@ mod tests {
             destination_airport_municipality: "Tokyo".to_owned(),
             destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
         };
+        assert_eq!(result, expected);
+    }
 
-        assert_eq!(result.callsign, expected.callsign);
-        assert_eq!(
-            result.origin_airport_country_iso_name,
-            expected.origin_airport_country_iso_name
-        );
-        assert_eq!(
-            result.origin_airport_country_name,
-            expected.origin_airport_country_name
-        );
-        assert_eq!(
-            result.origin_airport_elevation,
-            expected.origin_airport_elevation
-        );
-        assert_eq!(
-            result.origin_airport_iata_code,
-            expected.origin_airport_iata_code
-        );
-        assert_eq!(
-            result.origin_airport_icao_code,
-            expected.origin_airport_icao_code
-        );
-        assert_eq!(
-            result.origin_airport_latitude,
-            expected.origin_airport_latitude
-        );
-        assert_eq!(
-            result.origin_airport_longitude,
-            expected.origin_airport_longitude
-        );
-        assert_eq!(
-            result.origin_airport_municipality,
-            expected.origin_airport_municipality
-        );
-        assert_eq!(result.origin_airport_name, expected.origin_airport_name);
-        assert_eq!(
-            result.midpoint_airport_country_iso_name,
-            expected.midpoint_airport_country_iso_name
-        );
-        assert_eq!(
-            result.midpoint_airport_country_name,
-            expected.midpoint_airport_country_name
-        );
-        assert_eq!(
-            result.midpoint_airport_elevation,
-            expected.midpoint_airport_elevation
-        );
-        assert_eq!(
-            result.midpoint_airport_iata_code,
-            expected.midpoint_airport_iata_code
-        );
-        assert_eq!(
-            result.midpoint_airport_icao_code,
-            expected.midpoint_airport_icao_code
-        );
-        assert_eq!(
-            result.midpoint_airport_latitude,
-            expected.midpoint_airport_latitude
-        );
-        assert_eq!(
-            result.midpoint_airport_longitude,
-            expected.midpoint_airport_longitude
-        );
-        assert_eq!(
-            result.midpoint_airport_municipality,
-            expected.midpoint_airport_municipality
-        );
-        assert_eq!(result.midpoint_airport_name, expected.midpoint_airport_name);
-        assert_eq!(
-            result.destination_airport_country_iso_name,
-            expected.destination_airport_country_iso_name
-        );
-        assert_eq!(
-            result.destination_airport_country_name,
-            expected.destination_airport_country_name
-        );
-        assert_eq!(
-            result.destination_airport_elevation,
-            expected.destination_airport_elevation
-        );
-        assert_eq!(
-            result.destination_airport_iata_code,
-            expected.destination_airport_iata_code
-        );
-        assert_eq!(
-            result.destination_airport_icao_code,
-            expected.destination_airport_icao_code
-        );
-        assert_eq!(
-            result.destination_airport_latitude,
-            expected.destination_airport_latitude
-        );
-        assert_eq!(
-            result.destination_airport_longitude,
-            expected.destination_airport_longitude
-        );
-        assert_eq!(
-            result.destination_airport_municipality,
-            expected.destination_airport_municipality
-        );
-        assert_eq!(
-            result.destination_airport_name,
-            expected.destination_airport_name
-        );
+    #[tokio::test]
+    /// if callsign_scrape is none, doesn't scrape
+    async fn scraper_scrape_for_route_null() {
+        let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
+        let mut setup = setup().await;
+        setup.0.allow_scrape_flightroute = None;
+        let scraper = Scraper::new(&setup.0);
+        let result = scraper.scrape_flightroute(&setup.1, &callsign).await;
 
-        remove_scraped_data(&setup.1).await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.is_none());
     }
 
     #[tokio::test]
@@ -608,7 +549,6 @@ mod tests {
             url_photo_thumbnail: None,
         };
 
-        // let mode_s = ModeS::new("393C00".to_owned()).unwrap();
         let result = scraper.request_photo(&test_aircraft).await;
         assert!(result.is_some());
         let expected = PhotoResponse {
@@ -658,11 +598,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn scraper_get_photo_null() {
+        let mut setup = setup().await;
+        setup.0.allow_scrape_photo = None;
+        let scraper = Scraper::new(&setup.0);
+
+        let test_aircraft = ModelAircraft {
+            aircraft_id: 8415,
+            aircraft_type: "CRJ 200LR".to_owned(),
+            icao_type: "CRJ2".to_owned(),
+            manufacturer: "Bombardier".to_owned(),
+            mode_s: "393C00".to_owned(),
+            registration: "N429AW".to_owned(),
+            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner_country_name: "United States".to_owned(),
+            registered_owner_operator_flag_code: "AWI".to_owned(),
+            registered_owner: "United Express".to_owned(),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        };
+
+        let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
     async fn scraper_get_photo_insert_by_mode_s() {
         let setup = setup().await;
         let scraper = Scraper::new(&setup.0);
 
-        let mode_s = ModeS::try_from(TEST_MODE_S).unwrap();
+        let mode_s = ModeS::validate(TEST_MODE_S).unwrap();
 
         let aircraft_search = AircraftSearch::ModeS(mode_s);
         let test_aircraft =
@@ -672,6 +637,7 @@ mod tests {
                 .unwrap();
 
         let result = scraper.scrape_photo(&setup.1, &test_aircraft).await;
+        // let result = result.unwrap();
         assert!(result.is_ok());
 
         let result =
@@ -720,7 +686,7 @@ mod tests {
         let setup = setup().await;
         let scraper = Scraper::new(&setup.0);
 
-        let registration = Registration::try_from(TEST_REGISTRATION).unwrap();
+        let registration = Registration::validate(TEST_REGISTRATION).unwrap();
 
         let aircraft_search = AircraftSearch::Registration(registration);
         let test_aircraft =
