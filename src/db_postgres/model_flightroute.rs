@@ -181,8 +181,8 @@ WHERE
 SELECT
     fl.flightroute_id,
     concat($1,$2) as callsign,
-    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_suffix_id)) AS callsign_iata,
-    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_suffix_id)) AS callsign_icao,
+    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
+    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
     
     (SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
     (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
@@ -249,7 +249,7 @@ ON
 WHERE 
     flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
 AND
-    flc.icao_suffix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
+    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
     }
 
     /// Query a flightroute based on a callsign with is a valid IATA callsign
@@ -259,8 +259,8 @@ AND
 SELECT
     fl.flightroute_id,
     concat($1,$2) as callsign,
-    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_suffix_id))  AS callsign_iata,
-    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_suffix_id))  AS callsign_icao,
+    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id))  AS callsign_iata,
+    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id))  AS callsign_icao,
 
     ai.airline_name,
     ai.airline_callsign,
@@ -327,7 +327,7 @@ ON
 WHERE 
     flc.airline_id = (SELECT DISTINCT(ai.airline_id) FROM flightroute_callsign flc LEFT JOIN airline ai ON flc.airline_id = ai.airline_id WHERE ai.iata_prefix = $1 LIMIT 1)
 AND
-    flc.icao_suffix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
+    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
     }
 
     /// Transaction to insert a new flightroute
@@ -349,24 +349,24 @@ AND
                 .execute(&mut *transaction)
                 .await?;
 
-            let icao_suffix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
-            let icao_suffix = sqlx::query_as::<_, Id>(icao_suffix)
+            let icao_prefix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
+            let icao_prefix = sqlx::query_as::<_, Id>(icao_prefix)
                 .bind(scraped_flightroute.callsign_icao.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let iata_suffix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
-            let iata_suffix = sqlx::query_as::<_, Id>(iata_suffix)
+            let iata_prefix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
+            let iata_prefix = sqlx::query_as::<_, Id>(iata_prefix)
                 .bind(scraped_flightroute.callsign_iata.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let flighroute_callsign = "INSERT INTO flightroute_callsign(airline_id, iata_suffix_id, icao_suffix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id";
+            let flighroute_callsign = "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id";
 
             let flighroute_callsign_id = sqlx::query_as::<_, Id>(flighroute_callsign)
                 .bind(airline_id.airline_id)
-                .bind(iata_suffix.id)
-                .bind(icao_suffix.id)
+                .bind(iata_prefix.id)
+                .bind(icao_prefix.id)
                 .fetch_one(&mut *transaction)
                 .await?;
             let query = r"
