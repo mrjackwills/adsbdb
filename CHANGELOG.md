@@ -11,7 +11,7 @@
 + postgres.Dockerfile typo, [6da6fd4f40200f2a47206831711f7ec2623b5463], [944c53124a05c389b424090ed2654bba6c287a56]
 
 ### Refactors
-+ postgreSQL queries use `USING(x)` where appropiated, [5c8adf0049b322b1198b9eee55a09c0d3f592fdd], [686a1783292de9875a4c025915bf5958b154aaa3], [9515a4167f4aab84872ae758bbe4b403ef8f7ba7]
++ postgreSQL queries use `USING(x)` where appropriate, [5c8adf0049b322b1198b9eee55a09c0d3f592fdd], [686a1783292de9875a4c025915bf5958b154aaa3], [9515a4167f4aab84872ae758bbe4b403ef8f7ba7]
 
 ### Reverts
 + temporary devcontainer buildkit fix removed, [6c07fa675952f2a77a5f570f0ebe07b9c42f9bbb]

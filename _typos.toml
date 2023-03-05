@@ -1,0 +1,9 @@
+[default.extend-identifiers]
+# These are all from a postgres query
+alo_m = "alo_m"
+alo_d = "alo_d"
+alo_o = "alo_o"
+
+
+[files]
+extend-exclude = ["_typos.toml"]
