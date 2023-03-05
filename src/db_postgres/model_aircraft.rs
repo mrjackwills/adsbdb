@@ -48,42 +48,15 @@ SELECT
     CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
     aircraft aa
-JOIN
-    aircraft_mode_s ams
-ON
-    aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
-JOIN
-    aircraft_registration ar
-ON
-    aa.aircraft_registration_id = ar.aircraft_registration_id
-JOIN
-    country co
-ON
-    aa.country_id = co.country_id
-JOIN
-    aircraft_type at
-ON
-    aa.aircraft_type_id = at.aircraft_type_id
-JOIN
-    aircraft_registered_owner aro
-ON
-    aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
-JOIN
-    aircraft_icao_type ait
-ON
-    aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
-JOIN
-    aircraft_manufacturer am
-ON
-    aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
-JOIN
-    aircraft_operator_flag_code aof
-ON
-    aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
-LEFT JOIN
-    aircraft_photo ap
-ON
-    aa.aircraft_photo_id = ap.aircraft_photo_id
+LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
+LEFT JOIN country co USING(country_id)
+LEFT JOIN aircraft_type at USING(aircraft_type_id)
+LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
+LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
     ams.mode_s = $1"#
     }
@@ -106,42 +79,15 @@ SELECT
     CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
     aircraft aa
-JOIN
-    aircraft_mode_s ams
-ON
-    aa.aircraft_mode_s_id = ams.aircraft_mode_s_id
-JOIN
-    aircraft_registration ar
-ON
-    aa.aircraft_registration_id = ar.aircraft_registration_id
-JOIN
-    country co
-ON
-    aa.country_id = co.country_id
-JOIN
-    aircraft_type at
-ON
-    aa.aircraft_type_id = at.aircraft_type_id
-JOIN
-    aircraft_registered_owner aro
-ON
-    aa.aircraft_registered_owner_id = aro.aircraft_registered_owner_id
-JOIN
-    aircraft_icao_type ait
-ON
-    aa.aircraft_icao_type_id = ait.aircraft_icao_type_id
-JOIN
-    aircraft_manufacturer am
-ON
-    aa.aircraft_manufacturer_id = am.aircraft_manufacturer_id
-JOIN
-    aircraft_operator_flag_code aof
-ON
-    aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
-LEFT JOIN
-    aircraft_photo ap
-ON
-    aa.aircraft_photo_id = ap.aircraft_photo_id
+LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
+LEFT JOIN country co USING(country_id)
+LEFT JOIN aircraft_type at USING(aircraft_type_id)
+LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
+LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
     ar.registration = $1"#
     }
