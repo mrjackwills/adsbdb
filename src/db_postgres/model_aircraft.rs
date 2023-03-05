@@ -80,10 +80,7 @@ JOIN
     aircraft_operator_flag_code aof
 ON
     aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
-LEFT JOIN
-    aircraft_photo ap
-ON
-    aa.aircraft_photo_id = ap.aircraft_photo_id
+LEFT JOIN aircraft_photo ap USING (aircraft_photo_id)
 WHERE
     ams.mode_s = $1"#
     }
@@ -138,10 +135,7 @@ JOIN
     aircraft_operator_flag_code aof
 ON
     aa.aircraft_operator_flag_code_id = aof.aircraft_operator_flag_code_id
-LEFT JOIN
-    aircraft_photo ap
-ON
-    aa.aircraft_photo_id = ap.aircraft_photo_id
+LEFT JOIN aircraft_photo ap USING (aircraft_photo_id)
 WHERE
     ar.registration = $1"#
     }

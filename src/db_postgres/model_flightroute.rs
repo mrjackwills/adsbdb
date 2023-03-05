@@ -153,28 +153,16 @@ SELECT
     ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
 FROM
     flightroute fl
-JOIN
-    flightroute_callsign flc
-ON
-    fl.flightroute_callsign_id = flc.flightroute_callsign_id
-JOIN 
+LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
+LEFT JOIN 
     flightroute_callsign_inner fci
 ON
-    flc.callsign_id = fci.flightroute_callsign_inner_id
-JOIN
-    airport apo
-ON
-    fl.airport_origin_id = apo.airport_id
-LEFT JOIN
-    airport apm
-ON
-    fl.airport_midpoint_id = apm.airport_id
-JOIN
-    airport apd
-ON
-    fl.airport_destination_id = apd.airport_id
-WHERE 
-    fci.callsign = $1"
+    fci.flightroute_callsign_inner_id = flc.callsign_id
+LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
+LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
+LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
+
+WHERE fci.callsign = $1"
     }
 
     /// Query a flightroute based on a callsign with is a valid ICAO callsign
@@ -224,30 +212,15 @@ SELECT
     ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
 FROM
     flightroute fl
-LEFT JOIN
-    flightroute_callsign flc
-ON
-    fl.flightroute_callsign_id = flc.flightroute_callsign_id
+LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
 LEFT JOIN 
     flightroute_callsign_inner fci
 ON
-    flc.callsign_id = fci.flightroute_callsign_inner_id
-LEFT JOIN 
-    airline ai
-ON
-    flc.airline_id = ai.airline_id
-LEFT JOIN
-    airport apo
-ON
-    fl.airport_origin_id = apo.airport_id
-LEFT JOIN
-    airport apm
-ON
-    fl.airport_midpoint_id = apm.airport_id
-LEFT JOIN
-    airport apd
-ON
-    fl.airport_destination_id = apd.airport_id
+    fci.flightroute_callsign_inner_id = flc.callsign_id
+LEFT JOIN airline ai USING (airline_id)
+LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
+LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
+LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
 WHERE 
     flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
 AND
@@ -305,44 +278,38 @@ LEFT JOIN
     flightroute_callsign flc
 ON
     fl.flightroute_callsign_id = flc.flightroute_callsign_id
-LEFT JOIN 
-    flightroute_callsign_inner fci
-ON
-    flc.callsign_id = fci.flightroute_callsign_inner_id
-LEFT JOIN 
-    airline ai
-ON
-    flc.airline_id = ai.airline_id
+LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
+LEFT JOIN airline ai USING (airline_id)
 
-LEFT JOIN airport apo ON fl.airport_origin_id = apo.airport_id
-LEFT JOIN country co_o ON apo.country_id = co_o.country_id
-LEFT JOIN airport_municipality am_o ON apo.airport_municipality_id = am_o.airport_municipality_id 
-LEFT JOIN airport_icao_code aic_o ON apo.airport_icao_code_id = aic_o.airport_icao_code_id 
-LEFT JOIN airport_iata_code aia_o ON apo.airport_iata_code_id = aia_o.airport_iata_code_id 
-LEFT JOIN airport_name an_o ON apo.airport_name_id = an_o.airport_name_id 
-LEFT JOIN airport_elevation ae_o ON apo.airport_elevation_id = ae_o.airport_elevation_id 
-LEFT JOIN airport_latitude ala_o ON apo.airport_latitude_id = ala_o.airport_latitude_id 
-LEFT JOIN airport_longitude alo_o ON apo.airport_longitude_id = alo_o.airport_longitude_id 
+LEFT JOIN airport apo ON apo.airport_id= fl.airport_origin_id
+LEFT JOIN country co_o ON co_o.country_id= apo.country_id
+LEFT JOIN airport_municipality am_o ON am_o.airport_municipality_id = apo.airport_municipality_id
+LEFT JOIN airport_icao_code aic_o ON aic_o.airport_icao_code_id = apo.airport_icao_code_id
+LEFT JOIN airport_iata_code aia_o ON aia_o.airport_iata_code_id = apo.airport_iata_code_id
+LEFT JOIN airport_name an_o ON an_o.airport_name_id = apo.airport_name_id
+LEFT JOIN airport_elevation ae_o ON ae_o.airport_elevation_id = apo.airport_elevation_id
+LEFT JOIN airport_latitude ala_o ON ala_o.airport_latitude_id = apo.airport_latitude_id
+LEFT JOIN airport_longitude alo_o ON alo_o.airport_longitude_id = apo.airport_longitude_id
 
-LEFT JOIN airport apm ON fl.airport_midpoint_id = apm.airport_id
-LEFT JOIN country co_m ON apm.country_id = co_m.country_id
-LEFT JOIN airport_municipality am_m ON apm.airport_municipality_id = am_m.airport_municipality_id
-LEFT JOIN airport_icao_code aic_m ON apm.airport_icao_code_id = aic_m.airport_icao_code_id 
-LEFT JOIN airport_iata_code aia_m ON apm.airport_iata_code_id = aia_m.airport_iata_code_id 
-LEFT JOIN airport_name an_m ON apm.airport_name_id = an_m.airport_name_id 
-LEFT JOIN airport_elevation ae_m ON apm.airport_elevation_id = ae_m.airport_elevation_id
-LEFT JOIN airport_latitude ala_m ON apm.airport_latitude_id = ala_m.airport_latitude_id
-LEFT JOIN airport_longitude alo_m ON apm.airport_longitude_id = alo_m.airport_longitude_id
+LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
+LEFT JOIN country co_m ON co_m.country_id = apm.country_id
+LEFT JOIN airport_municipality am_m ON am_m.airport_municipality_id = apm.airport_municipality_id
+LEFT JOIN airport_icao_code aic_m ON aic_m.airport_icao_code_id  = apm.airport_icao_code_id
+LEFT JOIN airport_iata_code aia_m ON aia_m.airport_iata_code_id  = apm.airport_iata_code_id
+LEFT JOIN airport_name an_m ON an_m.airport_name_id  = apm.airport_name_id
+LEFT JOIN airport_elevation ae_m ON ae_m.airport_elevation_id = apm.airport_elevation_id
+LEFT JOIN airport_latitude ala_m ON ala_m.airport_latitude_id = apm.airport_latitude_id
+LEFT JOIN airport_longitude alo_m ON alo_m.airport_longitude_id = apm.airport_longitude_id
 
-LEFT JOIN airport apd ON fl.airport_destination_id = apd.airport_id
-LEFT JOIN country co_d ON apd.country_id = co_d.country_id
-LEFT JOIN airport_municipality am_d ON apd.airport_municipality_id = am_d.airport_municipality_id
-LEFT JOIN airport_icao_code aic_d ON apd.airport_icao_code_id = aic_d.airport_icao_code_id 
-LEFT JOIN airport_iata_code aia_d ON apd.airport_iata_code_id = aia_d.airport_iata_code_id 
-LEFT JOIN airport_name an_d ON apd.airport_name_id = an_d.airport_name_id 
-LEFT JOIN airport_elevation ae_d ON apd.airport_elevation_id = ae_d.airport_elevation_id 
-LEFT JOIN airport_latitude ala_d ON apd.airport_latitude_id = ala_d.airport_latitude_id 
-LEFT JOIN airport_longitude alo_d ON apd.airport_longitude_id = alo_d.airport_longitude_id 
+LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
+LEFT JOIN country co_d ON co_d.country_id = apd.country_id
+LEFT JOIN airport_municipality am_d ON am_d.airport_municipality_id = apd.airport_municipality_id
+LEFT JOIN airport_icao_code aic_d ON aic_d.airport_icao_code_id = apd.airport_icao_code_id
+LEFT JOIN airport_iata_code aia_d ON aia_d.airport_iata_code_id = apd.airport_iata_code_id
+LEFT JOIN airport_name an_d ON an_d.airport_name_id = apd.airport_name_id
+LEFT JOIN airport_elevation ae_d ON ae_d.airport_elevation_id = apd.airport_elevation_id
+LEFT JOIN airport_latitude ala_d ON ala_d.airport_latitude_id = apd.airport_latitude_id
+LEFT JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_longitude_id
 
 WHERE
     flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
@@ -396,32 +363,15 @@ SELECT
     ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
     ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
     ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
-FROM
-    flightroute fl
-LEFT JOIN
-    flightroute_callsign flc
-ON
-    fl.flightroute_callsign_id = flc.flightroute_callsign_id
-LEFT JOIN 
-    flightroute_callsign_inner fci
-ON
-    flc.callsign_id = fci.flightroute_callsign_inner_id
-LEFT JOIN 
-    airline ai
-ON
-    flc.airline_id = ai.airline_id
-LEFT JOIN
-    airport apo
-ON
-    fl.airport_origin_id = apo.airport_id
-LEFT JOIN
-    airport apm
-ON
-    fl.airport_midpoint_id = apm.airport_id
-LEFT JOIN
-    airport apd
-ON
-    fl.airport_destination_id = apd.airport_id
+
+FROM flightroute fl
+LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
+LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
+LEFT JOIN airline ai USING (airline_id)
+LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
+LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
+LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
+
 WHERE 
     flc.airline_id = (SELECT DISTINCT(ai.airline_id) FROM flightroute_callsign flc LEFT JOIN airline ai ON flc.airline_id = ai.airline_id WHERE ai.iata_prefix = $1 LIMIT 1)
 AND
