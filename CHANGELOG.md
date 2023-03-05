@@ -6,6 +6,7 @@
 
 ### Features
 + flightroute::_get() now just return an Option, [6fa60c204c29e1dd5c32b21b818ec139f75a74dc]
++ `_typos.toml` added, [ddb633130ed63e8bb4be388d809f91821028ca45]
 
 ### Fixes
 + postgres.Dockerfile typo, [6da6fd4f40200f2a47206831711f7ec2623b5463], [944c53124a05c389b424090ed2654bba6c287a56]
