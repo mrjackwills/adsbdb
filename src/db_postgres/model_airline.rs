@@ -32,7 +32,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-LEFT JOIN country co USING (country_id)
+LEFT JOIN country co USING(country_id)
 WHERE
     icao_prefix = $1"#;
                 Ok(sqlx::query_as::<_, Self>(query)
@@ -64,7 +64,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-LEFT JOIN country co USING (country_id)
+LEFT JOIN country co USING(country_id)
 WHERE
     {where_prefix}_prefix = $1
 ORDER BY

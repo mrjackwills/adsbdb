@@ -122,38 +122,38 @@ SELECT
     NULL as airline_country_name,
     NULL as airline_country_iso_name,
 
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
         
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
             
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
 FROM
     flightroute fl
-LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
+LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
 LEFT JOIN 
     flightroute_callsign_inner fci
 ON
@@ -181,43 +181,43 @@ SELECT
     ai.iata_prefix AS airline_iata,
     ai.icao_prefix AS airline_icao,
     
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
           
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
-              
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
+            
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
 FROM
     flightroute fl
-LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
+LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
 LEFT JOIN 
     flightroute_callsign_inner fci
 ON
     fci.flightroute_callsign_inner_id = flc.callsign_id
-LEFT JOIN airline ai USING (airline_id)
+LEFT JOIN airline ai USING(airline_id)
 LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
 LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
 LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
@@ -278,8 +278,8 @@ LEFT JOIN
     flightroute_callsign flc
 ON
     fl.flightroute_callsign_id = flc.flightroute_callsign_id
-LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
-LEFT JOIN airline ai USING (airline_id)
+LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
+LEFT JOIN airline ai USING(airline_id)
 
 LEFT JOIN airport apo ON apo.airport_id= fl.airport_origin_id
 LEFT JOIN country co_o ON co_o.country_id= apo.country_id
@@ -334,46 +334,46 @@ SELECT
     (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
     (SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
 
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
           
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
-              
-    ( SELECT tmp.country_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
-    ( SELECT tmp.country_iso_name FROM airport oa JOIN country tmp ON oa.country_id = tmp.country_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
-    ( SELECT tmp.municipality FROM airport oa JOIN airport_municipality tmp ON oa.airport_municipality_id = tmp.airport_municipality_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
-    ( SELECT tmp.icao_code FROM airport oa JOIN airport_icao_code tmp ON oa.airport_icao_code_id = tmp.airport_icao_code_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
-    ( SELECT tmp.iata_code FROM airport oa JOIN airport_iata_code tmp ON oa.airport_iata_code_id = tmp.airport_iata_code_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
-    ( SELECT tmp.name FROM airport oa JOIN airport_name tmp ON oa.airport_name_id = tmp.airport_name_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
-    ( SELECT tmp.elevation FROM airport oa JOIN airport_elevation tmp ON oa.airport_elevation_id = tmp.airport_elevation_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
-    ( SELECT tmp.latitude FROM airport oa JOIN airport_latitude tmp ON oa.airport_latitude_id = tmp.airport_latitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
-    ( SELECT tmp.longitude FROM airport oa JOIN airport_longitude tmp ON oa.airport_longitude_id = tmp.airport_longitude_id WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
+            
+    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
+    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
+    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
+    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
+    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
+    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
+    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
+    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
+    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
 
 FROM flightroute fl
-LEFT JOIN flightroute_callsign flc USING (flightroute_callsign_id)
+LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
 LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
-LEFT JOIN airline ai USING (airline_id)
+LEFT JOIN airline ai USING(airline_id)
 LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
 LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
 LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
 
 WHERE 
-    flc.airline_id = (SELECT DISTINCT(ai.airline_id) FROM flightroute_callsign flc LEFT JOIN airline ai ON flc.airline_id = ai.airline_id WHERE ai.iata_prefix = $1 LIMIT 1)
+    flc.airline_id = (SELECT DISTINCT(ai.airline_id) FROM flightroute_callsign flc LEFT JOIN airline USING(airline_id) WHERE ai.iata_prefix = $1 LIMIT 1)
 AND
     flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
     }
@@ -422,8 +422,8 @@ INSERT INTO
     flightroute
         (airport_origin_id, airport_destination_id, flightroute_callsign_id)
     VALUES (
-        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic ON aa.airport_icao_code_id = aic.airport_icao_code_id WHERE aic.icao_code = $2),
-        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic ON aa.airport_icao_code_id = aic.airport_icao_code_id WHERE aic.icao_code = $3),
+        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $2),
+        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $3),
         $1
     )";
             sqlx::query(query)
