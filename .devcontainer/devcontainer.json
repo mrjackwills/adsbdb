@@ -17,6 +17,10 @@
 		"--net=host"
 	],
 
+	"containerEnv": {
+		"CARGO_REGISTRIES_CRATES_IO_PROTOCOL": "sparse"
+	},
+
 	// Set *default* container specific settings.json values on container create.
 
 	"mounts": [
