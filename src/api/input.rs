@@ -248,7 +248,7 @@ impl Validate for Callsign {
             if icao
                 .0
                 .chars()
-                .all(|c: char| ('a'..='z').contains(&c.to_ascii_lowercase()))
+                .all(|c: char| c.to_ascii_lowercase().is_ascii_lowercase())
             {
                 Ok(Self::Icao((icao.0.to_owned(), icao.1.to_owned())))
             } else if iata.0.chars().all(|c| valid_char(c, 'z')) {
