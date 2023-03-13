@@ -57,8 +57,7 @@ LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
 LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
 LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
 LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
-WHERE
-    ams.mode_s = $1"#
+WHERE ams.mode_s = $1"#
     }
 
     /// Separated out, so can use in tests with a transaction

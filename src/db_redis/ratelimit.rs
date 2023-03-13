@@ -27,7 +27,7 @@ impl RateLimit {
             }
             if count > 120 {
                 return Err(AppError::RateLimited(
-                    usize::try_from(redis.ttl::<&str, isize>(&key).await?).unwrap_or(0),
+                    usize::try_from(redis.ttl::<&str, isize>(&key).await?).unwrap_or_default()
                 ));
             };
             if count == 120 {

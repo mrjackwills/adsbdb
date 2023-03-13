@@ -162,7 +162,7 @@ LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
 LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
 LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
 
-WHERE fci.callsign = $1"
+WHERE fci.callsign = $1 LIMIT 1"
     }
 
     /// Query a flightroute based on a callsign with is a valid ICAO callsign
@@ -224,7 +224,7 @@ LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
 WHERE 
     flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
 AND
-    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
+    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2 LIMIT 1)"
     }
 
     /// EXPLAIN ANALYZE seems to think that using JOINS, instead of subqueries, is slower?
@@ -319,13 +319,14 @@ AND
 
     /// Query a flightroute based on a callsign with is a valid IATA callsign
     /// The `DISTINCT` subquery is bad, and will crash!
+	/// Limit 1?
     const fn get_query_iata() -> &'static str {
         r"
 SELECT
     fl.flightroute_id,
     concat($1,$2) as callsign,
-    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id))  AS callsign_iata,
-    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id))  AS callsign_icao,
+    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
+    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
 
     ai.airline_name,
     ai.airline_callsign,
@@ -375,7 +376,7 @@ LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
 WHERE 
     flc.airline_id = (SELECT DISTINCT(ai.airline_id) FROM flightroute_callsign flc LEFT JOIN airline USING(airline_id) WHERE ai.iata_prefix = $1 LIMIT 1)
 AND
-    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
+    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2 LIMIT 1)"
     }
 
     /// Transaction to insert a new flightroute
