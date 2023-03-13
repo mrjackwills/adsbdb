@@ -207,7 +207,12 @@ pub async fn fallback(
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
+#[allow(
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::unwrap_used,
+    unused_must_use
+)]
 mod tests {
     use std::sync::Arc;
 
