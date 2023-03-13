@@ -9,7 +9,7 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-axum ="0.6"
+axum = "0.6"
 dotenvy = "0.15"
 http-body = "0.4"
 once_cell = "1.17"
