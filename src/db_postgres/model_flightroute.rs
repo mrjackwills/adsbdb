@@ -319,7 +319,7 @@ AND
 
     /// Query a flightroute based on a callsign with is a valid IATA callsign
     /// The `DISTINCT` subquery is bad, and will crash!
-	/// Limit 1?
+    /// Limit 1?
     const fn get_query_iata() -> &'static str {
         r"
 SELECT
