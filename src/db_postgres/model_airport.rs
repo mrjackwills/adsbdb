@@ -5,7 +5,7 @@ use crate::api::AppError;
 
 #[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAirport {
-    pub airport_icao_code_id: i64,
+    pub airport_id: i64,
 }
 
 impl ModelAirport {
@@ -13,11 +13,13 @@ impl ModelAirport {
     pub async fn get(db: &PgPool, airport_icao: &str) -> Result<Option<Self>, AppError> {
         let query = r#"
 SELECT
-    airport_icao_code_id
+    airport_id
 FROM
-    airport_icao_code
+    airport
+LEFT JOIN
+    airport_icao_code ar USING(airport_icao_code_id)
 WHERE
-    icao_code = $1"#;
+    ar.icao_code = $1"#;
         Ok(sqlx::query_as::<_, Self>(query)
             .bind(airport_icao)
             .fetch_optional(db)
