@@ -68,10 +68,6 @@ services:
       adsbdb_postgres:
         condition: service_healthy
     restart: 'no'
-    deploy:
-      resources:
-        limits:
-          memory: 32MB
   adsbdb_redis:
     image: adsbdb_redis:0.2.2
     container_name: adsbdb_redis
