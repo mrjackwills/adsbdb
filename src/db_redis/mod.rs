@@ -67,8 +67,7 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
         None => String::new(),
     };
     redis.hset(&key, FIELD, cache).await?;
-    redis.expire(&key, ONE_WEEK).await?;
-    Ok(())
+    Ok(redis.expire::<&str, ()>(&key, ONE_WEEK).await?)
 }
 
 /// Get an async redis connection

@@ -48,6 +48,7 @@ WHERE
         db: &PgPool,
         airline_code: &AirlineCode,
     ) -> Result<Option<Vec<Self>>, AppError> {
+        // This is bad!
         let (where_prefix, bind) = match airline_code {
             AirlineCode::Iata(x) => ("iata", x),
             AirlineCode::Icao(x) => ("icao", x),
@@ -70,14 +71,14 @@ WHERE
 ORDER BY
     ai.airline_name"
         );
-        let abc = sqlx::query_as::<_, Self>(&query)
+        let result = sqlx::query_as::<_, Self>(&query)
             .bind(bind)
             .fetch_all(db)
             .await?;
-        if abc.is_empty() {
+        if result.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(abc))
+            Ok(Some(result))
         }
     }
 }

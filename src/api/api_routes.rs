@@ -77,7 +77,6 @@ async fn find_airline(
         let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
         insert_cache(&state.redis, &airline, &redis_key).await?;
         Ok(airline)
-        // Ok(None)
     }
 }
 

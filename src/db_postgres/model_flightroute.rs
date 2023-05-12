@@ -99,6 +99,7 @@ impl ModelFlightroute {
         }
     }
 
+    // Why is this a transaction?
     pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
         let mut transaction = db.begin().await?;
         let output = Self::_get(&mut transaction, callsign).await;
@@ -161,7 +162,6 @@ ON
 LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
 LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
 LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
-
 WHERE fci.callsign = $1 LIMIT 1"
     }
 
