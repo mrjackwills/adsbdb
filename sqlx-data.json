@@ -1,0 +1,191 @@
+{
+  "db": "PostgreSQL",
+  "10e8cce0c1fb069132aa68fe0909846e7cc90190071fecd512f4dfe23cc1c5fe": {
+    "describe": {
+      "columns": [
+        {
+          "name": "country_name",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "country_iso_name",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "airline_id",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "airline_callsign",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "airline_name",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "iata_prefix",
+          "ordinal": 5,
+          "type_info": "Text"
+        },
+        {
+          "name": "icao_prefix",
+          "ordinal": 6,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "\nSELECT\n    co.country_name, co.country_iso_name,\n    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix\nFROM\n    airline ai\nLEFT JOIN\n    country co USING(country_id)\nWHERE\n    icao_prefix = $1\nORDER BY\n    ai.airline_name"
+  },
+  "5c119c03f1ab337c13c5a8c407196f7ae7699244dfc5346c5fcda8a671752548": {
+    "describe": {
+      "columns": [
+        {
+          "name": "airport_id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "\nSELECT\n    airport_id\nFROM\n    airport\nLEFT JOIN\n    airport_icao_code ar\nUSING\n    (airport_icao_code_id)\nWHERE\n    ar.icao_code = $1"
+  },
+  "b897e833b194c0df491c6dac1a43ea5d9d479afc06e1d453d4bc1a8a7f45fa9a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "country_name",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "country_iso_name",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "airline_id",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "airline_callsign",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "airline_name",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "iata_prefix",
+          "ordinal": 5,
+          "type_info": "Text"
+        },
+        {
+          "name": "icao_prefix",
+          "ordinal": 6,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "\nSELECT\n    co.country_name, co.country_iso_name,\n    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix\nFROM\n    airline ai\nLEFT JOIN\n    country co USING(country_id)\nWHERE\n    icao_prefix = $1"
+  },
+  "dccce215d673c63ad984e7e8b44b9e5230fe88d1abd9a5b5c28c203d6211b419": {
+    "describe": {
+      "columns": [
+        {
+          "name": "country_name",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "country_iso_name",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "airline_id",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "airline_callsign",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "airline_name",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "iata_prefix",
+          "ordinal": 5,
+          "type_info": "Text"
+        },
+        {
+          "name": "icao_prefix",
+          "ordinal": 6,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "\nSELECT\n    co.country_name, co.country_iso_name,\n    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix\nFROM\n    airline ai\nLEFT JOIN\n    country co USING(country_id)\nWHERE\n    iata_prefix = $1\nORDER BY\n    ai.airline_name"
+  }
+}
