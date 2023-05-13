@@ -56,6 +56,113 @@
     },
     "query": "\nSELECT\n    co.country_name, co.country_iso_name,\n    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix\nFROM\n    airline ai\nLEFT JOIN\n    country co USING(country_id)\nWHERE\n    icao_prefix = $1\nORDER BY\n    ai.airline_name"
   },
+  "35771612af2459d64b765ccde9470b5893d8254d269d4fec6ebc4bd5cdfc3867": {
+    "describe": {
+      "columns": [
+        {
+          "name": "aircraft_photo_id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id"
+  },
+  "4c8200297480f6dde60dc08b60afc7bee41b99ffaca4a64fd168e19b29503400": {
+    "describe": {
+      "columns": [
+        {
+          "name": "aircraft_id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "mode_s!: _",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "registration",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner_operator_flag_code",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner_country_name",
+          "ordinal": 5,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner_country_iso_name",
+          "ordinal": 6,
+          "type_info": "Text"
+        },
+        {
+          "name": "manufacturer",
+          "ordinal": 7,
+          "type_info": "Text"
+        },
+        {
+          "name": "aircraft_type",
+          "ordinal": 8,
+          "type_info": "Text"
+        },
+        {
+          "name": "icao_type",
+          "ordinal": 9,
+          "type_info": "Text"
+        },
+        {
+          "name": "url_photo",
+          "ordinal": 10,
+          "type_info": "Text"
+        },
+        {
+          "name": "url_photo_thumbnail",
+          "ordinal": 11,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        null,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        null,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\nSELECT\n    aa.aircraft_id,\n\t$1 AS \"mode_s!: _\",\n    ar.registration,\n    aro.registered_owner,\n    aof.operator_flag_code AS registered_owner_operator_flag_code,\n    co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,\n    am.manufacturer,\n    at.type AS aircraft_type,\n    ait.icao_type,\n    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,\n    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail    \nFROM\n    aircraft aa\nLEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)\nLEFT JOIN aircraft_registration ar USING(aircraft_registration_id)\nLEFT JOIN country co USING(country_id)\nLEFT JOIN aircraft_type at USING(aircraft_type_id)\nLEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)\nLEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)\nLEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)\nLEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)\nLEFT JOIN aircraft_photo ap USING(aircraft_photo_id)\nWHERE ams.mode_s = $1"
+  },
   "5c119c03f1ab337c13c5a8c407196f7ae7699244dfc5346c5fcda8a671752548": {
     "describe": {
       "columns": [
@@ -75,6 +182,93 @@
       }
     },
     "query": "\nSELECT\n    airport_id\nFROM\n    airport\nLEFT JOIN\n    airport_icao_code ar\nUSING\n    (airport_icao_code_id)\nWHERE\n    ar.icao_code = $1"
+  },
+  "b10aab484e3b4c1acf0f9a2d8b8c6180aa34435530d8ef63b4788cb069f3cf6a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "aircraft_id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "mode_s",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "registration!: _",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner_operator_flag_code",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner_country_name",
+          "ordinal": 5,
+          "type_info": "Text"
+        },
+        {
+          "name": "registered_owner_country_iso_name",
+          "ordinal": 6,
+          "type_info": "Text"
+        },
+        {
+          "name": "manufacturer",
+          "ordinal": 7,
+          "type_info": "Text"
+        },
+        {
+          "name": "aircraft_type",
+          "ordinal": 8,
+          "type_info": "Text"
+        },
+        {
+          "name": "icao_type",
+          "ordinal": 9,
+          "type_info": "Text"
+        },
+        {
+          "name": "url_photo",
+          "ordinal": 10,
+          "type_info": "Text"
+        },
+        {
+          "name": "url_photo_thumbnail",
+          "ordinal": 11,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        null,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        null,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\nSELECT\n    aa.aircraft_id,\n    ams.mode_s,\n    $1 AS \"registration!: _\",\n    aro.registered_owner,\n    aof.operator_flag_code AS registered_owner_operator_flag_code,\n    co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,\n    am.manufacturer,\n    at.type AS aircraft_type,\n    ait.icao_type,\n    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,\n    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail\nFROM\n    aircraft aa\nLEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)\nLEFT JOIN aircraft_registration ar USING(aircraft_registration_id)\nLEFT JOIN country co USING(country_id)\nLEFT JOIN aircraft_type at USING(aircraft_type_id)\nLEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)\nLEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)\nLEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)\nLEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)\nLEFT JOIN aircraft_photo ap USING(aircraft_photo_id)\nWHERE\n    ar.registration = $1"
   },
   "b897e833b194c0df491c6dac1a43ea5d9d479afc06e1d453d4bc1a8a7f45fa9a": {
     "describe": {
@@ -187,5 +381,18 @@
       }
     },
     "query": "\nSELECT\n    co.country_name, co.country_iso_name,\n    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix\nFROM\n    airline ai\nLEFT JOIN\n    country co USING(country_id)\nWHERE\n    iata_prefix = $1\nORDER BY\n    ai.airline_name"
+  },
+  "fe1562fbe23aa0d5b4ed9ffb18f8a3b77695d586945201d277a329acddb0fb84": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\nUPDATE\n    aircraft\nSET\n    aircraft_photo_id = $1\nWHERE\naircraft_id = $2"
   }
 }
