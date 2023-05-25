@@ -255,49 +255,36 @@ flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_call
             ModelAirline::get_by_icao_callsign(transaction, &scraped_flightroute.callsign_icao)
                 .await?
         {
-            let callsign_inner_query = "INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING";
-            sqlx::query(callsign_inner_query)
-                .bind(scraped_flightroute.callsign_icao.get_suffix())
-                .execute(&mut *transaction)
-                .await?;
-            sqlx::query(callsign_inner_query)
-                .bind(scraped_flightroute.callsign_iata.get_suffix())
+            sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_icao.get_suffix())
                 .execute(&mut *transaction)
                 .await?;
 
-            let icao_prefix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
-            let icao_prefix = sqlx::query_as::<_, Id>(icao_prefix)
-                .bind(scraped_flightroute.callsign_icao.get_suffix())
+            sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_iata.get_suffix())
+                .execute(&mut *transaction)
+                .await?;
+
+            let icao_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_icao.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let iata_prefix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
-            let iata_prefix = sqlx::query_as::<_, Id>(iata_prefix)
-                .bind(scraped_flightroute.callsign_iata.get_suffix())
+            let iata_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_iata.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let flighroute_callsign = "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id";
-
-            let flighroute_callsign_id = sqlx::query_as::<_, Id>(flighroute_callsign)
-                .bind(airline_id.airline_id)
-                .bind(iata_prefix.id)
-                .bind(icao_prefix.id)
+            let flighroute_callsign_id = sqlx::query_as!(Id, "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id", 
+                airline_id.airline_id,
+                iata_prefix.id,
+                icao_prefix.id)
                 .fetch_one(&mut *transaction)
                 .await?;
-            let query = r"
+            sqlx::query!(r"
 INSERT INTO
-    flightroute
-        (airport_origin_id, airport_destination_id, flightroute_callsign_id)
-    VALUES (
-        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $2),
-        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $3),
-        $1
-    )";
-            sqlx::query(query)
-                .bind(flighroute_callsign_id.id)
-                .bind(&scraped_flightroute.origin)
-                .bind(&scraped_flightroute.destination)
+	flightroute (airport_origin_id, airport_destination_id, flightroute_callsign_id)
+VALUES (
+	(SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $2),
+	(SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $3),
+	$1
+)",flighroute_callsign_id.id,&scraped_flightroute.origin,&scraped_flightroute.destination)
                 .execute(&mut *transaction)
                 .await?;
         }
