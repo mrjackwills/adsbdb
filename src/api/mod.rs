@@ -130,13 +130,10 @@ impl fmt::Display for Routes {
 /// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
     match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
-        Ok(i) => {
-            let vec_i = i.take(1).collect::<Vec<SocketAddr>>();
-            vec_i.get(0).map_or_else(
-                || Err(AppError::Internal("No addr".to_string())),
-                |addr| Ok(*addr),
-            )
-        }
+        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().get(0).map_or_else(
+            || Err(AppError::Internal("No addr".to_string())),
+            |addr| Ok(*addr),
+        ),
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
 }

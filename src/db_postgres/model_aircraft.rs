@@ -40,7 +40,7 @@ impl ModelAircraft {
         Ok(sqlx::query_as!(Self,r#"
 SELECT
     aa.aircraft_id,
-	$1 AS "mode_s!: _",
+    $1 AS "mode_s!: _",
     ar.registration,
     aro.registered_owner,
     aof.operator_flag_code AS registered_owner_operator_flag_code,
