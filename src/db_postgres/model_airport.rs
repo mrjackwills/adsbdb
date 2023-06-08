@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::PgExecutor;
 
 use crate::api::AppError;
 
@@ -10,11 +10,13 @@ pub struct ModelAirport {
 
 impl ModelAirport {
     /// Used for checking that a scraped airport is in db
-    pub async fn get(db: &PgPool, airport_icao: &str) -> Result<Option<Self>, AppError> {
+    pub async fn get(
+        db: impl PgExecutor<'_>,
+        airport_icao: &str,
+    ) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as!(
             Self,
-            r"
-SELECT
+            r"SELECT
     airport_id
 FROM
     airport

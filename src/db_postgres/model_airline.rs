@@ -41,7 +41,7 @@ WHERE
     }
 
     /// Search for arilines by iata prefix
-    async fn get_all_by_airline_code_iata(
+    async fn get_all_by_iata_code(
         db: &PgPool,
         prefix: &String,
     ) -> Result<Option<Vec<Self>>, AppError> {
@@ -71,7 +71,7 @@ ORDER BY
     }
 
     /// Search for arilines by icao prefix
-    async fn get_all_by_airline_code_icao(
+    async fn get_all_by_icao_code(
         db: &PgPool,
         prefix: &String,
     ) -> Result<Option<Vec<Self>>, AppError> {
@@ -105,8 +105,8 @@ ORDER BY
         airline_code: &AirlineCode,
     ) -> Result<Option<Vec<Self>>, AppError> {
         Ok(match airline_code {
-            AirlineCode::Iata(x) => Self::get_all_by_airline_code_iata(db, x).await?,
-            AirlineCode::Icao(x) => Self::get_all_by_airline_code_icao(db, x).await?,
+            AirlineCode::Iata(x) => Self::get_all_by_iata_code(db, x).await?,
+            AirlineCode::Icao(x) => Self::get_all_by_icao_code(db, x).await?,
         })
     }
 }

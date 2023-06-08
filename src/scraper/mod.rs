@@ -7,7 +7,7 @@ use tracing::error;
 
 use crate::{
     api::{AppError, Callsign, Validate},
-    db_postgres::{ModelAircraft, ModelAirport, ModelFlightroute},
+    db_postgres::{ModelAircraft, ModelFlightroute},
     parse_env::AppEnv,
 };
 
@@ -145,14 +145,15 @@ impl Scraper {
         }
     }
 
+    // This is now done in the insert_transction
     /// Return true if BOTH airport_icao_code's are in db
-    async fn check_icao_in_db(db: &PgPool, scraped_flightroute: &ScrapedFlightroute) -> bool {
-        let (start, end) = tokio::join!(
-            ModelAirport::get(db, &scraped_flightroute.origin),
-            ModelAirport::get(db, &scraped_flightroute.destination)
-        );
-        start.map_or(false, |f| f.is_some()) && end.map_or(false, |f| f.is_some())
-    }
+    // async fn check_icao_in_db(db: &PgPool, scraped_flightroute: &ScrapedFlightroute) -> bool {
+    //     let (start, end) = tokio::join!(
+    //         ModelAirport::get(db, &scraped_flightroute.origin),
+    //         ModelAirport::get(db, &scraped_flightroute.destination)
+    //     );
+    //     start.map_or(false, |f| f.is_some()) && end.map_or(false, |f| f.is_some())
+    // }
 
     /// Scrape callsign url for whole page html string
     #[cfg(not(test))]
@@ -259,13 +260,9 @@ impl Scraper {
         if self.allow_scrape_flightroute.is_some() {
             if let Ok(html) = self.request_callsign(callsign).await {
                 if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
-                    if Self::check_icao_in_db(postgres, &scraped_flightroute).await {
-                        output = ModelFlightroute::insert_scraped_flightroute(
-                            postgres,
-                            scraped_flightroute,
-                        )
-                        .await?;
-                    }
+                    output =
+                        ModelFlightroute::insert_scraped_flightroute(postgres, scraped_flightroute)
+                            .await?;
                 }
             }
         }
@@ -375,47 +372,47 @@ mod tests {
         assert_eq!(result.unwrap(), TEST_DESTINATION);
     }
 
-    #[tokio::test]
-    async fn scraper_check_icao_in_db_true() {
-        let setup = setup().await;
+    // #[tokio::test]
+    // async fn scraper_check_icao_in_db_true() {
+    //     let setup = setup().await;
 
-        let expected = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
-            origin: TEST_ORIGIN.to_owned(),
-            destination: TEST_DESTINATION.to_owned(),
-        };
-        let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
-        assert!(result);
-    }
+    //     let expected = ScrapedFlightroute {
+    //         callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
+    //         callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+    //         origin: TEST_ORIGIN.to_owned(),
+    //         destination: TEST_DESTINATION.to_owned(),
+    //     };
+    //     let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
+    //     assert!(result);
+    // }
 
-    #[tokio::test]
-    async fn scraper_check_icao_in_db_false_origin() {
-        let setup = setup().await;
+    // #[tokio::test]
+    // async fn scraper_check_icao_in_db_false_origin() {
+    //     let setup = setup().await;
 
-        let expected = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
-            origin: "AAAA".to_owned(),
-            destination: TEST_DESTINATION.to_owned(),
-        };
-        let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
-        assert!(!result);
-    }
+    //     let expected = ScrapedFlightroute {
+    //         callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
+    //         callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+    //         origin: "AAAA".to_owned(),
+    //         destination: TEST_DESTINATION.to_owned(),
+    //     };
+    //     let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
+    //     assert!(!result);
+    // }
 
-    #[tokio::test]
-    async fn scraper_check_icao_in_db_false_destination() {
-        let setup = setup().await;
+    // #[tokio::test]
+    // async fn scraper_check_icao_in_db_false_destination() {
+    //     let setup = setup().await;
 
-        let expected = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
-            origin: TEST_ORIGIN.to_owned(),
-            destination: "AAAA".to_owned(),
-        };
-        let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
-        assert!(!result);
-    }
+    //     let expected = ScrapedFlightroute {
+    //         callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
+    //         callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+    //         origin: TEST_ORIGIN.to_owned(),
+    //         destination: "AAAA".to_owned(),
+    //     };
+    //     let result = Scraper::check_icao_in_db(&setup.1, &expected).await;
+    //     assert!(!result);
+    // }
 
     #[test]
     fn scraper_extract_flightroute() {
