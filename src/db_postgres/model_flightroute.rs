@@ -6,7 +6,7 @@ use crate::{
     scraper::ScrapedFlightroute,
 };
 
-use super::ModelAirline;
+use super::{ModelAirline, ModelAirport};
 
 /// Used in transaction of inserting a new scraped flightroute
 #[derive(sqlx::FromRow, Debug, Clone, Copy)]
@@ -31,7 +31,7 @@ pub struct ModelFlightroute {
     pub origin_airport_country_iso_name: String,
     pub origin_airport_country_name: String,
     pub origin_airport_elevation: i32,
-    // THIS CAN BE NULL - maybe not now using the join queries
+    // THIS CAN BE NULL?
     pub origin_airport_iata_code: String,
     pub origin_airport_icao_code: String,
     pub origin_airport_latitude: f64,
@@ -66,18 +66,18 @@ impl ModelFlightroute {
         format!(
             r"
 SELECT
-	fl.flightroute_id,
-	$1 AS callsign,
-	NULL AS callsign_iata,
-	NULL AS callsign_icao,
+    fl.flightroute_id,
+    $1 AS callsign,
+    NULL AS callsign_iata,
+    NULL AS callsign_icao,
 
-	NULL as airline_name,
-	NULL as airline_callsign,
-	NULL as airline_iata,
-	NULL as airline_icao,
-	NULL as airline_country_name,
-	NULL as airline_country_iso_name,
-	{}
+    NULL as airline_name,
+    NULL as airline_callsign,
+    NULL as airline_iata,
+    NULL as airline_icao,
+    NULL as airline_country_name,
+    NULL as airline_country_iso_name,
+    {}
 
 WHERE fci.callsign = $1 LIMIT 1",
             Self::get_query_joins()
@@ -87,38 +87,38 @@ WHERE fci.callsign = $1 LIMIT 1",
     // Main body for the flightroute query with all the joins
     const fn get_query_joins() -> &'static str {
         r"
-	co_o.country_name AS origin_airport_country_name,
-	co_o.country_iso_name AS origin_airport_country_iso_name,
-	am_o.municipality AS origin_airport_municipality,
-	aic_o.icao_code AS origin_airport_icao_code,
-	aia_o.iata_code AS origin_airport_iata_code,
-	an_o.name AS origin_airport_name,
-	ae_o.elevation AS origin_airport_elevation,
-	ala_o.latitude AS origin_airport_latitude,
-	alo_o.longitude AS origin_airport_longitude,
+    co_o.country_name AS origin_airport_country_name,
+    co_o.country_iso_name AS origin_airport_country_iso_name,
+    am_o.municipality AS origin_airport_municipality,
+    aic_o.icao_code AS origin_airport_icao_code,
+    aia_o.iata_code AS origin_airport_iata_code,
+    an_o.name AS origin_airport_name,
+    ae_o.elevation AS origin_airport_elevation,
+    ala_o.latitude AS origin_airport_latitude,
+    alo_o.longitude AS origin_airport_longitude,
 
-	co_m.country_name AS midpoint_airport_country_name,
-	co_m.country_iso_name AS midpoint_airport_country_iso_name,
-	am_m.municipality AS midpoint_airport_municipality,
-	aic_m.icao_code AS midpoint_airport_icao_code,
-	aia_m.iata_code AS midpoint_airport_iata_code,
-	an_m.name AS midpoint_airport_name,
-	ae_m.elevation AS midpoint_airport_elevation,
-	ala_m.latitude AS midpoint_airport_latitude,
-	alo_m.longitude AS midpoint_airport_longitude,
+    co_m.country_name AS midpoint_airport_country_name,
+    co_m.country_iso_name AS midpoint_airport_country_iso_name,
+    am_m.municipality AS midpoint_airport_municipality,
+    aic_m.icao_code AS midpoint_airport_icao_code,
+    aia_m.iata_code AS midpoint_airport_iata_code,
+    an_m.name AS midpoint_airport_name,
+    ae_m.elevation AS midpoint_airport_elevation,
+    ala_m.latitude AS midpoint_airport_latitude,
+    alo_m.longitude AS midpoint_airport_longitude,
 
-	co_d.country_name AS destination_airport_country_name,
-	co_d.country_iso_name AS destination_airport_country_iso_name,
-	am_d.municipality AS destination_airport_municipality,
-	aic_d.icao_code AS destination_airport_icao_code,
-	aia_d.iata_code AS destination_airport_iata_code,
-	an_d.name AS destination_airport_name,
-	ae_d.elevation AS destination_airport_elevation,
-	ala_d.latitude AS destination_airport_latitude,
-	alo_d.longitude AS destination_airport_longitude
+    co_d.country_name AS destination_airport_country_name,
+    co_d.country_iso_name AS destination_airport_country_iso_name,
+    am_d.municipality AS destination_airport_municipality,
+    aic_d.icao_code AS destination_airport_icao_code,
+    aia_d.iata_code AS destination_airport_iata_code,
+    an_d.name AS destination_airport_name,
+    ae_d.elevation AS destination_airport_elevation,
+    ala_d.latitude AS destination_airport_latitude,
+    alo_d.longitude AS destination_airport_longitude
 
 FROM
-	flightroute fl
+    flightroute fl
 LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
 LEFT JOIN airline ai USING(airline_id)
 LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
@@ -158,16 +158,16 @@ LEFT JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_lo
     const fn get_query_selects() -> &'static str {
         r"
 SELECT
-	fl.flightroute_id,
-	concat($1, $2) as callsign,
-	concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
-	concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
-	(SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
-	(SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
-	ai.airline_callsign,
-	ai.airline_name,
-	ai.iata_prefix AS airline_iata,
-	ai.icao_prefix AS airline_icao,"
+    fl.flightroute_id,
+    concat($1, $2) as callsign,
+    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
+    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
+    (SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
+    (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix AS airline_iata,
+    ai.icao_prefix AS airline_icao,"
     }
 
     /// Query a flightroute based on a callsign with is a valid IATA callsign, will choose airline_id which has highest number of entries in flightroute, for when IATA collide
@@ -177,9 +177,9 @@ SELECT
 {}
 {}
 WHERE
-	flc.airline_id = (SELECT ai.airline_id FROM flightroute_callsign flc LEFT JOIN airline ai ON flc.airline_id = ai.airline_id WHERE ai.iata_prefix = $1 GROUP BY ai.airline_id ORDER BY COUNT(*) LIMIT 1)
+    flc.airline_id = (SELECT ai.airline_id FROM flightroute_callsign flc LEFT JOIN airline ai ON flc.airline_id = ai.airline_id WHERE ai.iata_prefix = $1 GROUP BY ai.airline_id ORDER BY COUNT(*) LIMIT 1)
 AND
-	flc.iata_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)",
+    flc.iata_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)",
             Self::get_query_selects(),
             Self::get_query_joins()
         )
@@ -189,12 +189,12 @@ AND
     fn get_query_icao() -> String {
         format!(
             r"
-			{}
-			{}
+            {}
+            {}
 WHERE
-	flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
+    flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
 AND
-flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)",
+    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)",
             Self::get_query_selects(),
             Self::get_query_joins()
         )
@@ -255,38 +255,40 @@ flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_call
             ModelAirline::get_by_icao_callsign(transaction, &scraped_flightroute.callsign_icao)
                 .await?
         {
-            sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_icao.get_suffix())
+            let origin = ModelAirport::get(&mut *transaction, &scraped_flightroute.origin).await?;
+            let destination =
+                ModelAirport::get(&mut *transaction, &scraped_flightroute.destination).await?;
+            if let (Some(origin), Some(destination)) = (origin, destination) {
+                sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_icao.get_suffix())
                 .execute(&mut *transaction)
                 .await?;
 
-            sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_iata.get_suffix())
+                sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_iata.get_suffix())
                 .execute(&mut *transaction)
                 .await?;
 
-            let icao_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_icao.get_suffix())
+                let icao_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_icao.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let iata_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_iata.get_suffix())
+                let iata_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_iata.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let flighroute_callsign_id = sqlx::query_as!(Id, "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id", 
+                let flighroute_callsign_id = sqlx::query_as!(Id, "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id", 
                 airline_id.airline_id,
                 iata_prefix.id,
                 icao_prefix.id)
                 .fetch_one(&mut *transaction)
                 .await?;
-            sqlx::query!(r"
-INSERT INTO
-	flightroute (airport_origin_id, airport_destination_id, flightroute_callsign_id)
-VALUES (
-	(SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $2),
-	(SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $3),
-	$1
-)",flighroute_callsign_id.id,&scraped_flightroute.origin,&scraped_flightroute.destination)
+                sqlx::query!(r"INSERT INTO flightroute (airport_origin_id, airport_destination_id, flightroute_callsign_id) VALUES ($1, $2, $3)",
+                    origin.airport_id,
+                    destination.airport_id,
+                    flighroute_callsign_id.id,
+                )
                 .execute(&mut *transaction)
                 .await?;
+            }
         }
         Ok(())
     }
@@ -300,8 +302,7 @@ VALUES (
         let mut transaction = db.begin().await?;
         Self::_insert_scraped_flightroute(&mut transaction, &scraped_flightroute).await?;
         transaction.commit().await?;
-        let output = Self::get(db, &scraped_flightroute.callsign_icao).await?;
-        Ok(output)
+        Self::get(db, &scraped_flightroute.callsign_icao).await
     }
 
     /// Insert, and return, a new flightroute, will rollback after returning flightroute
