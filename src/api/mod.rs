@@ -12,7 +12,6 @@ use axum::{
     Router,
 };
 use std::{
-    fmt,
     net::{IpAddr, SocketAddr, ToSocketAddrs},
     sync::Arc,
     time::Instant,
@@ -103,29 +102,35 @@ fn get_api_version() -> String {
             .collect::<String>()
     )
 }
+#[macro_export]
+macro_rules! define_routes {
+    ($enum_name:ident, $base_path:expr, $($variant:ident => $route:expr),*) => {
+        enum $enum_name {
+            $($variant,)*
+        }
 
-enum Routes {
-    Aircraft,
-    Airline,
-    Callsign,
-    Online,
-    NNumber,
-    ModeS,
+        impl $enum_name {
+            fn addr(&self) -> String {
+                let route_name = match self {
+                    $(Self::$variant => $route,)*
+                };
+                format!("{}{}", $base_path, route_name)
+            }
+        }
+    };
 }
 
-impl fmt::Display for Routes {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let disp = match self {
-            Self::Aircraft => "aircraft/:mode_s",
-            Self::Airline => "airline/:airline",
-            Self::Callsign => "callsign/:callsign",
-            Self::Online => "online",
-            Self::NNumber => "n-number/:n-number",
-            Self::ModeS => "mode-s/:mode_s",
-        };
-        write!(f, "/{disp}")
-    }
-}
+define_routes!(
+    Routes,
+    "/",
+    Aircraft => "aircraft/:mode_s",
+    Airline => "airline/:airline",
+    Callsign => "callsign/:callsign",
+    Online => "online",
+    NNumber => "n-number/:n-number",
+    ModeS => "mode-s/:mode_s"
+
+);
 
 /// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
@@ -147,12 +152,12 @@ pub async fn serve(
     let application_state = ApplicationState::new(postgres, redis, &app_env);
 
     let api_routes = Router::new()
-        .route(&Routes::Aircraft.to_string(), get(api_routes::aircraft_get))
-        .route(&Routes::Airline.to_string(), get(api_routes::airline_get))
-        .route(&Routes::Callsign.to_string(), get(api_routes::callsign_get))
-        .route(&Routes::Online.to_string(), get(api_routes::online_get))
-        .route(&Routes::NNumber.to_string(), get(api_routes::n_number_get))
-        .route(&Routes::ModeS.to_string(), get(api_routes::mode_s_get));
+        .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
+        .route(&Routes::Airline.addr(), get(api_routes::airline_get))
+        .route(&Routes::Callsign.addr(), get(api_routes::callsign_get))
+        .route(&Routes::Online.addr(), get(api_routes::online_get))
+        .route(&Routes::NNumber.addr(), get(api_routes::n_number_get))
+        .route(&Routes::ModeS.addr(), get(api_routes::mode_s_get));
 
     let prefix = get_api_version();
 
@@ -255,8 +260,16 @@ pub mod tests {
         }
     }
 
-    async fn sleep(ms: u64) {
-        tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+    #[macro_export]
+    /// Sleep for a given number of milliseconds, is an async fn.
+    /// If no parameter supplied, defaults to 1000ms
+    macro_rules! sleep {
+        () => {
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        };
+        ($ms:expr) => {
+            tokio::time::sleep(std::time::Duration::from_millis($ms)).await;
+        };
     }
 
     async fn start_server() -> TestSetup {
@@ -269,7 +282,7 @@ pub mod tests {
             serve(app_env, postgres, redis).await.unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
-        sleep(1).await;
+        sleep!(1);
         TestSetup {
             handle: Some(handle),
             app_env: setup.app_env,
@@ -1015,7 +1028,7 @@ pub mod tests {
     async fn http_mod_get_online() {
         start_server().await;
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        sleep(1000).await;
+        sleep!();
         let resp = reqwest::get(url).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
