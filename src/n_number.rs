@@ -21,35 +21,42 @@ pub static ALLCHARS: Lazy<String> = Lazy::new(|| format!("{ICAO_CHARSET}{DIGITSE
 
 const SUFFIX_SIZE: usize = 601;
 
-enum NError {
-    CharToDigit,
-    FormatModeS,
-    FinalChar,
-    FirstChar,
-    GetIndex,
-    GetSuffix,
-    SuffixOffset,
-}
-impl NError {
-    fn error(&self) -> AppError {
-        AppError::Internal(self.to_string())
-    }
+/// Macro to create error enum
+#[macro_export]
+macro_rules! create_error {
+    ($enum_name:ident, $($variant:ident => $route:expr),*) => {
+        enum $enum_name {
+            $($variant,)*
+        }
+
+        impl $enum_name {
+            fn error(&self) -> AppError {
+                AppError::Internal(self.to_string())
+            }
+        }
+
+        impl fmt::Display for $enum_name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let disp = match self {
+                    $(Self::$variant => $route,)*
+                };
+                write!(f, "N-Number::{}", disp)
+            }
+        }
+    };
 }
 
-impl fmt::Display for NError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let disp = match self {
-            Self::CharToDigit => "char_not_digit",
-            Self::FormatModeS => "format_mode_s",
-            Self::FinalChar => "final_char",
-            Self::FirstChar => "not_a",
-            Self::GetIndex => "get_index",
-            Self::GetSuffix => "get_suffix",
-            Self::SuffixOffset => "suffix_offset",
-        };
-        write!(f, "N-Number::{disp}")
-    }
-}
+create_error!(
+    NError,
+    CharToDigit => "char_not_digit",
+    FormatModeS => "format_mode_s",
+    FinalChar => "final_char",
+    FirstChar => "not_a",
+    GetIndex => "get_index",
+    GetSuffix => "get_suffix",
+    SuffixOffset => "suffix_offset"
+
+);
 
 enum Bucket {
     One,
