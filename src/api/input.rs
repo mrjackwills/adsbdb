@@ -111,7 +111,7 @@ where
 
 
 /// from_request_parts macro, to run Self::validate
-macro_rules! FromRequestParts {
+macro_rules! from_request_parts {
     ($struct_name:ident, $a: expr) => {
         #[async_trait]
         impl<S> FromRequestParts<S> for $struct_name
@@ -132,10 +132,10 @@ macro_rules! FromRequestParts {
     };
 }
 
-FromRequestParts!(ModeS, AppError::AircraftSearch(String::new()));
-FromRequestParts!(NNumber, AppError::NNumber(String::from("invalid")));
-FromRequestParts!(Callsign, AppError::AircraftSearch(String::from("invalid")));
-FromRequestParts!(AirlineCode, AppError::AircraftSearch(String::new()));
+from_request_parts!(ModeS, AppError::AircraftSearch(String::new()));
+from_request_parts!(NNumber, AppError::NNumber(String::from("invalid")));
+from_request_parts!(Callsign, AppError::AircraftSearch(String::from("invalid")));
+from_request_parts!(AirlineCode, AppError::AircraftSearch(String::new()));
 
 impl Validate for Registration {
     /// Make sure that input is a valid registration, less than 16 chars, and convert to uppercase
