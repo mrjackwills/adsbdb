@@ -72,7 +72,6 @@ fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 /// Get a users ip address, application should always be behind an nginx reverse proxy
 /// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
-/// but if for some nothing works, return ipv4 255.255.255.255
 pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
     x_forwarded_for(headers)
         .or_else(|| x_real_ip(headers))

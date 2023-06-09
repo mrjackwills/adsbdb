@@ -30,7 +30,7 @@ macro_rules! create_error {
         }
 
         impl $enum_name {
-            fn error(&self) -> AppError {
+            fn err(&self) -> AppError {
                 AppError::Internal(self.to_string())
             }
         }
@@ -103,11 +103,11 @@ fn get_suffix(offset: usize) -> Result<String, AppError> {
         ICAO_CHARSET
             .chars()
             .nth(rem - 1)
-            .map_or(Err(NError::GetSuffix.error()), |c| {
+            .map_or(Err(NError::GetSuffix.err()), |c| {
                 Ok(format!("{first_char}{c}"))
             })
     } else {
-        Err(NError::GetSuffix.error())
+        Err(NError::GetSuffix.err())
     }
 }
 
@@ -115,11 +115,11 @@ fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
     offset
         .chars()
         .nth(index)
-        .map_or(Err(NError::GetIndex.error()), |second_char| {
+        .map_or(Err(NError::GetIndex.err()), |second_char| {
             ICAO_CHARSET
                 .chars()
                 .position(|c| c == second_char)
-                .map_or_else(|| Err(NError::GetIndex.error()), Ok)
+                .map_or_else(|| Err(NError::GetIndex.err()), Ok)
         })
 }
 
@@ -133,7 +133,7 @@ fn suffix_offset(offset: &str) -> Result<usize, AppError> {
         return Ok(0);
     }
     if offset_len > 2 || !offset.chars().all(|x| ALLCHARS.contains(x)) {
-        return Err(NError::SuffixOffset.error());
+        return Err(NError::SuffixOffset.err());
     }
     let mut count = (CHARSET_LEN + 1) * suffix_index(offset, 0)? + 1;
     if offset_len == 2 {
@@ -150,7 +150,7 @@ fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
     let as_hex = format!("{count:X}");
     let l = prefix.chars().count() + as_hex.chars().count();
     if prefix.len() + as_hex.chars().count() > ICAO_SIZE {
-        Err(NError::FormatModeS.error())
+        Err(NError::FormatModeS.err())
     } else {
         let to_fill = format!("{:0^width$}", "", width = ICAO_SIZE - l);
         ModeS::validate(&format!("{prefix}{to_fill}{as_hex}").to_uppercase())
@@ -161,7 +161,7 @@ fn format_mode_s(prefix: &str, count: usize) -> Result<ModeS, AppError> {
 pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     // N-Numbers only apply to America aircraft, and American aircraft ICAO all start with 'A'
     if !mode_s.to_string().starts_with('A') {
-        return Err(NError::FirstChar.error());
+        return Err(NError::FirstChar.err());
     }
 
     // All N-Numbers start with 'N'
@@ -192,7 +192,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     }
 
     ALLCHARS.chars().nth(rem - 1).map_or_else(
-        || Err(NError::FinalChar.error()),
+        || Err(NError::FinalChar.err()),
         |final_char| {
             output.push(final_char);
             NNumber::validate(&output)
@@ -204,7 +204,7 @@ fn n_number_index(n_number: &str, index: usize) -> Result<char, AppError> {
     n_number
         .chars()
         .nth(index)
-        .map_or_else(|| Err(NError::CharToDigit.error()), Ok)
+        .map_or_else(|| Err(NError::CharToDigit.err()), Ok)
 }
 
 fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<usize, AppError> {
@@ -214,11 +214,11 @@ fn calc_count(n_number: &str, index: usize, bucket: Option<Bucket>) -> Result<us
             ALLCHARS
                 .chars()
                 .position(|x| x == char)
-                .map_or_else(|| Err(NError::GetIndex.error()), |pos| Ok(pos + 1))
+                .map_or_else(|| Err(NError::GetIndex.err()), |pos| Ok(pos + 1))
         },
         |bucket| {
             char.to_digit(10).map_or_else(
-                || Err(NError::CharToDigit.error()),
+                || Err(NError::CharToDigit.err()),
                 |mut value| {
                     value -= u32::from(bucket.extra());
                     let output = match bucket {
@@ -263,7 +263,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
                     count += calc_count(n_number, index, Some(Bucket::Four))?;
                 }
             } else {
-                return Err(NError::FormatModeS.error());
+                return Err(NError::FormatModeS.err());
             }
         }
     }
