@@ -67,7 +67,6 @@ impl Validate for AirlineCode {
     }
 }
 
-
 /// Make unit structs, StructName(String), and impl display on it
 macro_rules! unit_struct {
     ($struct_name:ident) => {
@@ -109,10 +108,11 @@ where
     }
 }
 
+// MyEnum::$variant:ident
 
 /// from_request_parts macro, to run Self::validate
 macro_rules! from_request_parts {
-    ($struct_name:ident, $a: expr) => {
+    ($struct_name:ident, AppError::$variant:ident) => {
         #[async_trait]
         impl<S> FromRequestParts<S> for $struct_name
         where
@@ -125,17 +125,36 @@ macro_rules! from_request_parts {
             ) -> Result<Self, Self::Rejection> {
                 match axum::extract::Path::<String>::from_request_parts(parts, state).await {
                     Ok(value) => Ok(Self::validate(&value.0)?),
-                    Err(_) => Err($a),
+                    Err(_) => Err(AppError::$variant(String::from("invalid"))),
+                }
+            }
+        }
+    };
+
+    ($struct_name:ident) => {
+        #[async_trait]
+        impl<S> FromRequestParts<S> for $struct_name
+        where
+            S: Send + Sync,
+        {
+            type Rejection = AppError;
+            async fn from_request_parts(
+                parts: &mut Parts,
+                state: &S,
+            ) -> Result<Self, Self::Rejection> {
+                match axum::extract::Path::<String>::from_request_parts(parts, state).await {
+                    Ok(value) => Ok(Self::validate(&value.0)?),
+                    Err(_) => Err(AppError::AircraftSearch(String::new())),
                 }
             }
         }
     };
 }
 
-from_request_parts!(ModeS, AppError::AircraftSearch(String::new()));
-from_request_parts!(NNumber, AppError::NNumber(String::from("invalid")));
-from_request_parts!(Callsign, AppError::AircraftSearch(String::from("invalid")));
-from_request_parts!(AirlineCode, AppError::AircraftSearch(String::new()));
+from_request_parts!(ModeS);
+from_request_parts!(NNumber, AppError::NNumber);
+from_request_parts!(Callsign, AppError::AircraftSearch);
+from_request_parts!(AirlineCode);
 
 impl Validate for Registration {
     /// Make sure that input is a valid registration, less than 16 chars, and convert to uppercase
