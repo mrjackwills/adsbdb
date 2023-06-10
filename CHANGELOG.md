@@ -36,7 +36,6 @@
 ### Reverts
 + .devcontainer sparse protocol now default, [430ce92bebbc7e856612f80fcef754b507f2d426]
 
-
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.2.2'>v0.2.2</a>
 ### 2023-03-13
 
