@@ -119,9 +119,11 @@ WHERE fci.callsign = $1 LIMIT 1",
 
 FROM
     flightroute fl
+
 LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
 LEFT JOIN airline ai USING(airline_id)
 LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
+
 LEFT JOIN airport apo ON apo.airport_id= fl.airport_origin_id
 LEFT JOIN country co_o ON co_o.country_id= apo.country_id
 LEFT JOIN airport_municipality am_o ON am_o.airport_municipality_id = apo.airport_municipality_id
