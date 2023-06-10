@@ -3,7 +3,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::api::{AirlineCode, AppError, Callsign};
 
-#[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAirline {
     pub airline_id: i64,
     pub airline_name: String,
@@ -20,27 +20,83 @@ impl ModelAirline {
         callsign: &Callsign,
     ) -> Result<Option<Self>, AppError> {
         match callsign {
-            Callsign::Icao(x) => {
-                let query = r#"
+            Callsign::Icao(x) => Ok(sqlx::query_as!(
+                Self,
+                "
 SELECT
-    co.country_name,
-    co.country_iso_name,
-    ai.airline_id,
-    ai.airline_callsign,
-    ai.airline_name,
-    ai.iata_prefix,
-    ai.icao_prefix
+    co.country_name, co.country_iso_name,
+    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix
 FROM
     airline ai
-LEFT JOIN country co USING(country_id)
+LEFT JOIN
+    country co USING(country_id)
 WHERE
-    icao_prefix = $1"#;
-                Ok(sqlx::query_as::<_, Self>(query)
-                    .bind(&x.0)
-                    .fetch_optional(&mut *transaction)
-                    .await?)
-            }
+    icao_prefix = $1",
+                x.0
+            )
+            .fetch_optional(transaction)
+            .await?),
             _ => Ok(None),
+        }
+    }
+
+    /// Search for arilines by iata prefix
+    async fn get_all_by_iata_code(
+        db: &PgPool,
+        prefix: &String,
+    ) -> Result<Option<Vec<Self>>, AppError> {
+        let result = sqlx::query_as!(
+            Self,
+            "
+SELECT
+    co.country_name, co.country_iso_name,
+    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix
+FROM
+    airline ai
+LEFT JOIN
+    country co USING(country_id)
+WHERE
+    iata_prefix = $1
+ORDER BY
+    ai.airline_name",
+            prefix
+        )
+        .fetch_all(db)
+        .await?;
+        if result.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(result))
+        }
+    }
+
+    /// Search for arilines by icao prefix
+    async fn get_all_by_icao_code(
+        db: &PgPool,
+        prefix: &String,
+    ) -> Result<Option<Vec<Self>>, AppError> {
+        let result = sqlx::query_as!(
+            Self,
+            "
+SELECT
+    co.country_name, co.country_iso_name,
+    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix
+FROM
+    airline ai
+LEFT JOIN
+    country co USING(country_id)
+WHERE
+    icao_prefix = $1
+ORDER BY
+    ai.airline_name",
+            prefix
+        )
+        .fetch_all(db)
+        .await?;
+        if result.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(result))
         }
     }
 
@@ -48,38 +104,10 @@ WHERE
         db: &PgPool,
         airline_code: &AirlineCode,
     ) -> Result<Option<Vec<Self>>, AppError> {
-        // This is bad!
-        let (where_prefix, bind) = match airline_code {
-            AirlineCode::Iata(x) => ("iata", x),
-            AirlineCode::Icao(x) => ("icao", x),
-        };
-        let query = format!(
-            "
-SELECT
-    co.country_name,
-    co.country_iso_name,
-    ai.airline_id,
-    ai.airline_callsign,
-    ai.airline_name,
-    ai.iata_prefix,
-    ai.icao_prefix
-FROM
-    airline ai
-LEFT JOIN country co USING(country_id)
-WHERE
-    {where_prefix}_prefix = $1
-ORDER BY
-    ai.airline_name"
-        );
-        let result = sqlx::query_as::<_, Self>(&query)
-            .bind(bind)
-            .fetch_all(db)
-            .await?;
-        if result.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(result))
-        }
+        Ok(match airline_code {
+            AirlineCode::Iata(x) => Self::get_all_by_iata_code(db, x).await?,
+            AirlineCode::Icao(x) => Self::get_all_by_icao_code(db, x).await?,
+        })
     }
 }
 
