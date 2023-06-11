@@ -37,6 +37,8 @@ impl RateLimit {
         } else {
             redis.expire(&key, ONE_MINUTE).await?;
         }
+        // nursery lint suggest using a drop here?
+        drop(redis);
         Ok(())
     }
 }

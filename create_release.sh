@@ -208,15 +208,23 @@ release_continue () {
 	ask_continue
 }
 
+# Check for any typos
 check_typos () {
 	echo -e "\n${YELLOW}checking for typos${RESET}"
 	typos
 	ask_continue
 }
 
+# Create sqlx-data.json file for offline mode
+sqlx_prepare () {
+	echo -e "\n${YELLOW}sqlx prepare${RESET}"
+	cargo sqlx prepare
+	ask_continue
+}
+
 # Full flow to create a new release
 release_flow() {
-		check_typos
+	check_typos
 
 	check_git
 	get_git_remote_url
@@ -245,6 +253,8 @@ release_flow() {
 
 	echo -e "\n${PURPLE}cargo check${RESET}"
 	cargo check
+
+	sqlx_prepare
 
 	release_continue "git add ."
 	git add .

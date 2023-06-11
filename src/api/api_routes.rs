@@ -77,7 +77,6 @@ async fn find_airline(
         let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
         insert_cache(&state.redis, &airline, &redis_key).await?;
         Ok(airline)
-        // Ok(None)
     }
 }
 
@@ -229,6 +228,7 @@ mod tests {
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
+    use crate::sleep;
 
     const CALLSIGN: &str = "ANA460";
 
@@ -247,10 +247,6 @@ mod tests {
         ))
     }
 
-    async fn sleep(ms: u64) {
-        tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
-    }
-
     #[tokio::test]
     // basically a 404 handler
     async fn http_api_fallback_route() {
@@ -264,7 +260,7 @@ mod tests {
     async fn http_api_online_route() {
         let application_state = get_application_state().await;
 
-        sleep(1000).await;
+        sleep!();
         let response = online_get(application_state).await;
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
@@ -604,7 +600,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
 
         // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
@@ -673,7 +669,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
 
         // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
@@ -1193,7 +1189,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
 
         // Check second request is also in redis, and cache ttl gets reset
         let response = callsign_get(application_state.clone(), path)
@@ -1904,7 +1900,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
 
         // Check second request is also in redis, and cache ttl gets reset
         let response = airline_get(application_state.clone(), path.clone())
@@ -1970,7 +1966,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
 
         // Check second request is also in redis, and cache ttl gets reset
         let response = airline_get(application_state.clone(), path.clone())
@@ -2053,7 +2049,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
         let response = airline_get(application_state.clone(), path.clone()).await;
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -2140,7 +2136,7 @@ mod tests {
             .unwrap();
         assert_eq!(ttl, 604_800);
 
-        sleep(1000).await;
+        sleep!();
         let response = airline_get(application_state.clone(), path.clone()).await;
         assert!(response.is_ok());
         let response = response.unwrap();

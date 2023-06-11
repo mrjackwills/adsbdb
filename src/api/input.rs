@@ -21,7 +21,7 @@ impl fmt::Display for AircraftSearch {
     }
 }
 
-// This should take impl to string and result as Self
+/// This should take impl to string and result as Self
 pub trait Validate {
     fn validate(x: &str) -> Result<Self, AppError>
     where
@@ -67,65 +67,23 @@ impl Validate for AirlineCode {
     }
 }
 
-// This should be Aircraft search
-#[async_trait]
-impl<S> FromRequestParts<S> for AirlineCode
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
-            Ok(value) => Ok(Self::validate(&value.0)?),
-            Err(_) => Err(AppError::AircraftSearch(String::new())),
+/// Make unit structs, StructName(String), and impl display on it
+macro_rules! unit_struct {
+    ($struct_name:ident) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $struct_name(String);
+
+        impl std::fmt::Display for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{}", self.0)
+            }
         }
-    }
+    };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Registration(String);
-
-impl fmt::Display for Registration {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Validate for Registration {
-    /// Make sure that input is a valid registration, less than 16 chars, and convert to uppercase
-    fn validate(input: &str) -> Result<Self, AppError> {
-        let input = input.to_uppercase();
-        if !input.is_empty()
-            && input.len() <= 16
-            && input.chars().all(|c| valid_char(c, 'z') || c == '-')
-        {
-            Ok(Self(input))
-        } else {
-            Err(AppError::Registration(input))
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModeS(String);
-
-impl fmt::Display for ModeS {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Validate for ModeS {
-    /// Make sure that input is an uppercase valid mode_s string, validity is [a-f]{6}
-    fn validate(input: &str) -> Result<Self, AppError> {
-        let input = input.to_uppercase();
-        if input.len() == 6 && input.chars().all(|c| valid_char(c, 'f')) {
-            Ok(Self(input))
-        } else {
-            Err(AppError::ModeS(input))
-        }
-    }
-}
+unit_struct!(ModeS);
+unit_struct!(NNumber);
+unit_struct!(Registration);
 
 // This should be Aircraft search
 #[async_trait]
@@ -150,26 +108,78 @@ where
     }
 }
 
-#[async_trait]
-impl<S> FromRequestParts<S> for ModeS
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
-            Ok(value) => Ok(Self::validate(&value.0)?),
-            Err(_) => Err(AppError::AircraftSearch(String::new())),
+// MyEnum::$variant:ident
+
+/// from_request_parts macro, to run Self::validate
+macro_rules! from_request_parts {
+    ($struct_name:ident, AppError::$variant:ident) => {
+        #[async_trait]
+        impl<S> FromRequestParts<S> for $struct_name
+        where
+            S: Send + Sync,
+        {
+            type Rejection = AppError;
+            async fn from_request_parts(
+                parts: &mut Parts,
+                state: &S,
+            ) -> Result<Self, Self::Rejection> {
+                match axum::extract::Path::<String>::from_request_parts(parts, state).await {
+                    Ok(value) => Ok(Self::validate(&value.0)?),
+                    Err(_) => Err(AppError::$variant(String::from("invalid"))),
+                }
+            }
+        }
+    };
+
+    ($struct_name:ident) => {
+        #[async_trait]
+        impl<S> FromRequestParts<S> for $struct_name
+        where
+            S: Send + Sync,
+        {
+            type Rejection = AppError;
+            async fn from_request_parts(
+                parts: &mut Parts,
+                state: &S,
+            ) -> Result<Self, Self::Rejection> {
+                match axum::extract::Path::<String>::from_request_parts(parts, state).await {
+                    Ok(value) => Ok(Self::validate(&value.0)?),
+                    Err(_) => Err(AppError::AircraftSearch(String::new())),
+                }
+            }
+        }
+    };
+}
+
+from_request_parts!(ModeS);
+from_request_parts!(NNumber, AppError::NNumber);
+from_request_parts!(Callsign, AppError::AircraftSearch);
+from_request_parts!(AirlineCode);
+
+impl Validate for Registration {
+    /// Make sure that input is a valid registration, less than 16 chars, and convert to uppercase
+    fn validate(input: &str) -> Result<Self, AppError> {
+        let input = input.to_uppercase();
+        if !input.is_empty()
+            && input.len() <= 16
+            && input.chars().all(|c| valid_char(c, 'z') || c == '-')
+        {
+            Ok(Self(input))
+        } else {
+            Err(AppError::Registration(input))
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NNumber(String);
-
-impl fmt::Display for NNumber {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+impl Validate for ModeS {
+    /// Make sure that input is an uppercase valid mode_s string, validity is [a-f]{6}
+    fn validate(input: &str) -> Result<Self, AppError> {
+        let input = input.to_uppercase();
+        if input.len() == 6 && input.chars().all(|c| valid_char(c, 'f')) {
+            Ok(Self(input))
+        } else {
+            Err(AppError::ModeS(input))
+        }
     }
 }
 
@@ -188,21 +198,6 @@ impl Validate for NNumber {
     }
 }
 
-#[async_trait]
-impl<S> FromRequestParts<S> for NNumber
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
-            Ok(value) => Ok(Self::validate(&value.0)?),
-            Err(_) => Err(AppError::NNumber(String::from("invalid"))),
-        }
-    }
-}
-
 // Split this into an enum, Icao, Iata, Other
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Callsign {
@@ -213,13 +208,6 @@ pub enum Callsign {
 }
 
 impl Callsign {
-    // pub fn get_prefix(&self) -> Option<String> {
-    //     match self {
-    //         Self::Iata(callsign) | Self::Icao(callsign) => Some(callsign.0.clone()),
-    //         Self::Other(_) => None,
-    //     }
-    // }
-
     pub fn get_suffix(&self) -> Option<String> {
         match self {
             Self::Iata(callsign) | Self::Icao(callsign) => Some(callsign.1.clone()),
@@ -263,21 +251,6 @@ impl Validate for Callsign {
             }
         } else {
             Err(AppError::Callsign(input))
-        }
-    }
-}
-
-#[async_trait]
-impl<S> FromRequestParts<S> for Callsign
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<String>::from_request_parts(parts, state).await {
-            Ok(value) => Ok(Self::validate(&value.0)?),
-            Err(_) => Err(AppError::AircraftSearch(String::from("invalid"))),
         }
     }
 }

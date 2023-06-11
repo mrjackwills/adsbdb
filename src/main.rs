@@ -56,6 +56,5 @@ async fn main() -> Result<(), AppError> {
     setup_tracing(&app_env)?;
     let postgres = db_postgres::db_pool(&app_env).await?;
     let redis = db_redis::get_connection(&app_env).await?;
-    api::serve(app_env, postgres, Arc::new(Mutex::new(redis))).await?;
-    Ok(())
+    api::serve(app_env, postgres, Arc::new(Mutex::new(redis))).await
 }

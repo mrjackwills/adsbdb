@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use crate::{
     api::{AircraftSearch, AppError},
     scraper::PhotoData,
 };
 
-#[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+// sqlx::FromRow,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAircraft {
     pub aircraft_id: i64,
     #[serde(rename = "type")]
@@ -30,13 +31,16 @@ struct AircraftPhoto {
 }
 
 impl ModelAircraft {
-    /// Separated out, so can use in tests with a transaction
-    /// Get aircraft by the mode_s value
-    const fn get_query_mode_s() -> &'static str {
-        r#"
+    /// Search for an aircraft by mode_s
+    async fn query_by_mode_s(
+        db: impl PgExecutor<'_>,
+        aircraft_search: &AircraftSearch,
+        photo_prefix: &str,
+    ) -> Result<Option<Self>, AppError> {
+        Ok(sqlx::query_as!(Self,r#"
 SELECT
     aa.aircraft_id,
-    $1 AS mode_s,
+    $1 AS "mode_s!: _",
     ar.registration,
     aro.registered_owner,
     aof.operator_flag_code AS registered_owner_operator_flag_code,
@@ -44,8 +48,8 @@ SELECT
     am.manufacturer,
     at.type AS aircraft_type,
     ait.icao_type,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail    
 FROM
     aircraft aa
 LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
@@ -57,25 +61,28 @@ LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
 LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
 LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
 LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
-WHERE ams.mode_s = $1"#
+WHERE ams.mode_s = $1"#, aircraft_search.to_string(), photo_prefix).fetch_optional(db).await?)
     }
 
-    /// Separated out, so can use in tests with a transaction
-    /// Get aircraft by the registration value
-    const fn get_query_registration() -> &'static str {
-        r#"
+    /// Search for an aircraft by registration
+    async fn query_by_registration(
+        db: impl PgExecutor<'_>,
+        aircraft_search: &AircraftSearch,
+        photo_prefix: &str,
+    ) -> Result<Option<Self>, AppError> {
+        Ok(sqlx::query_as!(Self,r#"
 SELECT
     aa.aircraft_id,
     ams.mode_s,
-    $1 AS registration,
+    $1 AS "registration!: _",
     aro.registered_owner,
     aof.operator_flag_code AS registered_owner_operator_flag_code,
     co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
     am.manufacturer,
     at.type AS aircraft_type,
     ait.icao_type,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, ap.url_photo) ELSE NULL END AS url_photo,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
     aircraft aa
 LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
@@ -88,7 +95,7 @@ LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
 LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
 LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
-    ar.registration = $1"#
+    ar.registration = $1"#, aircraft_search.to_string(), photo_prefix).fetch_optional(db).await?)
     }
 
     pub async fn get(
@@ -96,16 +103,14 @@ WHERE
         aircraft_search: &AircraftSearch,
         photo_prefix: &str,
     ) -> Result<Option<Self>, AppError> {
-        let query = match aircraft_search {
-            AircraftSearch::ModeS(_) => Self::get_query_mode_s(),
-            AircraftSearch::Registration(_) => Self::get_query_registration(),
-        };
-
-        Ok(sqlx::query_as::<_, Self>(query)
-            .bind(aircraft_search.to_string())
-            .bind(photo_prefix)
-            .fetch_optional(db)
-            .await?)
+        Ok(match aircraft_search {
+            AircraftSearch::ModeS(_) => {
+                Self::query_by_mode_s(db, aircraft_search, photo_prefix).await?
+            }
+            AircraftSearch::Registration(_) => {
+                Self::query_by_registration(db, aircraft_search, photo_prefix).await?
+            }
+        })
     }
 
     /// Insert a new flightroute based on scraped data, separated transaction so can be tested with a rollback
@@ -122,25 +127,26 @@ WHERE
         transaction: &mut Transaction<'_, Postgres>,
         photo: &PhotoData,
     ) -> Result<(), AppError> {
-        let query = "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id";
-        let aircraft_photo = sqlx::query_as::<_, AircraftPhoto>(query)
-            .bind(photo.image.clone())
-            .fetch_one(&mut *transaction)
-            .await?;
-
-        let query = r#"
+        let aircraft_photo = sqlx::query_as!(
+            AircraftPhoto,
+            "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id",
+            photo.image
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        sqlx::query!(
+            r#"
 UPDATE
     aircraft
 SET
     aircraft_photo_id = $1
 WHERE
-    aircraft_id = $2"#;
-
-        sqlx::query(query)
-            .bind(aircraft_photo.aircraft_photo_id)
-            .bind(self.aircraft_id)
-            .execute(&mut *transaction)
-            .await?;
+aircraft_id = $2"#,
+            aircraft_photo.aircraft_photo_id,
+            self.aircraft_id
+        )
+        .execute(&mut *transaction)
+        .await?;
         Ok(())
     }
 }
@@ -152,7 +158,7 @@ WHERE
 #[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::api::tests::test_setup;
+    use crate::api::{tests::test_setup, ModeS, Registration, Validate};
 
     #[tokio::test]
     async fn model_aircraft_photo_transaction_mode_s() {
@@ -188,14 +194,14 @@ mod tests {
             .await
             .unwrap();
 
-        let query = ModelAircraft::get_query_mode_s();
-
-        let result = sqlx::query_as::<_, ModelAircraft>(query)
-            .bind(mode_s)
-            .bind(url_prefix)
-            .fetch_one(&mut *transaction)
-            .await
-            .unwrap();
+        let result = ModelAircraft::query_by_mode_s(
+            &mut transaction,
+            &AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap()),
+            url_prefix,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let expected = ModelAircraft {
             aircraft_id: 8415,
@@ -252,14 +258,14 @@ mod tests {
             .await
             .unwrap();
 
-        let query = ModelAircraft::get_query_registration();
-
-        let result = sqlx::query_as::<_, ModelAircraft>(query)
-            .bind(registration)
-            .bind(url_prefix)
-            .fetch_one(&mut *transaction)
-            .await
-            .unwrap();
+        let result = ModelAircraft::query_by_registration(
+            &mut transaction,
+            &AircraftSearch::Registration(Registration::validate(registration).unwrap()),
+            url_prefix,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let expected = ModelAircraft {
             aircraft_id: 8415,

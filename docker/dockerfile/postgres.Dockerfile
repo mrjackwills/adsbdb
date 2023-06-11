@@ -1,4 +1,4 @@
-FROM postgres:15-alpine3.17
+FROM postgres:15-alpine3.18
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \

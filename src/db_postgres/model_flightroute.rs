@@ -6,7 +6,7 @@ use crate::{
     scraper::ScrapedFlightroute,
 };
 
-use super::ModelAirline;
+use super::{ModelAirline, ModelAirport};
 
 /// Used in transaction of inserting a new scraped flightroute
 #[derive(sqlx::FromRow, Debug, Clone, Copy)]
@@ -31,7 +31,7 @@ pub struct ModelFlightroute {
     pub origin_airport_country_iso_name: String,
     pub origin_airport_country_name: String,
     pub origin_airport_elevation: i32,
-    // THIS CAN BE NULL!
+    // THIS CAN BE NULL?
     pub origin_airport_iata_code: String,
     pub origin_airport_icao_code: String,
     pub origin_airport_latitude: f64,
@@ -61,54 +61,10 @@ pub struct ModelFlightroute {
 }
 
 impl ModelFlightroute {
-    /// Query for a fully joined Option<ModelFlightRoute>
-    /// Don't return result, as issues with nulls in the database, that I can't be bothered to deal with at the moment
-    async fn _get(db: &mut Transaction<'_, Postgres>, callsign: &Callsign) -> Option<Self> {
-        let query = match callsign {
-            Callsign::Iata(_) => Self::get_query_iata(),
-            Callsign::Icao(_) => Self::get_query_icao(),
-            Callsign::Other(_) => Self::get_query_callsign(),
-        };
-
-        match callsign {
-            Callsign::Other(callsign) => sqlx::query_as::<_, Self>(query)
-                .bind(callsign)
-                .fetch_optional(&mut *db)
-                .await
-                .unwrap_or(None),
-            Callsign::Iata(x) | Callsign::Icao(x) => {
-                if let Ok(flightroute) = sqlx::query_as::<_, Self>(query)
-                    .bind(&x.0)
-                    .bind(&x.1)
-                    .fetch_optional(&mut *db)
-                    .await
-                {
-                    if let Some(flightroute) = flightroute {
-                        Some(flightroute)
-                    } else {
-                        sqlx::query_as::<_, Self>(Self::get_query_callsign())
-                            .bind(format!("{}{}", x.0, x.1))
-                            .fetch_optional(&mut *db)
-                            .await
-                            .unwrap_or(None)
-                    }
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
-        let mut transaction = db.begin().await?;
-        let output = Self::_get(&mut transaction, callsign).await;
-        transaction.commit().await?;
-        Ok(output)
-    }
-
     /// Query a flightroute based on a callsign with is a valid N-Number
-    const fn get_query_callsign() -> &'static str {
-        r"
+    fn get_query_callsign() -> String {
+        format!(
+            r"
 SELECT
     fl.flightroute_id,
     $1 AS callsign,
@@ -121,127 +77,16 @@ SELECT
     NULL as airline_icao,
     NULL as airline_country_name,
     NULL as airline_country_iso_name,
+    {}
 
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
-        
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
-            
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
-FROM
-    flightroute fl
-LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
-LEFT JOIN 
-    flightroute_callsign_inner fci
-ON
-    fci.flightroute_callsign_inner_id = flc.callsign_id
-LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
-LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
-LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
-
-WHERE fci.callsign = $1 LIMIT 1"
+WHERE fci.callsign = $1 LIMIT 1",
+            Self::get_query_joins()
+        )
     }
 
-    /// Query a flightroute based on a callsign with is a valid ICAO callsign
-    const fn get_query_icao() -> &'static str {
+    // Main body for the flightroute query with all the joins
+    const fn get_query_joins() -> &'static str {
         r"
-SELECT
-    fl.flightroute_id,
-    concat($1,$2) as callsign,
-    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
-    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
-    
-    (SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
-    (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
-    ai.airline_callsign,
-    ai.airline_name,
-    ai.iata_prefix AS airline_iata,
-    ai.icao_prefix AS airline_icao,
-    
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
-          
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
-            
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
-FROM
-    flightroute fl
-LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
-LEFT JOIN 
-    flightroute_callsign_inner fci
-ON
-    fci.flightroute_callsign_inner_id = flc.callsign_id
-LEFT JOIN airline ai USING(airline_id)
-LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
-LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
-LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
-WHERE 
-    flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
-AND
-    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2 LIMIT 1)"
-    }
-
-    /// EXPLAIN ANALYZE seems to think that using JOINS, instead of subqueries, is slower?
-    const fn _get_query_icao_joins() -> &'static str {
-        r"
-SELECT
-    fl.flightroute_id,
-    concat($1, $2) as callsign,
-    concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
-    concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
-    (SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
-    (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
-    ai.airline_callsign,
-    ai.airline_name,
-    ai.iata_prefix AS airline_iata,
-    ai.icao_prefix AS airline_icao,
-
     co_o.country_name AS origin_airport_country_name,
     co_o.country_iso_name AS origin_airport_country_iso_name,
     am_o.municipality AS origin_airport_municipality,
@@ -274,12 +119,10 @@ SELECT
 
 FROM
     flightroute fl
-LEFT JOIN
-    flightroute_callsign flc
-ON
-    fl.flightroute_callsign_id = flc.flightroute_callsign_id
+
 LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
 LEFT JOIN airline ai USING(airline_id)
+LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
 
 LEFT JOIN airport apo ON apo.airport_id= fl.airport_origin_id
 LEFT JOIN country co_o ON co_o.country_id= apo.country_id
@@ -310,73 +153,99 @@ LEFT JOIN airport_name an_d ON an_d.airport_name_id = apd.airport_name_id
 LEFT JOIN airport_elevation ae_d ON ae_d.airport_elevation_id = apd.airport_elevation_id
 LEFT JOIN airport_latitude ala_d ON ala_d.airport_latitude_id = apd.airport_latitude_id
 LEFT JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_longitude_id
-
-WHERE
-    flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
-AND
-    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)"
+"
     }
 
-    /// Query a flightroute based on a callsign with is a valid IATA callsign
-    /// The `DISTINCT` subquery is bad, and will crash!
-    /// Limit 1?
-    const fn get_query_iata() -> &'static str {
+    /// Start of IATA and ICAO query
+    const fn get_query_selects() -> &'static str {
         r"
 SELECT
     fl.flightroute_id,
-    concat($1,$2) as callsign,
+    concat($1, $2) as callsign,
     concat(ai.iata_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = iata_prefix_id)) AS callsign_iata,
     concat(ai.icao_prefix, (SELECT callsign FROM flightroute_callsign_inner WHERE flightroute_callsign_inner_id = icao_prefix_id)) AS callsign_icao,
-
-    ai.airline_name,
-    ai.airline_callsign,
-    ai.iata_prefix AS airline_iata,
-    ai.icao_prefix AS airline_icao,
-    (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
     (SELECT country_iso_name FROM COUNTRY where country_id = ai.country_id) as airline_country_iso_name,
+    (SELECT country_name FROM COUNTRY where country_id = ai.country_id) as airline_country_name,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix AS airline_iata,
+    ai.icao_prefix AS airline_icao,"
+    }
 
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apo.airport_id ) AS origin_airport_longitude,
-          
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apm.airport_id ) AS midpoint_airport_longitude,
-            
-    ( SELECT country_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_name,
-    ( SELECT country_iso_name FROM airport oa JOIN country USING(country_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_country_iso_name,
-    ( SELECT municipality FROM airport oa JOIN airport_municipality USING(airport_municipality_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_municipality,
-    ( SELECT icao_code FROM airport oa JOIN airport_icao_code USING(airport_icao_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_icao_code,
-    ( SELECT iata_code FROM airport oa JOIN airport_iata_code USING(airport_iata_code_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_iata_code,
-    ( SELECT name FROM airport oa JOIN airport_name USING(airport_name_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_name,
-    ( SELECT elevation FROM airport oa JOIN airport_elevation USING(airport_elevation_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_elevation,
-    ( SELECT latitude FROM airport oa JOIN airport_latitude USING(airport_latitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_latitude,
-    ( SELECT longitude FROM airport oa JOIN airport_longitude USING(airport_longitude_id) WHERE oa.airport_id = apd.airport_id ) AS destination_airport_longitude
-
-FROM flightroute fl
-LEFT JOIN flightroute_callsign flc USING(flightroute_callsign_id)
-LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
-LEFT JOIN airline ai USING(airline_id)
-LEFT JOIN airport apo ON apo.airport_id = fl.airport_origin_id
-LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
-LEFT JOIN airport apd ON apd.airport_id = fl.airport_destination_id
-
-WHERE 
-    flc.airline_id = (SELECT DISTINCT(ai.airline_id) FROM flightroute_callsign flc LEFT JOIN airline USING(airline_id) WHERE ai.iata_prefix = $1 LIMIT 1)
+    /// Query a flightroute based on a callsign with is a valid IATA callsign, will choose airline_id which has highest number of entries in flightroute, for when IATA collide
+    fn get_query_iata() -> String {
+        format!(
+            r"
+{}
+{}
+WHERE
+    flc.airline_id = (SELECT ai.airline_id FROM flightroute_callsign flc LEFT JOIN airline ai ON flc.airline_id = ai.airline_id WHERE ai.iata_prefix = $1 GROUP BY ai.airline_id ORDER BY COUNT(*) LIMIT 1)
 AND
-    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2 LIMIT 1)"
+    flc.iata_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)",
+            Self::get_query_selects(),
+            Self::get_query_joins()
+        )
+    }
+
+    /// Query for flightroute based on ICAO callsign
+    fn get_query_icao() -> String {
+        format!(
+            r"
+            {}
+            {}
+WHERE
+    flc.airline_id = (SELECT airline_id FROM airline WHERE icao_prefix = $1)
+AND
+    flc.icao_prefix_id = (SELECT flightroute_callsign_inner_id FROM flightroute_callsign_inner WHERE callsign = $2)",
+            Self::get_query_selects(),
+            Self::get_query_joins()
+        )
+    }
+
+    /// Query for a fully joined Option<ModelFlightRoute>
+    /// Don't return result, as issues with nulls in the database, that I can't be bothered to deal with at the moment
+    async fn _get(db: &mut Transaction<'_, Postgres>, callsign: &Callsign) -> Option<Self> {
+        let query = match callsign {
+            Callsign::Iata(_) => Self::get_query_iata(),
+            Callsign::Icao(_) => Self::get_query_icao(),
+            Callsign::Other(_) => Self::get_query_callsign(),
+        };
+
+        match callsign {
+            Callsign::Other(callsign) => sqlx::query_as::<_, Self>(&query)
+                .bind(callsign)
+                .fetch_optional(&mut *db)
+                .await
+                .unwrap_or(None),
+            Callsign::Iata(x) | Callsign::Icao(x) => {
+                if let Ok(flightroute) = sqlx::query_as::<_, Self>(&query)
+                    .bind(&x.0)
+                    .bind(&x.1)
+                    .fetch_optional(&mut *db)
+                    .await
+                {
+                    if let Some(flightroute) = flightroute {
+                        Some(flightroute)
+                    } else {
+                        sqlx::query_as::<_, Self>(&Self::get_query_callsign())
+                            .bind(format!("{}{}", x.0, x.1))
+                            .fetch_optional(&mut *db)
+                            .await
+                            .unwrap_or(None)
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    // Why is this a transaction?
+    pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
+        let mut transaction = db.begin().await?;
+        let output = Self::_get(&mut transaction, callsign).await;
+        transaction.commit().await?;
+        Ok(output)
     }
 
     /// Transaction to insert a new flightroute
@@ -388,51 +257,40 @@ AND
             ModelAirline::get_by_icao_callsign(transaction, &scraped_flightroute.callsign_icao)
                 .await?
         {
-            let callsign_inner_query = "INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING";
-            sqlx::query(callsign_inner_query)
-                .bind(scraped_flightroute.callsign_icao.get_suffix())
-                .execute(&mut *transaction)
-                .await?;
-            sqlx::query(callsign_inner_query)
-                .bind(scraped_flightroute.callsign_iata.get_suffix())
+            let origin = ModelAirport::get(&mut *transaction, &scraped_flightroute.origin).await?;
+            let destination =
+                ModelAirport::get(&mut *transaction, &scraped_flightroute.destination).await?;
+            if let (Some(origin), Some(destination)) = (origin, destination) {
+                sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_icao.get_suffix())
                 .execute(&mut *transaction)
                 .await?;
 
-            let icao_prefix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
-            let icao_prefix = sqlx::query_as::<_, Id>(icao_prefix)
-                .bind(scraped_flightroute.callsign_icao.get_suffix())
+                sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_iata.get_suffix())
+                .execute(&mut *transaction)
+                .await?;
+
+                let icao_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_icao.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let iata_prefix = "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1";
-            let iata_prefix = sqlx::query_as::<_, Id>(iata_prefix)
-                .bind(scraped_flightroute.callsign_iata.get_suffix())
+                let iata_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_iata.get_suffix())
                 .fetch_one(&mut *transaction)
                 .await?;
 
-            let flighroute_callsign = "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id";
-
-            let flighroute_callsign_id = sqlx::query_as::<_, Id>(flighroute_callsign)
-                .bind(airline_id.airline_id)
-                .bind(iata_prefix.id)
-                .bind(icao_prefix.id)
+                let flighroute_callsign_id = sqlx::query_as!(Id, "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id", 
+                airline_id.airline_id,
+                iata_prefix.id,
+                icao_prefix.id)
                 .fetch_one(&mut *transaction)
                 .await?;
-            let query = r"
-INSERT INTO
-    flightroute
-        (airport_origin_id, airport_destination_id, flightroute_callsign_id)
-    VALUES (
-        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $2),
-        (SELECT aa.airport_id FROM airport aa JOIN airport_icao_code aic USING(airport_icao_code_id) WHERE aic.icao_code = $3),
-        $1
-    )";
-            sqlx::query(query)
-                .bind(flighroute_callsign_id.id)
-                .bind(&scraped_flightroute.origin)
-                .bind(&scraped_flightroute.destination)
+                sqlx::query!(r"INSERT INTO flightroute (airport_origin_id, airport_destination_id, flightroute_callsign_id) VALUES ($1, $2, $3)",
+                    origin.airport_id,
+                    destination.airport_id,
+                    flighroute_callsign_id.id,
+                )
                 .execute(&mut *transaction)
                 .await?;
+            }
         }
         Ok(())
     }
@@ -446,8 +304,7 @@ INSERT INTO
         let mut transaction = db.begin().await?;
         Self::_insert_scraped_flightroute(&mut transaction, &scraped_flightroute).await?;
         transaction.commit().await?;
-        let output = Self::get(db, &scraped_flightroute.callsign_icao).await?;
-        Ok(output)
+        Self::get(db, &scraped_flightroute.callsign_icao).await
     }
 
     /// Insert, and return, a new flightroute, will rollback after returning flightroute
