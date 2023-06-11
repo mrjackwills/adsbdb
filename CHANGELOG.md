@@ -15,7 +15,7 @@
 + create_release prepare sqlx, [f05b6b15ee87c4e391bbf9758361d495e69415af]
 + devcontainer install sqlx-cli, [1403434d1f0e36452ba9f3f4d8b6923b06eb5225]
 + from_request_parts macro, [c5a5e2e6c49b4f40510099ae6a4815ce9e46f41b]
-+ ModelAiport use macro, [c9d01503c5d18a20eb25cd7cf45b97cf3f128e68]
++ ModelAirport use macro, [c9d01503c5d18a20eb25cd7cf45b97cf3f128e68]
 + ModelAircraft use macros, [ab72f2eba49d768f9ef998cadd12cb1f91b895e6]
 + ModelAirline use macro, [6619fe9b4638d5d81e35a105092e1780b371164f]
 + ModelAirport query improved, [b9d603c85d856cb2b80cf02283e677872e59224a]
