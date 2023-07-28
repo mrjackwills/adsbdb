@@ -1,3 +1,10 @@
+### Chores
++ create_release 0.3.0, [0942f4b0fe3fa83a7b0f6b70476f61f571b508cf]
++ dependencies updated, [65a1ce2d4d024e1292bc627b80d38ed1bf28f61f]
+
+### Fixes
++ copy sqlx prepared files into api.Dockerfile, [9ed3944cd8a35e65b86696844db079d562b77669]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.2.3'>v0.2.3</a>
 ### 2023-06-11
 
