@@ -34,7 +34,7 @@ WHERE
     icao_prefix = $1",
                 x.0
             )
-            .fetch_optional(transaction)
+            .fetch_optional(&mut **transaction)
             .await?),
             _ => Ok(None),
         }

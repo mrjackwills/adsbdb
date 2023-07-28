@@ -132,7 +132,7 @@ WHERE
             "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id",
             photo.image
         )
-        .fetch_one(&mut *transaction)
+        .fetch_one(&mut **transaction)
         .await?;
         sqlx::query!(
             r#"
@@ -145,7 +145,7 @@ aircraft_id = $2"#,
             aircraft_photo.aircraft_photo_id,
             self.aircraft_id
         )
-        .execute(&mut *transaction)
+        .execute(&mut **transaction)
         .await?;
         Ok(())
     }
@@ -195,7 +195,7 @@ mod tests {
             .unwrap();
 
         let result = ModelAircraft::query_by_mode_s(
-            &mut transaction,
+            &mut *transaction,
             &AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap()),
             url_prefix,
         )
@@ -259,7 +259,7 @@ mod tests {
             .unwrap();
 
         let result = ModelAircraft::query_by_registration(
-            &mut transaction,
+            &mut *transaction,
             &AircraftSearch::Registration(Registration::validate(registration).unwrap()),
             url_prefix,
         )

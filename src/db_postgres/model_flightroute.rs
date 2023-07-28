@@ -204,7 +204,7 @@ AND
 
     /// Query for a fully joined Option<ModelFlightRoute>
     /// Don't return result, as issues with nulls in the database, that I can't be bothered to deal with at the moment
-    async fn _get(db: &mut Transaction<'_, Postgres>, callsign: &Callsign) -> Option<Self> {
+    async fn _get(transaction: &mut Transaction<'_, Postgres>, callsign: &Callsign) -> Option<Self> {
         let query = match callsign {
             Callsign::Iata(_) => Self::get_query_iata(),
             Callsign::Icao(_) => Self::get_query_icao(),
@@ -214,14 +214,14 @@ AND
         match callsign {
             Callsign::Other(callsign) => sqlx::query_as::<_, Self>(&query)
                 .bind(callsign)
-                .fetch_optional(&mut *db)
+                .fetch_optional(&mut **transaction)
                 .await
                 .unwrap_or(None),
             Callsign::Iata(x) | Callsign::Icao(x) => {
                 if let Ok(flightroute) = sqlx::query_as::<_, Self>(&query)
                     .bind(&x.0)
                     .bind(&x.1)
-                    .fetch_optional(&mut *db)
+                    .fetch_optional(&mut **transaction)
                     .await
                 {
                     if let Some(flightroute) = flightroute {
@@ -229,7 +229,7 @@ AND
                     } else {
                         sqlx::query_as::<_, Self>(&Self::get_query_callsign())
                             .bind(format!("{}{}", x.0, x.1))
-                            .fetch_optional(&mut *db)
+                            .fetch_optional(&mut **transaction)
                             .await
                             .unwrap_or(None)
                     }
@@ -257,38 +257,38 @@ AND
             ModelAirline::get_by_icao_callsign(transaction, &scraped_flightroute.callsign_icao)
                 .await?
         {
-            let origin = ModelAirport::get(&mut *transaction, &scraped_flightroute.origin).await?;
+            let origin = ModelAirport::get(&mut **transaction, &scraped_flightroute.origin).await?;
             let destination =
-                ModelAirport::get(&mut *transaction, &scraped_flightroute.destination).await?;
+                ModelAirport::get(&mut **transaction, &scraped_flightroute.destination).await?;
             if let (Some(origin), Some(destination)) = (origin, destination) {
                 sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_icao.get_suffix())
-                .execute(&mut *transaction)
+                .execute(&mut **transaction)
                 .await?;
 
                 sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_iata.get_suffix())
-                .execute(&mut *transaction)
+                .execute(&mut **transaction)
                 .await?;
 
                 let icao_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_icao.get_suffix())
-                .fetch_one(&mut *transaction)
+                .fetch_one(&mut **transaction)
                 .await?;
 
                 let iata_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_iata.get_suffix())
-                .fetch_one(&mut *transaction)
+                .fetch_one(&mut **transaction)
                 .await?;
 
                 let flighroute_callsign_id = sqlx::query_as!(Id, "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id", 
                 airline_id.airline_id,
                 iata_prefix.id,
                 icao_prefix.id)
-                .fetch_one(&mut *transaction)
+                .fetch_one(&mut **transaction)
                 .await?;
                 sqlx::query!(r"INSERT INTO flightroute (airport_origin_id, airport_destination_id, flightroute_callsign_id) VALUES ($1, $2, $3)",
                     origin.airport_id,
                     destination.airport_id,
                     flighroute_callsign_id.id,
                 )
-                .execute(&mut *transaction)
+                .execute(&mut **transaction)
                 .await?;
             }
         }
@@ -307,7 +307,7 @@ AND
         Self::get(db, &scraped_flightroute.callsign_icao).await
     }
 
-    /// Insert, and return, a new flightroute, will rollback after returning flightroute
+    ///Insert, and return, a new flightroute, will rollback after returning flightroute
     #[cfg(test)]
     pub async fn insert_scraped_flightroute(
         db: &PgPool,
