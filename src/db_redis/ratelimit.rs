@@ -9,6 +9,8 @@ pub struct RateLimit;
 
 const ONE_MINUTE: usize = 60;
 
+// TODO put rate limits in the app_env, would need tests to react to this
+
 impl RateLimit {
     fn get_key(ip: IpAddr) -> String {
         RedisKey::RateLimit(ip).to_string()
