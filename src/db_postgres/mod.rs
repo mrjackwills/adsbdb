@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 // use async_trait::async_trait;
-use sqlx::{postgres::PgPoolOptions, PgPool, ConnectOptions};
+use sqlx::{postgres::PgPoolOptions, ConnectOptions, PgPool};
 
 mod model_aircraft;
 mod model_airline;
@@ -23,10 +23,10 @@ pub async fn db_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
         .username(&app_env.pg_user)
         .password(&app_env.pg_pass);
 
-		match app_env.log_level {
-            tracing::Level::TRACE | tracing::Level::DEBUG => (),
-            _ => options = options.disable_statement_logging(),
-        }
+    match app_env.log_level {
+        tracing::Level::TRACE | tracing::Level::DEBUG => (),
+        _ => options = options.disable_statement_logging(),
+    }
 
     let acquire_timeout = Duration::from_secs(5);
     let idle_timeout = Duration::from_secs(30);
