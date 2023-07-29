@@ -15,6 +15,8 @@ COPY Cargo.* /usr/src/adsbdb/
 # Set the working directory
 WORKDIR /usr/src/adsbdb
 
+COPY .sqlx /usr/src/adsbdb/
+
 # This is a dummy build to get the dependencies cached - probably not needed - as run via a github action
 RUN cargo build --release
 

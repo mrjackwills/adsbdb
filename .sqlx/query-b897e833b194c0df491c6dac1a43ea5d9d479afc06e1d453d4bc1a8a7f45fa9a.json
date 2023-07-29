@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    co.country_name, co.country_iso_name,\n    ai.airline_id, ai.airline_callsign, ai.airline_name, ai.iata_prefix, ai.icao_prefix\nFROM\n    airline ai\nLEFT JOIN\n    country co USING(country_id)\nWHERE\n    icao_prefix = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "country_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "country_iso_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "airline_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "airline_callsign",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "airline_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "iata_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "icao_prefix",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "b897e833b194c0df491c6dac1a43ea5d9d479afc06e1d453d4bc1a8a7f45fa9a"
+}

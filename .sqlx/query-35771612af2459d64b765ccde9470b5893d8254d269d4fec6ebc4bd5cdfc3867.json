@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "aircraft_photo_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "35771612af2459d64b765ccde9470b5893d8254d269d4fec6ebc4bd5cdfc3867"
+}
