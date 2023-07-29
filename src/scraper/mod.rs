@@ -145,7 +145,7 @@ impl Scraper {
         }
     }
 
-    // This is now done in the insert_transction
+    // This is now done in the insert transaction
     /// Return true if BOTH airport_icao_code's are in db
     // async fn check_icao_in_db(db: &PgPool, scraped_flightroute: &ScrapedFlightroute) -> bool {
     //     let (start, end) = tokio::join!(
