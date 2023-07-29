@@ -204,7 +204,10 @@ AND
 
     /// Query for a fully joined Option<ModelFlightRoute>
     /// Don't return result, as issues with nulls in the database, that I can't be bothered to deal with at the moment
-    async fn _get(transaction: &mut Transaction<'_, Postgres>, callsign: &Callsign) -> Option<Self> {
+    async fn _get(
+        transaction: &mut Transaction<'_, Postgres>,
+        callsign: &Callsign,
+    ) -> Option<Self> {
         let query = match callsign {
             Callsign::Iata(_) => Self::get_query_iata(),
             Callsign::Icao(_) => Self::get_query_icao(),
