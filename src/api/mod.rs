@@ -1086,7 +1086,7 @@ pub mod tests {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 1..=119 {
+        for _ in 1..=511 {
             reqwest::get(&url).await.unwrap();
         }
 
@@ -1109,7 +1109,7 @@ pub mod tests {
         start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
-        for _ in 1..=239 {
+        for _ in 1..=1023 {
             reqwest::get(&url).await.unwrap();
         }
 
@@ -1117,7 +1117,9 @@ pub mod tests {
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
-        assert_eq!(result.as_str().unwrap(), "rate limited for 60 seconds");
+
+		let ans = [ "rate limited for 60 seconds",  "rate limited for 59 seconds"];
+        assert!(ans.contains(&result.as_str().unwrap()));
 
         // 240+ request is rate limited for 300 seconds
         let resp = reqwest::get(&url).await.unwrap();

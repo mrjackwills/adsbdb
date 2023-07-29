@@ -21,16 +21,16 @@ impl RateLimit {
         let count = redis.get::<&str, Option<usize>>(&key).await?;
         redis.incr(&key, 1).await?;
         if let Some(count) = count {
-            if count >= 240 {
+            if count >= 1024 {
                 info!("{key} - {count}");
                 redis.expire(&key, ONE_MINUTE * 5).await?;
             }
-            if count > 120 {
+            if count > 512 {
                 return Err(AppError::RateLimited(
                     usize::try_from(redis.ttl::<&str, isize>(&key).await?).unwrap_or_default(),
                 ));
             };
-            if count == 120 {
+            if count == 512 {
                 redis.expire(&key, ONE_MINUTE).await?;
                 return Err(AppError::RateLimited(ONE_MINUTE));
             }
