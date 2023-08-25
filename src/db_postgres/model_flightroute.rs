@@ -346,8 +346,8 @@ mod tests {
         let mut transaction = setup.1.begin().await.unwrap();
 
         let scraped_flightroute = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "666".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+            callsign_icao: Callsign::Icao(("ANA".to_owned(), "000".to_owned())),
+            callsign_iata: Callsign::Iata(("NH".to_owned(), "000".to_owned())),
             origin: "ROAH".to_owned(),
             destination: "RJTT".to_owned(),
         };
@@ -358,14 +358,19 @@ mod tests {
 
         let result =
             ModelFlightroute::_get(&mut transaction, &scraped_flightroute.callsign_icao).await;
+
+        // Cancel transaction, so can continually re-test with this route
+        transaction.rollback().await.unwrap();
+
         assert!(result.is_some());
+
         let result = result.unwrap();
 
         let expected = ModelFlightroute {
             flightroute_id: result.flightroute_id,
-            callsign: "ANA666".to_owned(),
-            callsign_iata: Some("NH460".to_owned()),
-            callsign_icao: Some("ANA666".to_owned()),
+            callsign: "ANA000".to_owned(),
+            callsign_iata: Some("NH000".to_owned()),
+            callsign_icao: Some("ANA000".to_owned()),
             airline_name: Some("All Nippon Airways".to_owned()),
             airline_country_name: Some("Japan".to_owned()),
             airline_country_iso_name: Some("JP".to_owned()),
@@ -402,8 +407,5 @@ mod tests {
         };
 
         assert_eq!(result, expected);
-
-        // Cancel transaction, so can continually re-test with this route
-        transaction.rollback().await.unwrap();
     }
 }
