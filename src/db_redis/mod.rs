@@ -48,6 +48,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
         .await?
     {
         redis.expire(&key, ONE_WEEK).await?;
+        drop(redis);
         Ok(Some(redis_to_serde(&value)))
     } else {
         Ok(None)
