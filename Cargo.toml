@@ -1,6 +1,6 @@
 [package]
 name = "adsbdb"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 authors = ["Jack Wills <email@mrjackwills.com>"]
 description = "aircraft & flightroute api"
