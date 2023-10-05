@@ -43,7 +43,7 @@ WHERE
     /// Search for arilines by iata prefix
     async fn get_all_by_iata_code(
         db: &PgPool,
-        prefix: &String,
+        prefix: &str,
     ) -> Result<Option<Vec<Self>>, AppError> {
         let result = sqlx::query_as!(
             Self,
@@ -73,7 +73,7 @@ ORDER BY
     /// Search for arilines by icao prefix
     async fn get_all_by_icao_code(
         db: &PgPool,
-        prefix: &String,
+        prefix: &str,
     ) -> Result<Option<Vec<Self>>, AppError> {
         let result = sqlx::query_as!(
             Self,
