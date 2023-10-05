@@ -215,7 +215,7 @@ check_typos () {
 
 # Create sqlx-data.json file for offline mode
 sqlx_prepare () {
-	echo -e "\n${YELLOW}sqlx prepare${RESET}"
+	echo -e "\n${YELLOW}cargo sqlx prepare${RESET}"
 	cargo sqlx prepare
 	ask_continue
 }
