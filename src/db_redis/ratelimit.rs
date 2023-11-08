@@ -1,5 +1,4 @@
-use super::RedisKey;
-use crate::api::AppError;
+use crate::{api::AppError, db_redis::RedisKey};
 use redis::{aio::Connection, AsyncCommands};
 use std::{net::IpAddr, sync::Arc};
 use tokio::sync::Mutex;
@@ -19,28 +18,26 @@ impl RateLimit {
     /// Check an incoming request to see if it is ratelimited or not
     pub async fn check(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Result<(), AppError> {
         let key = Self::get_key(ip);
-        let mut redis = redis.lock().await;
-        let count = redis.get::<&str, Option<usize>>(&key).await?;
-        redis.incr(&key, 1).await?;
+        let count = redis.lock().await.get::<&str, Option<usize>>(&key).await?;
+        redis.lock().await.incr(&key, 1).await?;
         if let Some(count) = count {
             if count >= 1024 {
                 info!("{key} - {count}");
-                redis.expire(&key, ONE_MINUTE * 5).await?;
+                redis.lock().await.expire(&key, ONE_MINUTE * 5).await?;
             }
             if count > 512 {
                 return Err(AppError::RateLimited(
-                    usize::try_from(redis.ttl::<&str, isize>(&key).await?).unwrap_or_default(),
+                    usize::try_from(redis.lock().await.ttl::<&str, isize>(&key).await?)
+                        .unwrap_or_default(),
                 ));
             };
             if count == 512 {
-                redis.expire(&key, ONE_MINUTE).await?;
+                redis.lock().await.expire(&key, ONE_MINUTE).await?;
                 return Err(AppError::RateLimited(ONE_MINUTE));
             }
         } else {
-            redis.expire(&key, ONE_MINUTE).await?;
+            redis.lock().await.expire(&key, ONE_MINUTE).await?;
         }
-        // nursery lint suggest using a drop here?
-        drop(redis);
         Ok(())
     }
 }

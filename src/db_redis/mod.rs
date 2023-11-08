@@ -16,7 +16,7 @@ const ONE_WEEK: usize = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
 /// Convert a redis string result into a Option<T>
-fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Option<T> {
+fn redis_to_serde<T: DeserializeOwned>(v: &Value, key: &str) -> Option<T> {
     if v == &Value::Nil {
         return None;
     }
@@ -29,6 +29,7 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value) -> Option<T> {
             }
         }
         Err(e) => {
+            error!("key::{key}");
             error!("value::{:#?}", v);
             error!("{e:?}");
             None
@@ -42,14 +43,14 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
     key: &RedisKey<'a>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
-    let mut redis = redis.lock().await;
-    if let Some(value) = redis
+    let value = redis
+        .lock()
+        .await
         .hget::<'_, &str, &str, Option<Value>>(&key, FIELD)
-        .await?
-    {
-        redis.expire(&key, ONE_WEEK).await?;
-        drop(redis);
-        Ok(Some(redis_to_serde(&value)))
+        .await?;
+    if let Some(value) = value {
+        redis.lock().await.expire(&key, ONE_WEEK).await?;
+        Ok(Some(redis_to_serde(&value, &key)))
     } else {
         Ok(None)
     }
@@ -58,17 +59,21 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
 /// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
     redis: &Arc<Mutex<Connection>>,
+    // Ideally this should be Option<&T>
     to_insert: &Option<T>,
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-    let mut redis = redis.lock().await;
     let cache = match to_insert {
         Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
     };
-    redis.hset(&key, FIELD, cache).await?;
-    Ok(redis.expire::<&str, ()>(&key, ONE_WEEK).await?)
+    redis.lock().await.hset(&key, FIELD, cache).await?;
+    Ok(redis
+        .lock()
+        .await
+        .expire::<&str, ()>(&key, ONE_WEEK)
+        .await?)
 }
 
 /// Get an async redis connection
