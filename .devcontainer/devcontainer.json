@@ -50,9 +50,10 @@
 		}
 	},
 
-	"postCreateCommand": "cargo install cargo-watch typos-cli sqlx-cli",
+	"postCreateCommand": "cargo install cargo-watch typos-cli sqlx-cli cargo-expand",
 
-	"postStartCommand": "sudo mkdir -p /dev/shm/adsbdb/pg_data /dev/shm/adsbdb/redis_data /dev/shm/adsbdb/logs /dev/shm/adsbdb/backups && sudo chown -R vscode:vscode /dev/shm/adsbdb && rm /home/vscode/.docker/config.json",
+	"postStartCommand": "sudo mkdir -p /dev/shm/adsbdb/pg_data /dev/shm/adsbdb/redis_data /dev/shm/adsbdb/logs /dev/shm/adsbdb/backups && sudo chown -R vscode:vscode /dev/shm/adsbdb",
+	//  && rm /home/vscode/.docker/config.json",
 
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
