@@ -25,7 +25,7 @@ mod app_error;
 mod input;
 mod response;
 
-use crate::{db_redis::ratelimit, parse_env::AppEnv, scraper::Scraper};
+use crate::{db_redis::ratelimit::RateLimit, parse_env::AppEnv, scraper::Scraper};
 pub use app_error::{AppError, UnknownAC};
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
 
@@ -87,7 +87,7 @@ async fn rate_limiting<B: Send + Sync>(
     let (mut parts, body) = req.into_parts();
     let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
     let ip = get_ip(&parts.headers, addr);
-    ratelimit::RateLimit::check(&state.redis, ip).await?;
+    RateLimit::new(ip).check(&state.redis).await?;
     Ok(next.run(Request::from_parts(parts, body)).await)
 }
 
