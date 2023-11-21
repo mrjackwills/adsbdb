@@ -29,9 +29,8 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value, key: &str) -> Option<T> {
             }
         }
         Err(e) => {
-            error!("key::{key}");
-            error!("value::{:#?}", v);
-            error!("{e:?}");
+			error!("key::{key}, value::{v:#?}, {e:?}\nexiting");
+			// process::exit(1) here?
             None
         }
     }
