@@ -24,7 +24,7 @@ async fn find_flightroute(
             Ok(Some(route))
         })
     } else {
-        let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await?;
+        let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
         if flightroute.is_none() {
             flightroute = state
                 .scraper
