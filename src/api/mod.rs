@@ -25,7 +25,11 @@ mod app_error;
 mod input;
 mod response;
 
-use crate::{db_redis::ratelimit::RateLimit, parse_env::AppEnv, scraper::Scraper};
+use crate::{
+    db_redis::ratelimit::RateLimit,
+    parse_env::AppEnv,
+    scraper::{Scraper, ScraperThreadMap},
+};
 pub use app_error::{AppError, UnknownAC};
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
 
@@ -39,16 +43,23 @@ pub struct ApplicationState {
     uptime: Instant,
     url_prefix: String,
     scraper: Scraper,
+    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
 }
 
 impl ApplicationState {
-    pub fn new(postgres: PgPool, redis: Arc<Mutex<Connection>>, app_env: &AppEnv) -> Self {
+    pub fn new(
+        postgres: PgPool,
+        redis: Arc<Mutex<Connection>>,
+        app_env: &AppEnv,
+        scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+    ) -> Self {
         Self {
             postgres,
             redis,
             uptime: Instant::now(),
             scraper: Scraper::new(app_env),
             url_prefix: app_env.url_photo_prefix.clone(),
+            scraper_threads,
         }
     }
 }
@@ -148,7 +159,8 @@ pub async fn serve(
     postgres: PgPool,
     redis: Arc<Mutex<Connection>>,
 ) -> Result<(), AppError> {
-    let application_state = ApplicationState::new(postgres, redis, &app_env);
+    let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
+    let application_state = ApplicationState::new(postgres, redis, &app_env, scraper_threads);
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
