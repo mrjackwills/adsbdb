@@ -261,7 +261,7 @@ impl Scraper {
             if let Ok(html) = self.request_callsign(callsign).await {
                 if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
                     output =
-                        ModelFlightroute::insert_scraped_flightroute(postgres, scraped_flightroute)
+                        ModelFlightroute::insert_scraped_flightroute(postgres, &scraped_flightroute)
                             .await?;
                 }
             }
