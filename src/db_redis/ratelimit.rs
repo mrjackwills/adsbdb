@@ -8,8 +8,8 @@ pub struct RateLimit {
     key: String,
 }
 
-const UPPER_LIMIT:u64 = 1024;
-const LOWER_LIMIT:u64 = 512;
+const UPPER_LIMIT: u64 = 1024;
+const LOWER_LIMIT: u64 = 512;
 
 const ONE_MINUTE: usize = 60;
 
@@ -20,7 +20,7 @@ impl RateLimit {
         }
     }
 
-	/// Get current rate limit count
+    /// Get current rate limit count
     async fn get_count(
         &self,
         redis: &mut MutexGuard<'_, Connection>,
@@ -56,5 +56,4 @@ impl RateLimit {
         drop(redis);
         Ok(())
     }
-
 }

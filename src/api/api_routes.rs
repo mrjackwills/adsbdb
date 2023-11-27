@@ -28,7 +28,7 @@ async fn find_flightroute(
         if flightroute.is_none() {
             flightroute = state
                 .scraper
-                .scrape_flightroute(&state.postgres, callsign)
+                .scrape_flightroute(&state.postgres, callsign, &state.scraper_threads)
                 .await?;
         }
         insert_cache(&state.redis, &flightroute, &redis_key).await?;
@@ -52,7 +52,10 @@ async fn find_aircraft(
             ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
             if craft.url_photo.is_none() {
-                state.scraper.scrape_photo(&state.postgres, craft).await?;
+                state
+                    .scraper
+                    .scrape_photo(&state.postgres, craft, &state.scraper_threads)
+                    .await;
                 aircraft =
                     ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
@@ -228,6 +231,7 @@ mod tests {
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
+    use crate::scraper::ScraperThreadMap;
     use crate::sleep;
 
     const CALLSIGN: &str = "ANA460";
@@ -236,6 +240,7 @@ mod tests {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
+        let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
         redis::cmd("FLUSHDB")
             .query_async::<_, ()>(&mut redis)
             .await
@@ -244,6 +249,7 @@ mod tests {
             postgres,
             Arc::new(Mutex::new(redis)),
             &app_env,
+            scraper_threads,
         ))
     }
 

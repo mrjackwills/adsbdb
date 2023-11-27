@@ -199,7 +199,7 @@ impl Validate for NNumber {
 }
 
 // Split this into an enum, Icao, Iata, Other
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Callsign {
     // Could put optional ModelAirline in here?
     Icao((String, String)),
