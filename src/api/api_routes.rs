@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use axum::extract::{OriginalUri, State};
+use axum::http::StatusCode;
 
 use super::input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Validate};
 use super::response::{
@@ -90,7 +91,7 @@ pub async fn aircraft_get(
     State(state): State<ApplicationState>,
     aircraft_search: AircraftSearch,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
-) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
+) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
         let callsign = Callsign::validate(query_param)?;
@@ -100,7 +101,7 @@ pub async fn aircraft_get(
         )?;
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |a| {
             Ok((
-                axum::http::StatusCode::OK,
+                StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: Some(ResponseAircraft::from(a)),
                     flightroute: ResponseFlightRoute::from_model(&flightroute),
@@ -112,7 +113,7 @@ pub async fn aircraft_get(
             Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
             |aircraft| {
                 Ok((
-                    axum::http::StatusCode::OK,
+                    StatusCode::OK,
                     ResponseJson::new(AircraftAndRoute {
                         aircraft: Some(ResponseAircraft::from(aircraft)),
                         flightroute: None,
@@ -132,7 +133,7 @@ pub async fn airline_get(
         Err(AppError::UnknownInDb(UnknownAC::Airline)),
         |a| {
             Ok((
-                axum::http::StatusCode::OK,
+                StatusCode::OK,
                 ResponseJson::new(a.into_iter().map(ResponseAirline::from).collect::<Vec<_>>()),
             ))
         },
@@ -148,7 +149,7 @@ pub async fn callsign_get(
         Err(AppError::UnknownInDb(UnknownAC::Callsign)),
         |a| {
             Ok((
-                axum::http::StatusCode::OK,
+                StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: None,
                     flightroute: ResponseFlightRoute::from_model(&Some(a)),
@@ -164,7 +165,7 @@ pub async fn n_number_get(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
-        axum::http::StatusCode::OK,
+        StatusCode::OK,
         ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
     ))
 }
@@ -175,7 +176,7 @@ pub async fn mode_s_get(
     mode_s: ModeS,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
-        axum::http::StatusCode::OK,
+        StatusCode::OK,
         ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
     ))
 }
@@ -186,7 +187,7 @@ pub async fn online_get(
     State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
-        axum::http::StatusCode::OK,
+        StatusCode::OK,
         ResponseJson::new(Online {
             uptime: state.uptime.elapsed().as_secs(),
             api_version: env!("CARGO_PKG_VERSION").into(),
@@ -196,11 +197,9 @@ pub async fn online_get(
 
 /// return a unknown endpoint response
 #[allow(clippy::unused_async)]
-pub async fn fallback(
-    OriginalUri(original_uri): OriginalUri,
-) -> (axum::http::StatusCode, AsJsonRes<String>) {
+pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, AsJsonRes<String>) {
     (
-        axum::http::StatusCode::NOT_FOUND,
+        StatusCode::NOT_FOUND,
         ResponseJson::new(format!("unknown endpoint: {original_uri}")),
     )
 }
