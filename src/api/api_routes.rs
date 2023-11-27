@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::{OriginalUri, State};
 use axum::http::StatusCode;
@@ -16,7 +17,7 @@ use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for Option\<ModelFlightroute>, else query postgres
 async fn find_flightroute(
-    state: ApplicationState,
+    state: Arc<ApplicationState>,
     callsign: &Callsign,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(callsign);
@@ -39,7 +40,7 @@ async fn find_flightroute(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    state: ApplicationState,
+    state: Arc<ApplicationState>,
     aircraft_search: &AircraftSearch,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::from(aircraft_search);
@@ -68,7 +69,7 @@ async fn find_aircraft(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_airline(
-    state: ApplicationState,
+    state: Arc<ApplicationState>,
     airline: &AirlineCode,
 ) -> Result<Option<Vec<ModelAirline>>, AppError> {
     let redis_key = RedisKey::Airline(airline);
@@ -88,7 +89,7 @@ async fn find_airline(
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 /// TODO turn this optional into an extractor?
 pub async fn aircraft_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
     aircraft_search: AircraftSearch,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
@@ -126,7 +127,7 @@ pub async fn aircraft_get(
 
 /// Return an airline detail from a ICAO or IATA airline prefix
 pub async fn airline_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
     airline_code: AirlineCode,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
     find_airline(state, &airline_code).await?.map_or(
@@ -142,7 +143,7 @@ pub async fn airline_get(
 
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
     callsign: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(state, &callsign).await?.map_or(
@@ -184,7 +185,7 @@ pub async fn mode_s_get(
 /// Return a simple online status response
 #[allow(clippy::unused_async)]
 pub async fn online_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
         StatusCode::OK,
@@ -234,7 +235,7 @@ mod tests {
 
     const CALLSIGN: &str = "ANA460";
 
-    async fn get_application_state() -> State<ApplicationState> {
+    async fn get_application_state() -> State<Arc<ApplicationState>> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
@@ -243,12 +244,12 @@ mod tests {
             .query_async::<_, ()>(&mut redis)
             .await
             .unwrap();
-        State(ApplicationState::new(
+        State(Arc::new(ApplicationState::new(
             postgres,
             Arc::new(Mutex::new(redis)),
             &app_env,
             scraper_threads,
-        ))
+        )))
     }
 
     #[tokio::test]

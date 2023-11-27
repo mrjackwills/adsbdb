@@ -35,7 +35,6 @@ pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registrat
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
 
-#[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
     redis: Arc<Mutex<Connection>>,
@@ -90,7 +89,7 @@ pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
 
 /// Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, AppError> {
@@ -159,7 +158,7 @@ pub async fn serve(
     redis: Arc<Mutex<Connection>>,
 ) -> Result<(), AppError> {
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-    let application_state = ApplicationState::new(postgres, redis, &app_env, scraper_threads);
+    let application_state = Arc::new(ApplicationState::new(postgres, redis, &app_env, scraper_threads));
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
@@ -178,7 +177,7 @@ pub async fn serve(
     let app = Router::new()
         .nest(&prefix, api_routes)
         .fallback(api_routes::fallback)
-        .with_state(application_state.clone())
+        .with_state(Arc::clone(&application_state))
         .layer(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(1024))
