@@ -35,12 +35,14 @@ pub enum AppError {
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
     #[error("invalid callsign:")]
     Callsign(String),
-    #[error("invalid n_number:")]
-    NNumber(String),
     #[error("internal error:")]
     Internal(String),
+    #[error("io error")]
+    Io(#[from] std::io::Error),
     #[error("invalid modeS:")]
     ModeS(String),
+    #[error("invalid n_number:")]
+    NNumber(String),
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),
     #[error("rate limited for")]
@@ -95,6 +97,13 @@ impl IntoResponse for AppError {
 
             Self::Internal(e) => {
                 error!("internal: {e:?}");
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(format!("{prefix} {e}")),
+                )
+            }
+            Self::Io(e) => {
+                error!("io: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(format!("{prefix} {e}")),

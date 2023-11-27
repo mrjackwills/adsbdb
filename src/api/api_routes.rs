@@ -126,7 +126,6 @@ pub async fn aircraft_get(
 /// Return an airline detail from a ICAO or IATA airline prefix
 pub async fn airline_get(
     State(state): State<ApplicationState>,
-    // this will be a airline
     airline_code: AirlineCode,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
     find_airline(state, &airline_code).await?.map_or(
