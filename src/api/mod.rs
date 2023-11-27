@@ -1,5 +1,4 @@
 use ::redis::aio::Connection;
-use reqwest::Method;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -16,7 +15,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::{signal, sync::Mutex};
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -90,10 +89,10 @@ pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
 }
 
 /// Limit the users request based on ip address, using redis as mem store
-async fn rate_limiting<B: Send + Sync>(
+async fn rate_limiting(
     State(state): State<ApplicationState>,
-    req: Request<B>,
-    next: Next<B>,
+    req: Request<axum::body::Body>,
+    next: Next,
 ) -> Result<Response, AppError> {
     let (mut parts, body) = req.into_parts();
     let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
@@ -173,7 +172,7 @@ pub async fn serve(
     let prefix = get_api_version();
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_origin(Any);
 
     let app = Router::new()
@@ -193,41 +192,15 @@ pub async fn serve(
     let addr = get_addr(&app_env)?;
     info!("starting server @ {addr}{prefix}");
 
-    match axum::Server::bind(&addr)
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
+    match axum::serve(
+        tokio::net::TcpListener::bind(&addr).await?,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
     {
         Ok(()) => Ok(()),
         Err(_) => Err(AppError::Internal("api_server".to_owned())),
     }
-}
-
-#[allow(clippy::expect_used)]
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        () = ctrl_c => {},
-        () = terminate => {},
-    }
-
-    println!("signal received, starting graceful shutdown");
 }
 
 /// http tests - ran via actual requests to a (local) server
