@@ -9,7 +9,8 @@ ARG DOCKER_GUID=1000 \
 
 ENV TZ=${DOCKER_TIME_CONT}/${DOCKER_TIME_CITY}
 
-RUN apk add --update --no-cache age gnupg tzdata postgresql-client \
+RUN apk add --update --no-cache gnupg tzdata age \
+ 	&& apk add --update --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main postgresql16-client \
 	&& cp /usr/share/zoneinfo/${TZ} /etc/localtime \
 	&& echo ${TZ} > /etc/timezone \
 	&& addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
