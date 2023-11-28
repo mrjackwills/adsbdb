@@ -228,7 +228,7 @@ impl Scraper {
     /// As above, but just return the test_scrape, instead of hitting a third party site
     #[cfg(test)]
     async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
-        // artifical sleep, so can make sure things are in the hashmap
+        // artificial sleep, so can make sure things are in the hashmap
         sleep!(500);
         if callsign.to_string() == "ANA460" {
             Ok(include_str!("./test_scrape.txt").to_owned())
@@ -582,7 +582,7 @@ mod tests {
     }
 
     #[tokio::test]
-    /// Multiple request - each in own thread - resulst in the ScraperThreadMap being corectly populated
+    /// Multiple request - each in own thread - results in the ScraperThreadMap being correctly populated
     async fn scraper_scrape_for_route_insert_threaded() {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let setup = test_setup().await;
