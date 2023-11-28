@@ -7,7 +7,7 @@ use crate::{
 };
 
 // sqlx::FromRow,
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ModelAircraft {
     pub aircraft_id: i64,
     #[serde(rename = "type")]

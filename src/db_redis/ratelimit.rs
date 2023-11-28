@@ -1,45 +1,58 @@
-use super::RedisKey;
-use crate::api::AppError;
+use crate::{api::AppError, db_redis::RedisKey};
 use redis::{aio::Connection, AsyncCommands};
 use std::{net::IpAddr, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 use tracing::info;
 
-pub struct RateLimit;
+pub struct RateLimit {
+    key: String,
+}
+
+const UPPER_LIMIT: u64 = 1024;
+const LOWER_LIMIT: u64 = 512;
 
 const ONE_MINUTE: usize = 60;
 
-// TODO put rate limits in the app_env, would need tests to react to this
-
 impl RateLimit {
-    fn get_key(ip: IpAddr) -> String {
-        RedisKey::RateLimit(ip).to_string()
+    pub fn new(ip: IpAddr) -> Self {
+        Self {
+            key: RedisKey::RateLimit(ip).to_string(),
+        }
     }
 
-    /// Check an incoming request to see if it is ratelimited or not
-    pub async fn check(redis: &Arc<Mutex<Connection>>, ip: IpAddr) -> Result<(), AppError> {
-        let key = Self::get_key(ip);
+    /// Get current rate limit count
+    async fn get_count(
+        &self,
+        redis: &mut MutexGuard<'_, Connection>,
+    ) -> Result<Option<u64>, AppError> {
+        Ok(redis.get::<&str, Option<u64>>(&self.key).await?)
+    }
+
+    /// Get the ttl for a given limiter, converts from the redis isize to usize
+    async fn ttl(&self, redis: &mut MutexGuard<'_, Connection>) -> Result<usize, AppError> {
+        Ok(usize::try_from(redis.ttl::<&str, isize>(&self.key).await?).unwrap_or_default())
+    }
+
+    /// Check if request has been rate limited, always increases the current value of the given rate limit
+    pub async fn check(&self, redis: &Arc<Mutex<Connection>>) -> Result<(), AppError> {
         let mut redis = redis.lock().await;
-        let count = redis.get::<&str, Option<usize>>(&key).await?;
-        redis.incr(&key, 1).await?;
-        if let Some(count) = count {
-            if count >= 1024 {
-                info!("{key} - {count}");
-                redis.expire(&key, ONE_MINUTE * 5).await?;
+        if let Some(count) = self.get_count(&mut redis).await? {
+            redis.incr(&self.key, 1).await?;
+            if count >= UPPER_LIMIT {
+                info!("{} - {count}", self.key);
+                redis.expire(&self.key, ONE_MINUTE * 5).await?;
             }
-            if count > 512 {
-                return Err(AppError::RateLimited(
-                    usize::try_from(redis.ttl::<&str, isize>(&key).await?).unwrap_or_default(),
-                ));
-            };
-            if count == 512 {
-                redis.expire(&key, ONE_MINUTE).await?;
+            if count > LOWER_LIMIT {
+                return Err(AppError::RateLimited(self.ttl(&mut redis).await?));
+            }
+            if count == LOWER_LIMIT {
+                redis.expire(&self.key, ONE_MINUTE).await?;
                 return Err(AppError::RateLimited(ONE_MINUTE));
             }
         } else {
-            redis.expire(&key, ONE_MINUTE).await?;
+            redis.incr(&self.key, 1).await?;
+            redis.expire(&self.key, ONE_MINUTE).await?;
         }
-        // nursery lint suggest using a drop here?
         drop(redis);
         Ok(())
     }

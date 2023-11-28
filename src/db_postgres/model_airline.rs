@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::PgPool;
 
 use crate::api::{AirlineCode, AppError, Callsign};
 
@@ -16,7 +16,7 @@ pub struct ModelAirline {
 
 impl ModelAirline {
     pub async fn get_by_icao_callsign(
-        transaction: &mut Transaction<'_, Postgres>,
+        db: &PgPool,
         callsign: &Callsign,
     ) -> Result<Option<Self>, AppError> {
         match callsign {
@@ -34,7 +34,7 @@ WHERE
     icao_prefix = $1",
                 x.0
             )
-            .fetch_optional(&mut **transaction)
+            .fetch_optional(db)
             .await?),
             _ => Ok(None),
         }
@@ -43,7 +43,7 @@ WHERE
     /// Search for arilines by iata prefix
     async fn get_all_by_iata_code(
         db: &PgPool,
-        prefix: &String,
+        prefix: &str,
     ) -> Result<Option<Vec<Self>>, AppError> {
         let result = sqlx::query_as!(
             Self,
@@ -73,7 +73,7 @@ ORDER BY
     /// Search for arilines by icao prefix
     async fn get_all_by_icao_code(
         db: &PgPool,
-        prefix: &String,
+        prefix: &str,
     ) -> Result<Option<Vec<Self>>, AppError> {
         let result = sqlx::query_as!(
             Self,
@@ -123,10 +123,9 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_icao_iata_none() {
         let test_setup = test_setup().await;
-        let mut transaction = test_setup.postgres.begin().await.unwrap();
         let callsign = &&Callsign::Iata(("EZ".to_owned(), "123".to_owned()));
 
-        let result = ModelAirline::get_by_icao_callsign(&mut transaction, callsign).await;
+        let result = ModelAirline::get_by_icao_callsign(&test_setup.postgres, callsign).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -136,10 +135,9 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_icao_unknown() {
         let test_setup = test_setup().await;
-        let mut transaction = test_setup.postgres.begin().await.unwrap();
         let callsign = &Callsign::Icao(("DDD".to_owned(), "123".to_owned()));
 
-        let result = ModelAirline::get_by_icao_callsign(&mut transaction, callsign).await;
+        let result = ModelAirline::get_by_icao_callsign(&test_setup.postgres, callsign).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -149,10 +147,9 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_icao_ok() {
         let test_setup = test_setup().await;
-        let mut transaction = test_setup.postgres.begin().await.unwrap();
         let callsign = &Callsign::Icao(("EZY".to_owned(), "123".to_owned()));
 
-        let result = ModelAirline::get_by_icao_callsign(&mut transaction, callsign).await;
+        let result = ModelAirline::get_by_icao_callsign(&test_setup.postgres, callsign).await;
 
         assert!(result.is_ok());
         let result = result.unwrap();

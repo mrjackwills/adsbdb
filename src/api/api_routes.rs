@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::{OriginalUri, State};
+use axum::http::StatusCode;
 
 use super::input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Validate};
 use super::response::{
@@ -15,7 +17,7 @@ use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for Option\<ModelFlightroute>, else query postgres
 async fn find_flightroute(
-    state: ApplicationState,
+    state: Arc<ApplicationState>,
     callsign: &Callsign,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(callsign);
@@ -24,11 +26,11 @@ async fn find_flightroute(
             Ok(Some(route))
         })
     } else {
-        let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await?;
+        let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
         if flightroute.is_none() {
             flightroute = state
                 .scraper
-                .scrape_flightroute(&state.postgres, callsign)
+                .scrape_flightroute(&state.postgres, callsign, &state.scraper_threads)
                 .await?;
         }
         insert_cache(&state.redis, &flightroute, &redis_key).await?;
@@ -38,7 +40,7 @@ async fn find_flightroute(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    state: ApplicationState,
+    state: Arc<ApplicationState>,
     aircraft_search: &AircraftSearch,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::from(aircraft_search);
@@ -52,7 +54,10 @@ async fn find_aircraft(
             ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
             if craft.url_photo.is_none() {
-                state.scraper.scrape_photo(&state.postgres, craft).await?;
+                state
+                    .scraper
+                    .scrape_photo(&state.postgres, craft, &state.scraper_threads)
+                    .await;
                 aircraft =
                     ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
@@ -64,7 +69,7 @@ async fn find_aircraft(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_airline(
-    state: ApplicationState,
+    state: Arc<ApplicationState>,
     airline: &AirlineCode,
 ) -> Result<Option<Vec<ModelAirline>>, AppError> {
     let redis_key = RedisKey::Airline(airline);
@@ -84,10 +89,10 @@ async fn find_airline(
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 /// TODO turn this optional into an extractor?
 pub async fn aircraft_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
     aircraft_search: AircraftSearch,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
-) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
+) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     // Check if optional callsign query param
     if let Some(query_param) = queries.get("callsign") {
         let callsign = Callsign::validate(query_param)?;
@@ -97,7 +102,7 @@ pub async fn aircraft_get(
         )?;
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |a| {
             Ok((
-                axum::http::StatusCode::OK,
+                StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: Some(ResponseAircraft::from(a)),
                     flightroute: ResponseFlightRoute::from_model(&flightroute),
@@ -109,7 +114,7 @@ pub async fn aircraft_get(
             Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
             |aircraft| {
                 Ok((
-                    axum::http::StatusCode::OK,
+                    StatusCode::OK,
                     ResponseJson::new(AircraftAndRoute {
                         aircraft: Some(ResponseAircraft::from(aircraft)),
                         flightroute: None,
@@ -122,15 +127,14 @@ pub async fn aircraft_get(
 
 /// Return an airline detail from a ICAO or IATA airline prefix
 pub async fn airline_get(
-    State(state): State<ApplicationState>,
-    // this will be a airline
+    State(state): State<Arc<ApplicationState>>,
     airline_code: AirlineCode,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
     find_airline(state, &airline_code).await?.map_or(
         Err(AppError::UnknownInDb(UnknownAC::Airline)),
         |a| {
             Ok((
-                axum::http::StatusCode::OK,
+                StatusCode::OK,
                 ResponseJson::new(a.into_iter().map(ResponseAirline::from).collect::<Vec<_>>()),
             ))
         },
@@ -139,14 +143,14 @@ pub async fn airline_get(
 
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
     callsign: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(state, &callsign).await?.map_or(
         Err(AppError::UnknownInDb(UnknownAC::Callsign)),
         |a| {
             Ok((
-                axum::http::StatusCode::OK,
+                StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: None,
                     flightroute: ResponseFlightRoute::from_model(&Some(a)),
@@ -162,7 +166,7 @@ pub async fn n_number_get(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
-        axum::http::StatusCode::OK,
+        StatusCode::OK,
         ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
     ))
 }
@@ -173,7 +177,7 @@ pub async fn mode_s_get(
     mode_s: ModeS,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
-        axum::http::StatusCode::OK,
+        StatusCode::OK,
         ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
     ))
 }
@@ -181,10 +185,10 @@ pub async fn mode_s_get(
 /// Return a simple online status response
 #[allow(clippy::unused_async)]
 pub async fn online_get(
-    State(state): State<ApplicationState>,
+    State(state): State<Arc<ApplicationState>>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
-        axum::http::StatusCode::OK,
+        StatusCode::OK,
         ResponseJson::new(Online {
             uptime: state.uptime.elapsed().as_secs(),
             api_version: env!("CARGO_PKG_VERSION").into(),
@@ -194,11 +198,9 @@ pub async fn online_get(
 
 /// return a unknown endpoint response
 #[allow(clippy::unused_async)]
-pub async fn fallback(
-    OriginalUri(original_uri): OriginalUri,
-) -> (axum::http::StatusCode, AsJsonRes<String>) {
+pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, AsJsonRes<String>) {
     (
-        axum::http::StatusCode::NOT_FOUND,
+        StatusCode::NOT_FOUND,
         ResponseJson::new(format!("unknown endpoint: {original_uri}")),
     )
 }
@@ -228,23 +230,26 @@ mod tests {
     use crate::db_postgres;
     use crate::db_redis as Redis;
     use crate::parse_env;
+    use crate::scraper::ScraperThreadMap;
     use crate::sleep;
 
     const CALLSIGN: &str = "ANA460";
 
-    async fn get_application_state() -> State<ApplicationState> {
+    async fn get_application_state() -> State<Arc<ApplicationState>> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
+        let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
         redis::cmd("FLUSHDB")
             .query_async::<_, ()>(&mut redis)
             .await
             .unwrap();
-        State(ApplicationState::new(
+        State(Arc::new(ApplicationState::new(
             postgres,
             Arc::new(Mutex::new(redis)),
             &app_env,
-        ))
+            scraper_threads,
+        )))
     }
 
     #[tokio::test]

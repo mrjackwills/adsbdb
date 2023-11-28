@@ -1,5 +1,4 @@
 use ::redis::aio::Connection;
-use reqwest::Method;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -16,7 +15,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::{signal, sync::Mutex};
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -25,30 +24,40 @@ mod app_error;
 mod input;
 mod response;
 
-use crate::{db_redis::ratelimit, parse_env::AppEnv, scraper::Scraper};
+use crate::{
+    db_redis::ratelimit::RateLimit,
+    parse_env::AppEnv,
+    scraper::{Scraper, ScraperThreadMap},
+};
 pub use app_error::{AppError, UnknownAC};
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
 
-#[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
     redis: Arc<Mutex<Connection>>,
     uptime: Instant,
     url_prefix: String,
     scraper: Scraper,
+    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
 }
 
 impl ApplicationState {
-    pub fn new(postgres: PgPool, redis: Arc<Mutex<Connection>>, app_env: &AppEnv) -> Self {
+    pub fn new(
+        postgres: PgPool,
+        redis: Arc<Mutex<Connection>>,
+        app_env: &AppEnv,
+        scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+    ) -> Self {
         Self {
             postgres,
             redis,
             uptime: Instant::now(),
             scraper: Scraper::new(app_env),
             url_prefix: app_env.url_photo_prefix.clone(),
+            scraper_threads,
         }
     }
 }
@@ -79,15 +88,15 @@ pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
 }
 
 /// Limit the users request based on ip address, using redis as mem store
-async fn rate_limiting<B: Send + Sync>(
-    State(state): State<ApplicationState>,
-    req: Request<B>,
-    next: Next<B>,
+async fn rate_limiting(
+    State(state): State<Arc<ApplicationState>>,
+    req: Request<axum::body::Body>,
+    next: Next,
 ) -> Result<Response, AppError> {
     let (mut parts, body) = req.into_parts();
     let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
     let ip = get_ip(&parts.headers, addr);
-    ratelimit::RateLimit::check(&state.redis, ip).await?;
+    RateLimit::new(ip).check(&state.redis).await?;
     Ok(next.run(Request::from_parts(parts, body)).await)
 }
 
@@ -148,7 +157,13 @@ pub async fn serve(
     postgres: PgPool,
     redis: Arc<Mutex<Connection>>,
 ) -> Result<(), AppError> {
-    let application_state = ApplicationState::new(postgres, redis, &app_env);
+    let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
+    let application_state = Arc::new(ApplicationState::new(
+        postgres,
+        redis,
+        &app_env,
+        scraper_threads,
+    ));
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
@@ -161,13 +176,13 @@ pub async fn serve(
     let prefix = get_api_version();
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_origin(Any);
 
     let app = Router::new()
         .nest(&prefix, api_routes)
         .fallback(api_routes::fallback)
-        .with_state(application_state.clone())
+        .with_state(Arc::clone(&application_state))
         .layer(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(1024))
@@ -181,41 +196,15 @@ pub async fn serve(
     let addr = get_addr(&app_env)?;
     info!("starting server @ {addr}{prefix}");
 
-    match axum::Server::bind(&addr)
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
+    match axum::serve(
+        tokio::net::TcpListener::bind(&addr).await?,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
     {
-        Ok(_) => Ok(()),
+        Ok(()) => Ok(()),
         Err(_) => Err(AppError::Internal("api_server".to_owned())),
     }
-}
-
-#[allow(clippy::expect_used)]
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-
-    println!("signal received, starting graceful shutdown");
 }
 
 /// http tests - ran via actual requests to a (local) server

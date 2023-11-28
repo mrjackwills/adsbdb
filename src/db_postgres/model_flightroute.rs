@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::PgPool;
 
 use crate::{
     api::{AppError, Callsign},
@@ -204,10 +204,7 @@ AND
 
     /// Query for a fully joined Option<ModelFlightRoute>
     /// Don't return result, as issues with nulls in the database, that I can't be bothered to deal with at the moment
-    async fn _get(
-        transaction: &mut Transaction<'_, Postgres>,
-        callsign: &Callsign,
-    ) -> Option<Self> {
+    pub async fn get(db: &PgPool, callsign: &Callsign) -> Option<Self> {
         let query = match callsign {
             Callsign::Iata(_) => Self::get_query_iata(),
             Callsign::Icao(_) => Self::get_query_icao(),
@@ -217,14 +214,14 @@ AND
         match callsign {
             Callsign::Other(callsign) => sqlx::query_as::<_, Self>(&query)
                 .bind(callsign)
-                .fetch_optional(&mut **transaction)
+                .fetch_optional(db)
                 .await
                 .unwrap_or(None),
             Callsign::Iata(x) | Callsign::Icao(x) => {
                 if let Ok(flightroute) = sqlx::query_as::<_, Self>(&query)
                     .bind(&x.0)
                     .bind(&x.1)
-                    .fetch_optional(&mut **transaction)
+                    .fetch_optional(db)
                     .await
                 {
                     if let Some(flightroute) = flightroute {
@@ -232,7 +229,7 @@ AND
                     } else {
                         sqlx::query_as::<_, Self>(&Self::get_query_callsign())
                             .bind(format!("{}{}", x.0, x.1))
-                            .fetch_optional(&mut **transaction)
+                            .fetch_optional(db)
                             .await
                             .unwrap_or(None)
                     }
@@ -243,90 +240,57 @@ AND
         }
     }
 
-    // Why is this a transaction?
-    pub async fn get(db: &PgPool, callsign: &Callsign) -> Result<Option<Self>, AppError> {
-        let mut transaction = db.begin().await?;
-        let output = Self::_get(&mut transaction, callsign).await;
-        transaction.commit().await?;
-        Ok(output)
-    }
-
-    /// Transaction to insert a new flightroute
-    async fn _insert_scraped_flightroute(
-        transaction: &mut Transaction<'_, Postgres>,
+    /// Transaction to insert, and return, a new flightroute,
+    pub async fn insert_scraped_flightroute(
+        db: &PgPool,
         scraped_flightroute: &ScrapedFlightroute,
-    ) -> Result<(), AppError> {
+    ) -> Result<Option<Self>, AppError> {
         if let Some(airline_id) =
-            ModelAirline::get_by_icao_callsign(transaction, &scraped_flightroute.callsign_icao)
-                .await?
+            ModelAirline::get_by_icao_callsign(db, &scraped_flightroute.callsign_icao).await?
         {
-            let origin = ModelAirport::get(&mut **transaction, &scraped_flightroute.origin).await?;
-            let destination =
-                ModelAirport::get(&mut **transaction, &scraped_flightroute.destination).await?;
+            let origin = ModelAirport::get(db, &scraped_flightroute.origin).await?;
+            let destination = ModelAirport::get(db, &scraped_flightroute.destination).await?;
             if let (Some(origin), Some(destination)) = (origin, destination) {
+                let mut transaction = db.begin().await?;
                 sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_icao.get_suffix())
-                .execute(&mut **transaction)
+                .execute(&mut *transaction)
                 .await?;
 
                 sqlx::query!("INSERT INTO flightroute_callsign_inner(callsign) VALUES($1) ON CONFLICT (callsign) DO NOTHING", scraped_flightroute.callsign_iata.get_suffix())
-                .execute(&mut **transaction)
+                .execute(&mut *transaction)
                 .await?;
 
                 let icao_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_icao.get_suffix())
-                .fetch_one(&mut **transaction)
+                .fetch_one(&mut *transaction)
                 .await?;
 
                 let iata_prefix = sqlx::query_as!(Id, "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1", scraped_flightroute.callsign_iata.get_suffix())
-                .fetch_one(&mut **transaction)
+                .fetch_one(&mut *transaction)
                 .await?;
 
                 let flighroute_callsign_id = sqlx::query_as!(Id, "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id", 
                 airline_id.airline_id,
                 iata_prefix.id,
                 icao_prefix.id)
-                .fetch_one(&mut **transaction)
+                .fetch_one(&mut *transaction)
                 .await?;
                 sqlx::query!(r"INSERT INTO flightroute (airport_origin_id, airport_destination_id, flightroute_callsign_id) VALUES ($1, $2, $3)",
                     origin.airport_id,
                     destination.airport_id,
                     flighroute_callsign_id.id,
                 )
-                .execute(&mut **transaction)
+                .execute(&mut *transaction)
                 .await?;
+                transaction.commit().await?;
             }
         }
-        Ok(())
-    }
-
-    /// Insert, and return, a new flightroute
-    #[cfg(not(test))]
-    pub async fn insert_scraped_flightroute(
-        db: &PgPool,
-        scraped_flightroute: ScrapedFlightroute,
-    ) -> Result<Option<Self>, AppError> {
-        let mut transaction = db.begin().await?;
-        Self::_insert_scraped_flightroute(&mut transaction, &scraped_flightroute).await?;
-        transaction.commit().await?;
-        Self::get(db, &scraped_flightroute.callsign_icao).await
-    }
-
-    ///Insert, and return, a new flightroute, will rollback after returning flightroute
-    #[cfg(test)]
-    pub async fn insert_scraped_flightroute(
-        db: &PgPool,
-        scraped_flightroute: ScrapedFlightroute,
-    ) -> Result<Option<Self>, AppError> {
-        let mut transaction = db.begin().await?;
-        Self::_insert_scraped_flightroute(&mut transaction, &scraped_flightroute).await?;
-        let output = Self::_get(&mut transaction, &scraped_flightroute.callsign_icao).await;
-        transaction.rollback().await?;
-        Ok(output)
+        Ok(Self::get(db, &scraped_flightroute.callsign_icao).await)
     }
 }
 
 /// Run tests with
-///
-/// cargo watch -q -c -w src/ -x 'test model_flightroute '
+//
+// cargo watch -q -c -w src/ -x 'test model_flightroute '
 #[cfg(test)]
 #[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
 mod tests {
@@ -338,12 +302,24 @@ mod tests {
         (app_env, db)
     }
 
+    async fn remove_flightroute(db: &PgPool, scraped_flightroute: &ScrapedFlightroute) {
+        let flightroute = ModelFlightroute::get(db, &scraped_flightroute.callsign_iata)
+            .await
+            .unwrap();
+
+        sqlx::query!(
+            "DELETE FROM flightroute WHERE flightroute_id = $1",
+            flightroute.flightroute_id
+        )
+        .execute(db)
+        .await
+        .unwrap();
+    }
+
     use super::*;
     #[tokio::test]
     async fn model_flightroute_scraped_flightroute_transaction() {
         let setup = setup().await;
-
-        let mut transaction = setup.1.begin().await.unwrap();
 
         let scraped_flightroute = ScrapedFlightroute {
             callsign_icao: Callsign::Icao(("ANA".to_owned(), "000".to_owned())),
@@ -352,15 +328,14 @@ mod tests {
             destination: "RJTT".to_owned(),
         };
 
-        ModelFlightroute::_insert_scraped_flightroute(&mut transaction, &scraped_flightroute)
+        let result = ModelFlightroute::get(&setup.1, &scraped_flightroute.callsign_icao).await;
+        assert!(result.is_none());
+
+        ModelFlightroute::insert_scraped_flightroute(&setup.1, &scraped_flightroute)
             .await
             .unwrap();
 
-        let result =
-            ModelFlightroute::_get(&mut transaction, &scraped_flightroute.callsign_icao).await;
-
-        // Cancel transaction, so can continually re-test with this route
-        transaction.rollback().await.unwrap();
+        let result = ModelFlightroute::get(&setup.1, &scraped_flightroute.callsign_icao).await;
 
         assert!(result.is_some());
 
@@ -407,5 +382,6 @@ mod tests {
         };
 
         assert_eq!(result, expected);
+        remove_flightroute(&setup.1, &scraped_flightroute).await;
     }
 }

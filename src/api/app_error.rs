@@ -1,6 +1,9 @@
 use std::{fmt, num::ParseIntError};
 
-use axum::response::{IntoResponse, Response};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use redis::RedisError;
 use thiserror::Error;
 use tracing::error;
@@ -35,12 +38,14 @@ pub enum AppError {
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
     #[error("invalid callsign:")]
     Callsign(String),
-    #[error("invalid n_number:")]
-    NNumber(String),
     #[error("internal error:")]
     Internal(String),
+    #[error("io error")]
+    Io(#[from] std::io::Error),
     #[error("invalid modeS:")]
     ModeS(String),
+    #[error("invalid n_number:")]
+    NNumber(String),
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),
     #[error("rate limited for")]
@@ -63,7 +68,7 @@ pub enum AppError {
 macro_rules! internal {
     ($prefix:expr) => {
         (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::INTERNAL_SERVER_ERROR,
             ResponseJson::new($prefix),
         )
     };
@@ -89,14 +94,21 @@ impl IntoResponse for AppError {
             | Self::ModeS(err)
             | Self::NNumber(err)
             | Self::Registration(err) => (
-                axum::http::StatusCode::BAD_REQUEST,
+                StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{prefix} {err}")),
             ),
 
             Self::Internal(e) => {
                 error!("internal: {e:?}");
                 (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ResponseJson::new(format!("{prefix} {e}")),
+                )
+            }
+            Self::Io(e) => {
+                error!("io: {e:?}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseJson::new(format!("{prefix} {e}")),
                 )
             }
@@ -105,7 +117,7 @@ impl IntoResponse for AppError {
                 internal!(prefix)
             }
             Self::RateLimited(limit) => (
-                axum::http::StatusCode::TOO_MANY_REQUESTS,
+                StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
             Self::RedisError(e) => {
@@ -135,7 +147,7 @@ impl IntoResponse for AppError {
             }
 
             Self::UnknownInDb(variety) => (
-                axum::http::StatusCode::NOT_FOUND,
+                StatusCode::NOT_FOUND,
                 ResponseJson::new(format!("{prefix} {variety}")),
             ),
         };
