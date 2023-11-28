@@ -158,7 +158,12 @@ pub async fn serve(
     redis: Arc<Mutex<Connection>>,
 ) -> Result<(), AppError> {
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-    let application_state = Arc::new(ApplicationState::new(postgres, redis, &app_env, scraper_threads));
+    let application_state = Arc::new(ApplicationState::new(
+        postgres,
+        redis,
+        &app_env,
+        scraper_threads,
+    ));
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))

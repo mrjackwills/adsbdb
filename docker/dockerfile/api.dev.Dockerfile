@@ -62,6 +62,8 @@ RUN chmod +x /healthcheck/health_api.sh
 COPY --from=BUILDER /usr/src/adsbdb/target/release/adsbdb /app/
 
 # COPY --from=BUILDER ./target/release/adsbdb /app/
+# When debugging
+# COPY docker/adsbdb /app/
 
 # Use an unprivileged user
 USER ${DOCKER_APP_USER}

@@ -853,8 +853,7 @@ mod tests {
         scraper
             .scrape_photo(&setup.1, &test_aircraft, &threads)
             .await;
-        // TODO fix me
-        // assert!(result.());
+
         // check for photo in db
 
         let result =
