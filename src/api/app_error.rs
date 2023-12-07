@@ -49,7 +49,7 @@ pub enum AppError {
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),
     #[error("rate limited for")]
-    RateLimited(usize),
+    RateLimited(i64),
     #[error("redis error")]
     RedisError(#[from] RedisError),
     #[error("invalid registration:")]

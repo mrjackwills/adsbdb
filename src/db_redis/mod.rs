@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use tracing::error;
 pub mod ratelimit;
 
-const ONE_WEEK: usize = 60 * 60 * 24 * 7;
+const ONE_WEEK: i64 = 60 * 60 * 24 * 7;
 const FIELD: &str = "data";
 
 /// Convert a redis string result into a Option<T>
