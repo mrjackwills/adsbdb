@@ -20,7 +20,7 @@
 	// Set *default* container specific settings.json values on container create.
 
 	"mounts": [
-		"source=/dev/shm,target=/dev/shm,type=bind",
+		"source=/run/shm,target=/dev/shm,type=bind",
 		"source=/etc/timezone,target=/etc/timezone,type=bind,readonly"
 	],
 
