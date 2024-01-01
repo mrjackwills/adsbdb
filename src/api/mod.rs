@@ -15,7 +15,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, signal};
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -199,12 +199,41 @@ pub async fn serve(
     match axum::serve(
         tokio::net::TcpListener::bind(&addr).await?,
         app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
+    ).with_graceful_shutdown(shutdown_signal())
     .await
     {
         Ok(()) => Ok(()),
         Err(_) => Err(AppError::Internal("api_server".to_owned())),
     }
+}
+
+#[allow(clippy::expect_used)]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+
+    info!(
+        "signal received, starting graceful shutdown",
+    );
 }
 
 /// http tests - ran via actual requests to a (local) server
