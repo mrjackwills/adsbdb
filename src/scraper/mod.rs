@@ -188,7 +188,7 @@ impl Scraper {
             })
             .collect::<Vec<_>>();
 
-        let origin = output.get(0).map(std::borrow::ToOwned::to_owned);
+        let origin = output.first().map(std::borrow::ToOwned::to_owned);
         let destination = output.get(1).map(std::borrow::ToOwned::to_owned);
 
         if let (Some(callsign_icao), Some(callsign_iata), Some(origin), Some(destination)) =

@@ -143,7 +143,7 @@ define_routes!(
 /// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
     match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
-        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().get(0).map_or_else(
+        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().first().map_or_else(
             || Err(AppError::Internal("No addr".to_string())),
             |addr| Ok(*addr),
         ),
