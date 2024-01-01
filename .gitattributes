@@ -1,4 +1,2 @@
-*.sh eol=lf
-*.md eol=CRLF
-*.txt eol=lf
-
+# Set consistent line endings for all text files
+* text=auto
