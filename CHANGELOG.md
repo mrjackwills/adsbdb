@@ -12,6 +12,7 @@
 + ApiError import/export,[0400ab66f8f877658830b57d85664415f4b649b3]
 + .gitattributes(?), [b238df27d297b11254ce5a419225cae89c9c307d]
 + redis dependency updates, [e6da9e0a0a60862ee0eaba3f929da320792bcd82]
++ scraping error message more detail, [a3a1263f32a9afded8fc27d93779823d91549dd2]
 
 ### Reverts
 + graceful shutdown re-introduced, [2fa3c1cc95b553197954a989e3e6f7a26115c90e]
