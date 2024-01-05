@@ -1,25 +1,28 @@
-### 2023-11-28
+### 2024-01-05
 
 ### Chores
-+ dependencies update, lints into Cargo.toml, [ce5b724aa2f2623c3503515eaac8e5e3757e4713], [266886505783ab6ceec1a2ac1dd7b5aecdb588ec]
-+ update PostgreSQL to v16, [bd409cde79e78e068e1f15a73ae04ec57b16b8bb], [1519d7319ec7c2eed3fece726507a69311747e76]
-+ update axum to 0.7, [a9772d253b77f9b687b207afda85f5306158cd1e], [c4232dd640d67682b5d332854752b78b6a3ea75b]
-+ .devcontainer updated, [101da4d3fc8829b49d339091840a30099ce17e7d], [abcc5d0bc5ece7865d46cc41d6999212083bb8ab], [2cb9599205f1852b7203b285e0faadc5f42bba02]
-+ Rust 1.73 linting, [f84617fb22d97dc44966f97cfbfc84ef85036ba2]
-+ dependencies updated, [c7ab1ecb0e54dc077bf1999e505a5625efe70fb7], [3c714e59f80cc01a2917bdc7b605c417736a716d]
-+ adsbdb.com site updated, [5e6b74af34e4a3adfffb7ab7c66c1ca251bc6146]
++ .devcontainer updated, [9f65dd57d285488ec0454dfdc979f09c2e9edc8c], [a6553e96e19845498df86d91ea98db006775b264]
++ Alpine version bump, [218e6e5ac48436252d27222d1c1983cb0a027de7]
++ dependencies updated, [4f6bb1266eaa4c8717e94d64d6c4705d83adcb07], [b242e2d4ef23d72245d1e09b38790727ec3a09bd], [ca17710265bb45714655cfee8c6df631ca6d994d]
++ file linting, [815cde77e5bbc56421e3cf3bb7a63a9c0f8c6882]
++ Rust 1.75.0 linting, [83a687872c3069cd1364aadbf88f3b9b8d45d57f]
 
 ### Features
-+ ApplicationState placed into an Arc, [47287de8703e0bb9386a90dd7d9f7d82bb05f208]
-+ Track scrapers in a hashmap, [88cca3b0274b4b53d8cd63d130c3dc34994d4437]
-+ ModelAirline & ModelFlightroue use PgPool instead of transaction, [ddf06c08427fd4184af94fdf27842e8ea914d8dc]
-+ &String -> &str, [c3eef0d9236472b240e03900dd5005e1a66fd2ac]
++ run.sh v0.1.0, [fbdd1a9423772b27a53d1d35c5b479f180dd3818]
 
 ### Fixes
-+ ModelFlightRoute function call, [980fde0ddbe1fbaa829aebcd7aaed5350d16a82f]
-+ ratelimit attempted fix, [51fdf56994ae0288ccad2d532397ae5654aee507]
++ ApiError import/export,[0400ab66f8f877658830b57d85664415f4b649b3]
++ .gitattributes(?), [b238df27d297b11254ce5a419225cae89c9c307d]
++ redis dependency updates, [e6da9e0a0a60862ee0eaba3f929da320792bcd82]
++ scraping error message more detail, [a3a1263f32a9afded8fc27d93779823d91549dd2]
 
 ### Refactors
-+ redis_to_serde tracing, [0a52063688e02fc7ff477718fed83c1eaff53e3f]
++ dead code removed & re-ordered, [9d6d51bb5473d1752dd24b516772caca968f0d6a]
+
+### Reverts
++ graceful shutdown re-introduced, [2fa3c1cc95b553197954a989e3e6f7a26115c90e]
+
+### Tests
++ ratelimit tests improvement, [cbd7bb78b24711cf4c004b4679ed9d9599ca38fd]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
