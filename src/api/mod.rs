@@ -15,7 +15,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::sync::Mutex;
+use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -29,7 +29,7 @@ use crate::{
     parse_env::AppEnv,
     scraper::{Scraper, ScraperThreadMap},
 };
-pub use app_error::{AppError, UnknownAC};
+pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
 
 const X_REAL_IP: &str = "x-real-ip";
@@ -143,7 +143,7 @@ define_routes!(
 /// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
     match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
-        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().get(0).map_or_else(
+        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().first().map_or_else(
             || Err(AppError::Internal("No addr".to_string())),
             |addr| Ok(*addr),
         ),
@@ -200,11 +200,39 @@ pub async fn serve(
         tokio::net::TcpListener::bind(&addr).await?,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal())
     .await
     {
         Ok(()) => Ok(()),
         Err(_) => Err(AppError::Internal("api_server".to_owned())),
     }
+}
+
+#[allow(clippy::expect_used)]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+
+    info!("signal received, starting graceful shutdown",);
 }
 
 /// http tests - ran via actual requests to a (local) server
@@ -1072,48 +1100,138 @@ pub mod tests {
 
     #[tokio::test]
     async fn http_mod_rate_limit_small() {
-        start_server().await;
+        let setup = start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         for _ in 1..=511 {
             reqwest::get(&url).await.unwrap();
         }
 
-        // 120 request is fine
+        // 512th request is fine
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert!(result.get("uptime").is_some());
 
-        // 120+ request is rate limited
-        let resp = reqwest::get(url).await.unwrap();
+        // 512th+ request is rate limited
+        let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
+
+        let ttl: usize = setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(ttl, 60);
+
+        sleep!(1000);
+
+        // TTL reduces by 1 after 1 second
+        let ttl: usize = setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(ttl, 59);
+        sleep!(1000);
+
+        // TTL doesn't get reset on further requwest
+        let resp = reqwest::get(&url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+        assert_eq!(result, "rate limited for 58 seconds");
+        let ttl: usize = setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(ttl, 58);
+
+        // points increased
+        let points: usize = setup
+            .redis
+            .lock()
+            .await
+            .get("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(points, 514);
     }
 
     #[tokio::test]
     async fn http_mod_rate_limit_big() {
-        start_server().await;
+        let setup = start_server().await;
 
         let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
         for _ in 1..=1023 {
             reqwest::get(&url).await.unwrap();
         }
 
-        // 240th request is rate limited
+        // 1023rd request is rate limited
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
-
         let ans = ["rate limited for 60 seconds", "rate limited for 59 seconds"];
         assert!(ans.contains(&result.as_str().unwrap()));
 
-        // 240+ request is rate limited for 300 seconds
+        // 1024th + request is rate limited for 300 seconds
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
+
+        let ttl: usize = setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(ttl, 300);
+
+        sleep!(1000);
+
+        // TTL reduces by 1 after 1 second
+        let ttl: usize = setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(ttl, 299);
+
+        // TTL is reset to 300 on one more request
+        let resp = reqwest::get(&url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+        assert_eq!(result, "rate limited for 300 seconds");
+        let ttl: usize = setup
+            .redis
+            .lock()
+            .await
+            .ttl("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(ttl, 300);
+
+        // points increased
+        let points: usize = setup
+            .redis
+            .lock()
+            .await
+            .get("ratelimit::127.0.0.1")
+            .await
+            .unwrap();
+        assert_eq!(points, 1026);
     }
 }

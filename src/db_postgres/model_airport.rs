@@ -16,7 +16,8 @@ impl ModelAirport {
     ) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as!(
             Self,
-            r"SELECT
+            "
+SELECT
     airport_id
 FROM
     airport

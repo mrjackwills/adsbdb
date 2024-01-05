@@ -49,7 +49,7 @@ SELECT
     at.type AS aircraft_type,
     ait.icao_type,
     CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail    
+    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
 FROM
     aircraft aa
 LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)

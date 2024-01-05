@@ -1,10 +1,9 @@
-use std::{fmt, num::ParseIntError};
-
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use redis::RedisError;
+use std::{fmt, num::ParseIntError};
 use thiserror::Error;
 use tracing::error;
 
@@ -49,7 +48,7 @@ pub enum AppError {
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),
     #[error("rate limited for")]
-    RateLimited(usize),
+    RateLimited(i64),
     #[error("redis error")]
     RedisError(#[from] RedisError),
     #[error("invalid registration:")]

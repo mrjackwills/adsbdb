@@ -170,7 +170,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     let mut rem = usize::from_str_radix(&mode_s.to_string()[1..], 16)? - 1;
 
     let calc_rem = |output: &mut String, rem: usize, bucket: Bucket| -> usize {
-        let digit = rem / bucket.get() + usize::try_from(bucket.extra()).unwrap_or(1);
+        let digit = rem / bucket.get() + usize::from(bucket.extra());
         let rem = rem % bucket.get();
         output.push_str(&digit.to_string());
         rem

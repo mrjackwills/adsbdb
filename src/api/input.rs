@@ -85,7 +85,6 @@ unit_struct!(ModeS);
 unit_struct!(NNumber);
 unit_struct!(Registration);
 
-// This should be Aircraft search
 #[async_trait]
 impl<S> FromRequestParts<S> for AircraftSearch
 where
@@ -107,8 +106,6 @@ where
         }
     }
 }
-
-// MyEnum::$variant:ident
 
 /// from_request_parts macro, to run Self::validate
 macro_rules! from_request_parts {
