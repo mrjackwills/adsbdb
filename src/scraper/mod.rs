@@ -213,13 +213,13 @@ impl Scraper {
                 Ok(text) => Ok(text),
                 Err(e) => {
                     error!("{e:?}");
-                    error!("can't transform into text");
+                    error!("can't transform callsign into text");
                     Err(AppError::UnknownInDb(UnknownAC::Callsign))
                 }
             },
             Err(e) => {
                 error!("{e:?}");
-                error!("can't scrape address");
+                error!("can't scrape callsign address");
                 Err(AppError::UnknownInDb(UnknownAC::Callsign))
             }
         }
@@ -256,13 +256,13 @@ impl Scraper {
                 }
                 Err(e) => {
                     error!("{e:?}");
-                    error!("can't transform into json");
+                    error!("can't transform photo into json");
                     None
                 }
             },
             Err(e) => {
                 error!("{e:?}");
-                error!("can't scrape address");
+                error!("can't scrape photo address");
                 None
             }
         }
