@@ -29,7 +29,7 @@ use crate::{
     parse_env::AppEnv,
     scraper::{Scraper, ScraperThreadMap},
 };
-pub use app_error::{AppError, UnknownAC};
+pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
 
 const X_REAL_IP: &str = "x-real-ip";
