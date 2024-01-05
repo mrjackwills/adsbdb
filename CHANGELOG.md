@@ -14,6 +14,9 @@
 + redis dependency updates, [e6da9e0a0a60862ee0eaba3f929da320792bcd82]
 + scraping error message more detail, [a3a1263f32a9afded8fc27d93779823d91549dd2]
 
+### Refactors
++ dead code removed & re-ordered, [9d6d51bb5473d1752dd24b516772caca968f0d6a]
+
 ### Reverts
 + graceful shutdown re-introduced, [2fa3c1cc95b553197954a989e3e6f7a26115c90e]
 
