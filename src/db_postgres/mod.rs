@@ -1,7 +1,5 @@
-use std::time::Duration;
-
-// use async_trait::async_trait;
 use sqlx::{postgres::PgPoolOptions, ConnectOptions, PgPool};
+use std::time::Duration;
 
 mod model_aircraft;
 mod model_airline;

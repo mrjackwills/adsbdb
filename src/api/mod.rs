@@ -15,7 +15,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use tokio::{sync::Mutex, signal};
+use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -199,7 +199,8 @@ pub async fn serve(
     match axum::serve(
         tokio::net::TcpListener::bind(&addr).await?,
         app.into_make_service_with_connect_info::<SocketAddr>(),
-    ).with_graceful_shutdown(shutdown_signal())
+    )
+    .with_graceful_shutdown(shutdown_signal())
     .await
     {
         Ok(()) => Ok(()),
@@ -231,9 +232,7 @@ async fn shutdown_signal() {
         () = terminate => {},
     }
 
-    info!(
-        "signal received, starting graceful shutdown",
-    );
+    info!("signal received, starting graceful shutdown",);
 }
 
 /// http tests - ran via actual requests to a (local) server
@@ -1141,9 +1140,9 @@ pub mod tests {
             .await
             .unwrap();
         assert_eq!(ttl, 59);
-		sleep!(1000);
+        sleep!(1000);
 
-		// TTL doesn't get reset on further requwest
+        // TTL doesn't get reset on further requwest
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
@@ -1166,7 +1165,6 @@ pub mod tests {
             .await
             .unwrap();
         assert_eq!(points, 514);
-
     }
 
     #[tokio::test]

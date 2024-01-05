@@ -1,10 +1,9 @@
-use std::{fmt, num::ParseIntError};
-
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use redis::RedisError;
+use std::{fmt, num::ParseIntError};
 use thiserror::Error;
 use tracing::error;
 
