@@ -23,6 +23,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"adpyke.vscode-sql-formatter",
 				"bmuskalla.vscode-tldr",
 				"christian-kohler.path-intellisense",
 				"foxundermoon.shell-format",
