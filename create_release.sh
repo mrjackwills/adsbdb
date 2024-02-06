@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # rust create_release
-# v0.3.0
+# v0.5.1
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -18,6 +18,11 @@ error_close() {
 	echo -e "\n${RED}ERROR - EXITED: ${YELLOW}$1${RESET}\n";
 	exit 1
 }
+
+# Check that dialog is installed
+if ! [ -x "$(command -v dialog)" ]; then
+	error_close "dialog is not installed"
+fi
 
 # $1 string - question to ask
 ask_yn () {
@@ -213,6 +218,17 @@ check_typos () {
 	ask_continue
 }
 
+#  Make sure the unused lint isn't used
+check_allow_unused() {
+	matches_any=$(find . -type d \( -name .git -o -name target \) -prune -o -type f -exec grep -lE '^#!\[allow\(unused\)\]$' {} +)
+	matches_cargo=$(grep "^unused = \"allow\"" ./Cargo.toml)
+	if [ -n "$matches_any" ]; then
+		error_close "\"#[allow(unused)]\" in ${matches_any}"
+	elif [ -n "$matches_cargo" ]; then
+		error_close "\"unused = \"allow\"\" in Cargo.toml"
+	fi
+}
+
 # Create sqlx-data.json file for offline mode
 sqlx_prepare () {
 	echo -e "\n${YELLOW}cargo sqlx prepare${RESET}"
@@ -222,6 +238,7 @@ sqlx_prepare () {
 
 # Full flow to create a new release
 release_flow() {
+	check_allow_unused
 	check_typos
 
 	check_git
@@ -261,8 +278,12 @@ release_flow() {
 	git commit -m "chore: release ${NEW_TAG_WITH_V}"
 
 	release_continue "git checkout main"
-	echo -e "git merge --no-ff \"${RELEASE_BRANCH}\" -m \"chore: merge ${RELEASE_BRANCH} into main\"" 
 	git checkout main
+
+	echo -e "${PURPLE}git pull origin main${RESET}"
+	git pull origin main
+
+	echo -e "git merge --no-ff \"${RELEASE_BRANCH}\" -m \"chore: merge ${RELEASE_BRANCH} into main\"" 
 	git merge --no-ff "$RELEASE_BRANCH" -m "chore: merge ${RELEASE_BRANCH} into main"
 
 	release_continue "git tag -am \"${RELEASE_BRANCH}\" \"$NEW_TAG_WITH_V\""
