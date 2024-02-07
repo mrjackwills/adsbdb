@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # rust create_release
-# v0.5.1
+# v0.5.
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -198,13 +198,6 @@ cargo_test () {
 	ask_continue
 }
 
-# build for production, imitate GitHub workflow
-cargo_build () {
-	echo -e "\n${YELLOW}cargo build --release${RESET}"
-	cargo build --release
-	ask_continue
-}
-
 # $1 text to colourise
 release_continue () {
 	echo -e "\n${PURPLE}$1${RESET}"
@@ -245,7 +238,7 @@ release_flow() {
 	get_git_remote_url
 
 	cargo_test
-	cargo_build
+	cargo_build_all
 
 	cd "${CWD}" || error_close "Can't find ${CWD}"
 	check_tag
@@ -305,12 +298,67 @@ release_flow() {
 	git branch -d "$RELEASE_BRANCH"
 }
 
+cargo_build_x86() {
+	echo -e "${YELLOW}cargo build --release${RESET}"
+	cargo build --release
+}
+
+cargo_build_aarch64_linux() {
+	echo -e "${YELLOW}cross build --target aarch64-unknown-linux-gnu --release${RESET}"
+	cross build --target aarch64-unknown-linux-gnu --release
+}
+
+# Build all releases that GitHub workflow would
+# This will download GB's of docker images
+cargo_build_all() {
+	cargo install cross
+	cargo_build_x86
+	ask_continue
+	cargo_build_aarch64_linux
+	ask_continue
+}
+
+build_choice() {
+	cmd=(dialog --backtitle "Choose option" --radiolist "choose" 14 80 16)
+	options=(
+		1 "x86" off
+		2 "aarch64" off
+		5 "all" off
+	)
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
+	exitStatus=$?
+	clear
+	if [ $exitStatus -ne 0 ]; then
+		exit
+	fi
+	for choice in $choices; do
+		case $choice in
+		0)
+			exit
+			;;
+		1)
+			cargo_build_x86
+			exit
+			;;
+		2)
+			cargo_build_aarch64
+			exit
+			;;
+		5)
+			cargo_build_all
+			exit
+			;;
+		esac
+	done
+}
+
 
 main() {
 	cmd=(dialog --backtitle "Choose option" --radiolist "choose" 14 80 16)
 	options=(
 		1 "test" off
 		2 "release" off
+		3 "build" off
 	)
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 	exitStatus=$?
@@ -330,6 +378,11 @@ main() {
 			2)
 				release_flow
 				break;;
+			3) 
+				build_choice
+				main
+				break
+			;;
 		esac
 	done
 }
