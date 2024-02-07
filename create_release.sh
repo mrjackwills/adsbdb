@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # rust create_release
-# v0.5.
+# v0.5.2
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -222,6 +222,16 @@ check_allow_unused() {
 	fi
 }
 
+# need to deal with sqlx issues via the .env
+remove_db_env() {
+	sed -i 's/DATABASE_URL/#DATABASE_URL/' .env
+}
+
+# need to deal with sqlx issues via the .env
+add_db_env() {
+	sed -i 's/#DATABASE_URL/DATABASE_URL/' .env
+}
+
 # Create sqlx-data.json file for offline mode
 sqlx_prepare () {
 	echo -e "\n${YELLOW}cargo sqlx prepare${RESET}"
@@ -299,13 +309,18 @@ release_flow() {
 }
 
 cargo_build_x86() {
+	remove_db_env
 	echo -e "${YELLOW}cargo build --release${RESET}"
 	cargo build --release
+	add_db_env
 }
 
-cargo_build_aarch64_linux() {
+cargo_build_aarch64() {
+	remove_db_env
 	echo -e "${YELLOW}cross build --target aarch64-unknown-linux-gnu --release${RESET}"
 	cross build --target aarch64-unknown-linux-gnu --release
+	add_db_env
+	
 }
 
 # Build all releases that GitHub workflow would
@@ -314,7 +329,7 @@ cargo_build_all() {
 	cargo install cross
 	cargo_build_x86
 	ask_continue
-	cargo_build_aarch64_linux
+	cargo_build_aarch64
 	ask_continue
 }
 
