@@ -1,8 +1,6 @@
 use crate::{api::AppError, db_redis::RedisKey};
-use redis::{aio::Connection, AsyncCommands};
-use std::{net::IpAddr, sync::Arc};
-use tokio::sync::Mutex;
-use tracing::info;
+use redis::{aio::ConnectionManager, AsyncCommands};
+use std::net::IpAddr;
 
 pub struct RateLimit {
     key: String,
@@ -21,12 +19,10 @@ impl RateLimit {
     }
 
     /// Check if request has been rate limited, always increases the current value of the given rate limit
-    pub async fn check(&self, redis: &Arc<Mutex<Connection>>) -> Result<(), AppError> {
-        let mut redis = redis.lock().await;
+    pub async fn check(&self, redis: &mut ConnectionManager) -> Result<(), AppError> {
         if let Some(count) = redis.get::<&str, Option<u64>>(&self.key).await? {
             redis.incr(&self.key, 1).await?;
             if count >= UPPER_LIMIT {
-                info!("{} - {count}", self.key);
                 redis.expire(&self.key, ONE_MINUTE * 5).await?;
             }
             if count > LOWER_LIMIT {
@@ -42,7 +38,6 @@ impl RateLimit {
             redis.incr(&self.key, 1).await?;
             redis.expire(&self.key, ONE_MINUTE).await?;
         }
-        drop(redis);
         Ok(())
     }
 }

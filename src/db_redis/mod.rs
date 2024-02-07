@@ -3,12 +3,11 @@ use crate::{
     parse_env::AppEnv,
 };
 use redis::{
-    aio::Connection, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo,
+    aio::ConnectionManager, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo,
     RedisConnectionInfo, Value,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
-use tokio::sync::Mutex;
+use std::{fmt, net::IpAddr};
 use tracing::error;
 pub mod ratelimit;
 
@@ -30,7 +29,6 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value, key: &str) -> Option<T> {
         }
         Err(e) => {
             error!("key::{key}, value::{v:#?}, {e:?}\nexiting");
-            // process::exit(1) here?
             None
         }
     }
@@ -38,17 +36,15 @@ fn redis_to_serde<T: DeserializeOwned>(v: &Value, key: &str) -> Option<T> {
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
 pub async fn get_cache<'a, T: DeserializeOwned + Send>(
-    redis: &Arc<Mutex<Connection>>,
+    redis: &mut ConnectionManager,
     key: &RedisKey<'a>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
     let value = redis
-        .lock()
-        .await
         .hget::<'_, &str, &str, Option<Value>>(&key, FIELD)
         .await?;
     if let Some(value) = value {
-        redis.lock().await.expire(&key, ONE_WEEK).await?;
+        redis.expire(&key, ONE_WEEK).await?;
         Ok(Some(redis_to_serde(&value, &key)))
     } else {
         Ok(None)
@@ -57,8 +53,8 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send>(
 
 /// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
-    redis: &Arc<Mutex<Connection>>,
-    // Ideally this should be Option<&T>
+    redis: &mut ConnectionManager,
+    // Should this be an Option<&T>
     to_insert: &Option<T>,
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
@@ -67,16 +63,12 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
         Some(v) => serde_json::to_string(&v)?,
         None => String::new(),
     };
-    redis.lock().await.hset(&key, FIELD, cache).await?;
-    Ok(redis
-        .lock()
-        .await
-        .expire::<&str, ()>(&key, ONE_WEEK)
-        .await?)
+    redis.hset(&key, FIELD, cache).await?;
+    Ok(redis.expire::<&str, ()>(&key, ONE_WEEK).await?)
 }
 
 /// Get an async redis connection
-pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
+pub async fn get_connection(app_env: &AppEnv) -> Result<ConnectionManager, AppError> {
     let connection_info = ConnectionInfo {
         redis: RedisConnectionInfo {
             db: i64::from(app_env.redis_database),
@@ -85,11 +77,8 @@ pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
         },
         addr: ConnectionAddr::Tcp(app_env.redis_host.clone(), app_env.redis_port),
     };
-    let client = redis::Client::open(connection_info)?;
-    match tokio::time::timeout(Duration::from_secs(10), client.get_async_connection()).await {
-        Ok(con) => Ok(con?),
-        Err(_) => Err(AppError::Internal("Unable to connect to redis".to_owned())),
-    }
+
+    Ok(redis::aio::ConnectionManager::new(redis::Client::open(connection_info)?).await?)
 }
 
 #[derive(Debug, Clone)]
