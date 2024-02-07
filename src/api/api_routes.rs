@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use axum::extract::{OriginalUri, State};
-use axum::http::StatusCode;
+use axum::{
+    extract::{OriginalUri, State},
+    http::StatusCode,
+};
 
 use super::input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Validate};
 use super::response::{
@@ -17,11 +18,11 @@ use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for Option\<ModelFlightroute>, else query postgres
 async fn find_flightroute(
-    state: Arc<ApplicationState>,
+    mut state: ApplicationState,
     callsign: &Callsign,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(callsign);
-    if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
+    if let Some(flightroute) = get_cache::<ModelFlightroute>(&mut state.redis, &redis_key).await? {
         flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| {
             Ok(Some(route))
         })
@@ -33,19 +34,19 @@ async fn find_flightroute(
                 .scrape_flightroute(&state.postgres, callsign, &state.scraper_threads)
                 .await?;
         }
-        insert_cache(&state.redis, &flightroute, &redis_key).await?;
+        insert_cache(&mut state.redis, &flightroute, &redis_key).await?;
         Ok(flightroute)
     }
 }
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    state: Arc<ApplicationState>,
+    mut state: ApplicationState,
     aircraft_search: &AircraftSearch,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::from(aircraft_search);
 
-    if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
+    if let Some(aircraft) = get_cache::<ModelAircraft>(&mut state.redis, &redis_key).await? {
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| {
             Ok(Some(craft))
         })
@@ -62,25 +63,25 @@ async fn find_aircraft(
                     ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
         }
-        insert_cache(&state.redis, &aircraft, &redis_key).await?;
+        insert_cache(&mut state.redis, &aircraft, &redis_key).await?;
         Ok(aircraft)
     }
 }
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_airline(
-    state: Arc<ApplicationState>,
+    mut state: ApplicationState,
     airline: &AirlineCode,
 ) -> Result<Option<Vec<ModelAirline>>, AppError> {
     let redis_key = RedisKey::Airline(airline);
 
-    if let Some(airline) = get_cache::<Vec<ModelAirline>>(&state.redis, &redis_key).await? {
+    if let Some(airline) = get_cache::<Vec<ModelAirline>>(&mut state.redis, &redis_key).await? {
         airline.map_or(Err(AppError::UnknownInDb(UnknownAC::Airline)), |airline| {
             Ok(Some(airline))
         })
     } else {
         let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
-        insert_cache(&state.redis, &airline, &redis_key).await?;
+        insert_cache(&mut state.redis, &airline, &redis_key).await?;
         Ok(airline)
     }
 }
@@ -89,7 +90,7 @@ async fn find_airline(
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 /// TODO turn this optional into an extractor?
 pub async fn aircraft_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     aircraft_search: AircraftSearch,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
@@ -127,7 +128,7 @@ pub async fn aircraft_get(
 
 /// Return an airline detail from a ICAO or IATA airline prefix
 pub async fn airline_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     airline_code: AirlineCode,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
     find_airline(state, &airline_code).await?.map_or(
@@ -143,7 +144,7 @@ pub async fn airline_get(
 
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     callsign: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(state, &callsign).await?.map_or(
@@ -185,7 +186,7 @@ pub async fn mode_s_get(
 /// Return a simple online status response
 #[allow(clippy::unused_async)]
 pub async fn online_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
         StatusCode::OK,
@@ -235,7 +236,7 @@ mod tests {
 
     const CALLSIGN: &str = "ANA460";
 
-    async fn get_application_state() -> State<Arc<ApplicationState>> {
+    async fn get_application_state() -> State<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::db_pool(&app_env).await.unwrap();
         let mut redis = Redis::get_connection(&app_env).await.unwrap();
@@ -244,12 +245,12 @@ mod tests {
             .query_async::<_, ()>(&mut redis)
             .await
             .unwrap();
-        State(Arc::new(ApplicationState::new(
+        State(ApplicationState::new(
             postgres,
-            Arc::new(Mutex::new(redis)),
+            redis,
             &app_env,
             scraper_threads,
-        )))
+        ))
     }
 
     #[tokio::test]
@@ -444,8 +445,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -456,8 +456,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -480,8 +479,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -492,8 +490,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -514,8 +511,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -526,8 +522,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -548,8 +543,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -560,8 +554,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -589,8 +582,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -598,8 +590,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -620,8 +611,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -629,8 +619,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -658,8 +647,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -667,8 +655,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -689,8 +676,7 @@ mod tests {
 
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -698,8 +684,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -961,8 +946,7 @@ mod tests {
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1015,8 +999,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1034,8 +1017,7 @@ mod tests {
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1097,8 +1079,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1178,8 +1159,7 @@ mod tests {
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1187,8 +1167,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1209,8 +1188,7 @@ mod tests {
         let key = RedisKey::Callsign(&tmp_callsign);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1218,8 +1196,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1889,8 +1866,7 @@ mod tests {
         let key = RedisKey::Airline(&path);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1898,8 +1874,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1920,8 +1895,7 @@ mod tests {
         let key = RedisKey::Airline(&path);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1929,8 +1903,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1955,8 +1928,7 @@ mod tests {
         let key = RedisKey::Airline(&path);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1964,8 +1936,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1986,8 +1957,7 @@ mod tests {
         let key = RedisKey::Airline(&path);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -1995,8 +1965,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -2029,8 +1998,7 @@ mod tests {
         let key = RedisKey::Airline(&path);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -2047,8 +2015,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -2061,8 +2028,7 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -2106,8 +2072,7 @@ mod tests {
         let key = RedisKey::Airline(&path);
         let result: Result<String, RedisError> = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .hget(key.to_string(), "data")
             .await;
         assert!(result.is_ok());
@@ -2134,8 +2099,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -2148,8 +2112,7 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();

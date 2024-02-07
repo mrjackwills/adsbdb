@@ -30,20 +30,16 @@ RUN touch /usr/src/adsbdb/src/main.rs
 # This is the actual application build
 RUN cargo build --release
 
-#############
-## Runtime ##
-#############
+####################
+## Runtime Ubuntu ##
+####################
 
 FROM ubuntu:22.04 AS RUNTIME
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
-	DOCKER_TIME_CONT=Europe\
-	DOCKER_TIME_CITY=Berlin \
 	DOCKER_APP_USER=app_user \
 	DOCKER_APP_GROUP=app_group
-
-ENV TZ=${DOCKER_TIME_CONT}/${DOCKER_TIME_CITY}
 
 RUN apt-get update \
 	&& apt-get install -y ca-certificates wget \
@@ -58,6 +54,9 @@ WORKDIR /app
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_api.sh /healthcheck
 
 RUN chmod +x /healthcheck/health_api.sh
+
+# Copy from host filesystem - used when debugging
+# COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} target/release/adsbdb /app
 
 COPY --from=BUILDER /usr/src/adsbdb/target/release/adsbdb /app/
 

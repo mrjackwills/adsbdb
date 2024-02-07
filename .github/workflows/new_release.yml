@@ -2,44 +2,74 @@ name: Release CI
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - "v[0-9]+.[0-9]+.[0-9]+"
 jobs:
-  deploy:
+  ##################################
+  ## Build binary for release page #
+  ##################################
+
+  cross_platform_build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            output_name: linux_x86_64.tar.gz
+
+          - target: aarch64-unknown-linux-gnu
+            output_name: linux_aarch64.tar.gz
+
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
-      ##################################
-      ## Build binary for release page #
-      ##################################
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       # Install stable rust, and associated tools
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
 
-      # Rust caching - probably pointless
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      # Install cross-rs
+      - name: install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
-      # Build for linux x86_64
-      - name: build release linux_x86_64
-        run: cargo build --release
-      # Compress ouput into tar
-      - name: compress adsbdb_linux_x86_64 binary
-        run: tar -C target/release -czf ./adsbdb_linux_x86_64.tar.gz adsbdb
-      
-      ###################
-      ## Create release #
-      ###################
+      # Build binary
+      - name: build
+        run: cross build --target ${{ matrix.target }} --release
 
-      - name: Release
-        uses: softprops/action-gh-release@v1
+      # Compress the output
+      - name: compress linux
+        run: |
+          tar -C "target/${{ matrix.target }}/release" -czf "./adsbdb_${{ matrix.output_name }}" adsbdb
+
+      # Upload output for release page
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref }}
+          if-no-files-found: error
+          name: ${{ matrix.target }}
+          path: adsbdb_${{ matrix.output_name }}
+          retention-days: 1
+
+  ###################
+  ## Create release #
+  ###################
+
+  create_release:
+    needs: [cross_platform_build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup | Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Update Release
+        uses: ncipollo/release-action@v1
+        with:
+          makeLatest: true
           name: ${{ github.ref_name }}
-          body_path: ".github/release-body.md"
-          draft: false
-          files: |
-             adsbdb_linux_x86_64.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          bodyFile: ".github/release-body.md"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: |
+            **/adsbdb_*.tar.gz
