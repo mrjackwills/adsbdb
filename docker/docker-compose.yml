@@ -9,11 +9,6 @@ services:
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/postgres.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     env_file: $HOME/adsbdb/docker/env/.postgres.env
     cap_drop:
       - all
@@ -43,11 +38,6 @@ services:
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/postgres_backup.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     env_file: $HOME/adsbdb/docker/env/.postgres_backup.env
     cap_drop:
       - all
@@ -75,11 +65,6 @@ services:
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/redis.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     env_file: $HOME/adsbdb/docker/env/.redis.env
     volumes:
       - $HOME/databases/adsbdb/redis_data:/redis_data
@@ -111,11 +96,6 @@ services:
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/api.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     volumes:
       - $HOME/logs/adsbdb:/logs
       - $HOME/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
