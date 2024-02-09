@@ -1,4 +1,4 @@
-use redis::aio::ConnectionManager;
+use fred::clients::RedisPool;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -38,27 +38,27 @@ const X_FORWARDED_FOR: &str = "x-forwarded-for";
 #[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
-    redis: ConnectionManager,
+    redis: RedisPool,
+    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+    scraper: Scraper,
     uptime: Instant,
     url_prefix: String,
-    scraper: Scraper,
-    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
 }
 
 impl ApplicationState {
     pub fn new(
-        postgres: PgPool,
-        redis: ConnectionManager,
         app_env: &AppEnv,
+        postgres: PgPool,
+        redis: RedisPool,
         scraper_threads: Arc<Mutex<ScraperThreadMap>>,
     ) -> Self {
         Self {
             postgres,
             redis,
-            uptime: Instant::now(),
-            scraper: Scraper::new(app_env),
-            url_prefix: app_env.url_photo_prefix.clone(),
             scraper_threads,
+            scraper: Scraper::new(app_env),
+            uptime: Instant::now(),
+            url_prefix: app_env.url_photo_prefix.clone(),
         }
     }
 }
@@ -90,14 +90,14 @@ pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
 
 /// Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting(
-    State(mut state): State<ApplicationState>,
+    State(state): State<ApplicationState>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, AppError> {
     let (mut parts, body) = req.into_parts();
     let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
     let ip = get_ip(&parts.headers, addr);
-    RateLimit::new(ip).check(&mut state.redis).await?;
+    RateLimit::new(ip).check(&state.redis).await?;
     Ok(next.run(Request::from_parts(parts, body)).await)
 }
 
@@ -153,13 +153,9 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 }
 
 /// Serve the app!
-pub async fn serve(
-    app_env: AppEnv,
-    postgres: PgPool,
-    redis: ConnectionManager,
-) -> Result<(), AppError> {
+pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Result<(), AppError> {
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-    let application_state = ApplicationState::new(postgres, redis, &app_env, scraper_threads);
+    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
@@ -242,7 +238,8 @@ pub mod tests {
     use crate::db_redis;
     use crate::parse_env;
 
-    use redis::AsyncCommands;
+    use fred::interfaces::KeysInterface;
+    use fred::interfaces::ServerInterface;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
@@ -252,18 +249,15 @@ pub mod tests {
         pub handle: Option<JoinHandle<()>>,
         pub app_env: AppEnv,
         pub postgres: PgPool,
-        pub redis: ConnectionManager,
+        pub redis: RedisPool,
     }
 
     // Get basic api params, also flushes all redis keys
     pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
-        let postgres = db_postgres::db_pool(&app_env).await.unwrap();
-        let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-        redis::cmd("FLUSHDB")
-            .query_async::<_, ()>(&mut redis)
-            .await
-            .unwrap();
+        let postgres = db_postgres::get_pool(&app_env).await.unwrap();
+        let redis = db_redis::get_pool(&app_env).await.unwrap();
+        redis.flushall::<()>(true).await.unwrap();
         TestSetup {
             handle: None,
             app_env,
@@ -287,9 +281,9 @@ pub mod tests {
     async fn start_server() -> TestSetup {
         let setup = test_setup().await;
 
-        let redis = setup.redis.clone();
         let postgres = setup.postgres.clone();
         let app_env = setup.app_env.clone();
+        let redis = setup.redis.clone();
         let handle = tokio::spawn(async {
             serve(app_env, postgres, redis).await.unwrap();
         });
@@ -1069,7 +1063,7 @@ pub mod tests {
     #[tokio::test]
     // Not rate limited, but rate limit points = number of requests, and ttl 60
     async fn http_mod_rate_limit() {
-        let mut test_setup = start_server().await;
+        let test_setup = start_server().await;
 
         let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         for _ in 1..=45 {
@@ -1084,7 +1078,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn http_mod_rate_limit_small() {
-        let mut setup = start_server().await;
+        let setup = start_server().await;
 
         let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         for _ in 1..=511 {
@@ -1129,7 +1123,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn http_mod_rate_limit_big() {
-        let mut setup = start_server().await;
+        let setup = start_server().await;
 
         let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         for _ in 1..=1023 {
