@@ -13,7 +13,6 @@
 		"--cap-add=SYS_PTRACE",
 		"--security-opt",
 		"seccomp=unconfined"
-		// "--net=host"
 	],
 	// Set *default* container specific settings.json values on container create.
 	"mounts": [
@@ -23,6 +22,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"adpyke.vscode-sql-formatter",
 				"bmuskalla.vscode-tldr",
 				"christian-kohler.path-intellisense",
 				"foxundermoon.shell-format",
@@ -46,7 +46,7 @@
 			}
 		}
 	},
-	"postCreateCommand": "cargo install cargo-watch typos-cli sqlx-cli cargo-expand",
+	"postCreateCommand": "cargo install cargo-expand cargo-watch cross oha sqlx-cli typos-cli",
 	"postStartCommand": "sudo mkdir -p /dev/shm/adsbdb/pg_data /dev/shm/adsbdb/redis_data /dev/shm/adsbdb/logs /dev/shm/adsbdb/backups && sudo chown -R vscode:vscode /dev/shm/adsbdb",
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",

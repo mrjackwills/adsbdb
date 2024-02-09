@@ -2,94 +2,78 @@ use crate::{
     api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
     parse_env::AppEnv,
 };
-use redis::{
-    aio::Connection, from_redis_value, AsyncCommands, ConnectionAddr, ConnectionInfo,
-    RedisConnectionInfo, Value,
+use fred::{
+    clients::RedisPool,
+    interfaces::{ClientLike, KeysInterface},
+    types::{Expiration, ReconnectPolicy},
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fmt, net::IpAddr, sync::Arc, time::Duration};
-use tokio::sync::Mutex;
-use tracing::error;
+use std::{fmt, net::IpAddr};
 pub mod ratelimit;
 
-const ONE_WEEK: i64 = 60 * 60 * 24 * 7;
-const FIELD: &str = "data";
-
-/// Convert a redis string result into a Option<T>
-fn redis_to_serde<T: DeserializeOwned>(v: &Value, key: &str) -> Option<T> {
-    if v == &Value::Nil {
-        return None;
-    }
-    match from_redis_value::<String>(v) {
-        Ok(string_value) => {
-            if string_value.is_empty() {
-                None
-            } else {
-                serde_json::from_str::<T>(&string_value).ok()
-            }
-        }
-        Err(e) => {
-            error!("key::{key}, value::{v:#?}, {e:?}\nexiting");
-            // process::exit(1) here?
-            None
-        }
-    }
-}
-
-/// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<'a, T: DeserializeOwned + Send>(
-    redis: &Arc<Mutex<Connection>>,
-    key: &RedisKey<'a>,
-) -> Result<Option<Option<T>>, AppError> {
-    let key = key.to_string();
-    let value = redis
-        .lock()
-        .await
-        .hget::<'_, &str, &str, Option<Value>>(&key, FIELD)
-        .await?;
-    if let Some(value) = value {
-        redis.lock().await.expire(&key, ONE_WEEK).await?;
-        Ok(Some(redis_to_serde(&value, &key)))
-    } else {
-        Ok(None)
-    }
-}
+const ONE_WEEK_AS_SEC: i64 = 60 * 60 * 24 * 7;
 
 /// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
-    redis: &Arc<Mutex<Connection>>,
-    // Ideally this should be Option<&T>
+    redis: &RedisPool,
     to_insert: &Option<T>,
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-    let cache = match to_insert {
-        Some(v) => serde_json::to_string(&v)?,
+    let serialized = match to_insert {
+        Some(value) => serde_json::to_string(value)?,
         None => String::new(),
     };
-    redis.lock().await.hset(&key, FIELD, cache).await?;
-    Ok(redis
-        .lock()
-        .await
-        .expire::<&str, ()>(&key, ONE_WEEK)
-        .await?)
+
+    redis
+        .set(
+            &key,
+            serialized,
+            Some(Expiration::EX(ONE_WEEK_AS_SEC)),
+            None,
+            false,
+        )
+        .await?;
+    Ok(())
 }
 
-/// Get an async redis connection
-pub async fn get_connection(app_env: &AppEnv) -> Result<Connection, AppError> {
-    let connection_info = ConnectionInfo {
-        redis: RedisConnectionInfo {
-            db: i64::from(app_env.redis_database),
-            password: Some(app_env.redis_password.clone()),
-            username: None,
-        },
-        addr: ConnectionAddr::Tcp(app_env.redis_host.clone(), app_env.redis_port),
-    };
-    let client = redis::Client::open(connection_info)?;
-    match tokio::time::timeout(Duration::from_secs(10), client.get_async_connection()).await {
-        Ok(con) => Ok(con?),
-        Err(_) => Err(AppError::Internal("Unable to connect to redis".to_owned())),
+/// See if give value is in cache, if so, extend ttl, and deserialize into T
+pub async fn get_cache<'a, T: DeserializeOwned + Send + fmt::Debug>(
+    redis: &RedisPool,
+    key: &RedisKey<'a>,
+) -> Result<Option<Option<T>>, AppError> {
+    let key = key.to_string();
+    if let Some(value) = redis.get::<Option<String>, &str>(&key).await? {
+        redis.expire(&key, ONE_WEEK_AS_SEC).await?;
+        if value.is_empty() {
+            return Ok(Some(None));
+        }
+        if let Some(value) = serde_json::from_str(&value)? {
+            return Ok(Some(value));
+        }
     }
+    Ok(None)
+}
+
+pub async fn get_pool(app_env: &AppEnv) -> Result<RedisPool, AppError> {
+    let redis_url = format!(
+        "redis://:{password}@{host}:{port}/{db}",
+        password = app_env.redis_password,
+        host = app_env.redis_host,
+        port = app_env.redis_port,
+        db = app_env.redis_database
+    );
+
+    let config = fred::types::RedisConfig::from_url(&redis_url)?;
+    let pool = fred::types::Builder::from_config(config)
+        .with_performance_config(|config| {
+            config.auto_pipeline = true;
+        })
+        // use exponential backoff, starting at 100 ms and doubling on each failed attempt up to 30 sec
+        .set_policy(ReconnectPolicy::new_exponential(0, 100, 30_000, 2))
+        .build_pool(32)?;
+    pool.init().await?;
+    Ok(pool)
 }
 
 #[derive(Debug, Clone)]

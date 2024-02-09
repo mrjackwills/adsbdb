@@ -13,7 +13,7 @@ pub use model_flightroute::ModelFlightroute;
 
 use crate::{api::AppError, parse_env::AppEnv};
 
-pub async fn db_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
+pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     let mut options = sqlx::postgres::PgConnectOptions::new()
         .host(&app_env.pg_host)
         .port(app_env.pg_port)
@@ -30,7 +30,7 @@ pub async fn db_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     let idle_timeout = Duration::from_secs(30);
 
     Ok(PgPoolOptions::new()
-        .max_connections(20)
+        .max_connections(32)
         .idle_timeout(idle_timeout)
         .acquire_timeout(acquire_timeout)
         .connect_with(options)

@@ -8,11 +8,8 @@ mod n_number;
 mod parse_env;
 mod scraper;
 
-use std::sync::Arc;
-
 use api::AppError;
 use parse_env::AppEnv;
-use tokio::sync::Mutex;
 use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
 
 fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
@@ -43,7 +40,7 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
 async fn main() -> Result<(), AppError> {
     let app_env = parse_env::AppEnv::get_env();
     setup_tracing(&app_env)?;
-    let postgres = db_postgres::db_pool(&app_env).await?;
-    let redis = db_redis::get_connection(&app_env).await?;
-    api::serve(app_env, postgres, Arc::new(Mutex::new(redis))).await
+    let postgres = db_postgres::get_pool(&app_env).await?;
+    let redis = db_redis::get_pool(&app_env).await?;
+    api::serve(app_env, postgres, redis).await
 }

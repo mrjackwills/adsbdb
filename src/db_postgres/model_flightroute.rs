@@ -298,7 +298,7 @@ mod tests {
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
-        let db = db_postgres::db_pool(&app_env).await.unwrap();
+        let db = db_postgres::get_pool(&app_env).await.unwrap();
         (app_env, db)
     }
 

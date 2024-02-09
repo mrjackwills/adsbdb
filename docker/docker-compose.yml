@@ -4,16 +4,11 @@ networks:
     name: adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.2.7
+    image: adsbdb_postgres:0.2.8
     container_name: adsbdb_postgres
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/postgres.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     env_file: $HOME/adsbdb/docker/env/.postgres.env
     cap_drop:
       - all
@@ -38,16 +33,11 @@ services:
       timeout: 20s
       retries: 3
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.2.7
+    image: adsbdb_postgres_backup:0.2.8
     container_name: adsbdb_postgres_backup
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/postgres_backup.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     env_file: $HOME/adsbdb/docker/env/.postgres_backup.env
     cap_drop:
       - all
@@ -69,17 +59,12 @@ services:
         condition: service_healthy
     restart: 'no'
   adsbdb_redis:
-    image: adsbdb_redis:0.2.7
+    image: adsbdb_redis:0.2.8
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/redis.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     env_file: $HOME/adsbdb/docker/env/.redis.env
     volumes:
       - $HOME/databases/adsbdb/redis_data:/redis_data
@@ -105,17 +90,12 @@ services:
         limits:
           memory: 128M
   adsbdb_api:
-    image: adsbdb_api:0.2.7
+    image: adsbdb_api:0.2.8
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
       context: $HOME/adsbdb/
       dockerfile: $HOME/adsbdb/docker/dockerfile/api.Dockerfile
-      args:
-        - DOCKER_UID=${DOCKER_UID}
-        - DOCKER_GUID=${DOCKER_GUID}
-        - DOCKER_TIME_CONT=${DOCKER_TIME_CONT}
-        - DOCKER_TIME_CITY=${DOCKER_TIME_CITY}
     volumes:
       - $HOME/logs/adsbdb:/logs
       - $HOME/adsbdb/docker/env/.api.env:/app_env/.api.env:ro

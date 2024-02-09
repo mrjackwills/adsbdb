@@ -1,4 +1,4 @@
-use ::redis::aio::Connection;
+use fred::clients::RedisPool;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -35,29 +35,30 @@ pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registrat
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
 
+#[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
-    redis: Arc<Mutex<Connection>>,
+    redis: RedisPool,
+    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+    scraper: Scraper,
     uptime: Instant,
     url_prefix: String,
-    scraper: Scraper,
-    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
 }
 
 impl ApplicationState {
     pub fn new(
-        postgres: PgPool,
-        redis: Arc<Mutex<Connection>>,
         app_env: &AppEnv,
+        postgres: PgPool,
+        redis: RedisPool,
         scraper_threads: Arc<Mutex<ScraperThreadMap>>,
     ) -> Self {
         Self {
             postgres,
             redis,
-            uptime: Instant::now(),
-            scraper: Scraper::new(app_env),
-            url_prefix: app_env.url_photo_prefix.clone(),
             scraper_threads,
+            scraper: Scraper::new(app_env),
+            uptime: Instant::now(),
+            url_prefix: app_env.url_photo_prefix.clone(),
         }
     }
 }
@@ -89,7 +90,7 @@ pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
 
 /// Limit the users request based on ip address, using redis as mem store
 async fn rate_limiting(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, AppError> {
@@ -152,18 +153,9 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 }
 
 /// Serve the app!
-pub async fn serve(
-    app_env: AppEnv,
-    postgres: PgPool,
-    redis: Arc<Mutex<Connection>>,
-) -> Result<(), AppError> {
+pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Result<(), AppError> {
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-    let application_state = Arc::new(ApplicationState::new(
-        postgres,
-        redis,
-        &app_env,
-        scraper_threads,
-    ));
+    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
 
     let api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
@@ -182,7 +174,7 @@ pub async fn serve(
     let app = Router::new()
         .nest(&prefix, api_routes)
         .fallback(api_routes::fallback)
-        .with_state(Arc::clone(&application_state))
+        .with_state(application_state.clone())
         .layer(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(1024))
@@ -246,7 +238,8 @@ pub mod tests {
     use crate::db_redis;
     use crate::parse_env;
 
-    use redis::AsyncCommands;
+    use fred::interfaces::KeysInterface;
+    use fred::interfaces::ServerInterface;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
@@ -256,23 +249,20 @@ pub mod tests {
         pub handle: Option<JoinHandle<()>>,
         pub app_env: AppEnv,
         pub postgres: PgPool,
-        pub redis: Arc<Mutex<Connection>>,
+        pub redis: RedisPool,
     }
 
     // Get basic api params, also flushes all redis keys
     pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
-        let postgres = db_postgres::db_pool(&app_env).await.unwrap();
-        let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-        redis::cmd("FLUSHDB")
-            .query_async::<_, ()>(&mut redis)
-            .await
-            .unwrap();
+        let postgres = db_postgres::get_pool(&app_env).await.unwrap();
+        let redis = db_redis::get_pool(&app_env).await.unwrap();
+        redis.flushall::<()>(true).await.unwrap();
         TestSetup {
             handle: None,
             app_env,
             postgres,
-            redis: Arc::new(Mutex::new(redis)),
+            redis,
         }
     }
 
@@ -291,9 +281,9 @@ pub mod tests {
     async fn start_server() -> TestSetup {
         let setup = test_setup().await;
 
-        let redis = Arc::clone(&setup.redis);
         let postgres = setup.postgres.clone();
         let app_env = setup.app_env.clone();
+        let redis = setup.redis.clone();
         let handle = tokio::spawn(async {
             serve(app_env, postgres, redis).await.unwrap();
         });
@@ -323,7 +313,7 @@ pub mod tests {
         start_server().await;
         let callsign = "ACA959";
         let url = format!(
-            "http://127.0.0.1:8100{}/callsign/{}",
+            "http://127.0.0.1:8282{}/callsign/{}",
             get_api_version(),
             callsign
         );
@@ -373,7 +363,7 @@ pub mod tests {
         start_server().await;
         let callsign = "AC959";
         let url = format!(
-            "http://127.0.0.1:8100{}/callsign/{}",
+            "http://127.0.0.1:8282{}/callsign/{}",
             get_api_version(),
             callsign
         );
@@ -423,7 +413,7 @@ pub mod tests {
         start_server().await;
         let callsign = "QFA31";
         let url = format!(
-            "http://127.0.0.1:8100{}/callsign/{}",
+            "http://127.0.0.1:8282{}/callsign/{}",
             get_api_version(),
             callsign
         );
@@ -478,7 +468,7 @@ pub mod tests {
         start_server().await;
         let callsign = "QF31";
         let url = format!(
-            "http://127.0.0.1:8100{}/callsign/{}",
+            "http://127.0.0.1:8282{}/callsign/{}",
             get_api_version(),
             callsign
         );
@@ -533,7 +523,7 @@ pub mod tests {
         start_server().await;
         let callsign = "ABABAB";
         let url = format!(
-            "http://127.0.0.1:8100{}/callsign/{}",
+            "http://127.0.0.1:8282{}/callsign/{}",
             get_api_version(),
             callsign
         );
@@ -548,7 +538,7 @@ pub mod tests {
         start_server().await;
         let mode_s = "A6D27B";
         let url = format!(
-            "http://127.0.0.1:8100{}/aircraft/{}",
+            "http://127.0.0.1:8282{}/aircraft/{}",
             get_api_version(),
             mode_s
         );
@@ -580,7 +570,7 @@ pub mod tests {
         let mode_s = "A6D27B";
         let callsign = "ACA959";
         let url = format!(
-            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
             get_api_version(),
             mode_s,
             callsign
@@ -664,7 +654,7 @@ pub mod tests {
         let mode_s = "A6D27B";
         let callsign = "AC959";
         let url = format!(
-            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
             get_api_version(),
             mode_s,
             callsign
@@ -748,7 +738,7 @@ pub mod tests {
         let mode_s = "A6D27B";
         let callsign = "QFA31";
         let url = format!(
-            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
             get_api_version(),
             mode_s,
             callsign
@@ -852,7 +842,7 @@ pub mod tests {
         let mode_s = "A6D27B";
         let callsign = "QF31";
         let url = format!(
-            "http://127.0.0.1:8100{}/aircraft/{}?callsign={}",
+            "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
             get_api_version(),
             mode_s,
             callsign
@@ -955,7 +945,7 @@ pub mod tests {
         start_server().await;
         let mode_s = "ABABAB";
         let url = format!(
-            "http://127.0.0.1:8100{}/aircraft/{}",
+            "http://127.0.0.1:8282{}/aircraft/{}",
             get_api_version(),
             mode_s
         );
@@ -970,7 +960,7 @@ pub mod tests {
         start_server().await;
         let n_number = "n1235f";
         let url = format!(
-            "http://127.0.0.1:8100{}/n-number/{}",
+            "http://127.0.0.1:8282{}/n-number/{}",
             get_api_version(),
             n_number
         );
@@ -985,7 +975,7 @@ pub mod tests {
         start_server().await;
         let n_number = "a1235f";
         let url = format!(
-            "http://127.0.0.1:8100{}/n-number/{}",
+            "http://127.0.0.1:8282{}/n-number/{}",
             get_api_version(),
             n_number
         );
@@ -1000,7 +990,7 @@ pub mod tests {
         start_server().await;
         let mode_s = "ACD2D3";
         let url = format!(
-            "http://127.0.0.1:8100{}/mode-s/{}",
+            "http://127.0.0.1:8282{}/mode-s/{}",
             get_api_version(),
             mode_s
         );
@@ -1015,7 +1005,7 @@ pub mod tests {
         start_server().await;
         let mode_s = "CCD2D3";
         let url = format!(
-            "http://127.0.0.1:8100{}/mode-s/{}",
+            "http://127.0.0.1:8282{}/mode-s/{}",
             get_api_version(),
             mode_s
         );
@@ -1030,7 +1020,7 @@ pub mod tests {
         start_server().await;
         let mode_s = "JCD2D3";
         let url = format!(
-            "http://127.0.0.1:8100{}/mode-s/{}",
+            "http://127.0.0.1:8282{}/mode-s/{}",
             get_api_version(),
             mode_s
         );
@@ -1043,7 +1033,7 @@ pub mod tests {
     #[tokio::test]
     async fn http_mod_get_online() {
         start_server().await;
-        let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         sleep!();
         let resp = reqwest::get(url).await.unwrap();
 
@@ -1060,7 +1050,7 @@ pub mod tests {
 
         let version = get_api_version();
         let rand_route = "asdasjkaj9ahsddasdasd";
-        let url = format!("http://127.0.0.1:8100{version}/{rand_route}");
+        let url = format!("http://127.0.0.1:8282{version}/{rand_route}");
         let resp = reqwest::get(url).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1075,25 +1065,13 @@ pub mod tests {
     async fn http_mod_rate_limit() {
         let test_setup = start_server().await;
 
-        let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         for _ in 1..=45 {
             reqwest::get(&url).await.unwrap();
         }
 
-        let count: usize = test_setup
-            .redis
-            .lock()
-            .await
-            .get("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
-        let ttl: usize = test_setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let count: usize = test_setup.redis.get("ratelimit::127.0.0.1").await.unwrap();
+        let ttl: usize = test_setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(count, 45);
         assert_eq!(ttl, 60);
     }
@@ -1102,7 +1080,7 @@ pub mod tests {
     async fn http_mod_rate_limit_small() {
         let setup = start_server().await;
 
-        let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         for _ in 1..=511 {
             reqwest::get(&url).await.unwrap();
         }
@@ -1120,25 +1098,13 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
 
-        let ttl: usize = setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 60);
 
         sleep!(1000);
 
         // TTL reduces by 1 after 1 second
-        let ttl: usize = setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 59);
         sleep!(1000);
 
@@ -1147,23 +1113,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 58 seconds");
-        let ttl: usize = setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 58);
 
         // points increased
-        let points: usize = setup
-            .redis
-            .lock()
-            .await
-            .get("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let points: usize = setup.redis.get("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(points, 514);
     }
 
@@ -1171,7 +1125,7 @@ pub mod tests {
     async fn http_mod_rate_limit_big() {
         let setup = start_server().await;
 
-        let url = format!("http://127.0.0.1:8100{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
         for _ in 1..=1023 {
             reqwest::get(&url).await.unwrap();
         }
@@ -1189,25 +1143,13 @@ pub mod tests {
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
 
-        let ttl: usize = setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 300);
 
         sleep!(1000);
 
         // TTL reduces by 1 after 1 second
-        let ttl: usize = setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 299);
 
         // TTL is reset to 300 on one more request
@@ -1215,23 +1157,11 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
-        let ttl: usize = setup
-            .redis
-            .lock()
-            .await
-            .ttl("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 300);
 
         // points increased
-        let points: usize = setup
-            .redis
-            .lock()
-            .await
-            .get("ratelimit::127.0.0.1")
-            .await
-            .unwrap();
+        let points: usize = setup.redis.get("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(points, 1026);
     }
 }

@@ -1,19 +1,13 @@
 #!/bin/bash
 
-# v0.1.0
+# v0.2.0
 
-# CHANGE
 APP_NAME='adsbdb'
 
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
-
-DOCKER_GUID=$(id -g)
-DOCKER_UID=$(id -u)
-DOCKER_TIME_CONT="Europe"
-DOCKER_TIME_CITY="Berlin"
 
 PRO=production
 DEV=dev
@@ -99,24 +93,14 @@ make_all_directories() {
 }
 
 dev_up() {
-	# make_all_directories
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	echo "starting containers: ${TO_RUN[*]}"
-	DOCKER_GUID=${DOCKER_GUID} \
-		DOCKER_UID=${DOCKER_UID} \
-		DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
-		DOCKER_TIME_CITY=${DOCKER_TIME_CITY} \
-		DOCKER_BUILDKIT=0 \
-		docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
+	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
 }
 
 dev_down() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-	DOCKER_GUID=${DOCKER_GUID} \
-		DOCKER_UID=${DOCKER_UID} \
-		DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
-		DOCKER_TIME_CITY=${DOCKER_TIME_CITY} \
-		docker compose -f dev.docker-compose.yml down
+	docker compose -f dev.docker-compose.yml down
 }
 
 production_up() {
@@ -124,12 +108,7 @@ production_up() {
 	if [[ "$(user_input)" =~ ^y$ ]]; then
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-		DOCKER_GUID=${DOCKER_GUID} \
-			DOCKER_UID=${DOCKER_UID} \
-			DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
-			DOCKER_TIME_CITY=${DOCKER_TIME_CITY} \
-			DOCKER_BUILDKIT=0 \
-			docker compose -f docker-compose.yml up -d
+		docker compose -f docker-compose.yml up -d
 	else
 		exit
 	fi
@@ -140,12 +119,7 @@ production_rebuild() {
 	if [[ "$(user_input)" =~ ^y$ ]]; then
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-		DOCKER_GUID=${DOCKER_GUID} \
-			DOCKER_UID=${DOCKER_UID} \
-			DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
-			DOCKER_TIME_CITY=${DOCKER_TIME_CITY} \
-			DOCKER_BUILDKIT=0 \
-			docker compose -f docker-compose.yml up -d --build
+		docker compose -f docker-compose.yml up -d --build
 	else
 		exit
 	fi
@@ -153,11 +127,7 @@ production_rebuild() {
 
 production_down() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-	DOCKER_GUID=${DOCKER_GUID} \
-		DOCKER_UID=${DOCKER_UID} \
-		DOCKER_TIME_CONT=${DOCKER_TIME_CONT} \
-		DOCKER_TIME_CITY=${DOCKER_TIME_CITY} \
-		docker compose -f docker-compose.yml down
+	docker compose -f docker-compose.yml down
 }
 
 select_containers() {
@@ -264,6 +234,3 @@ main() {
 }
 
 main
-
-# ask if setup cron!
-# 3 0 * * * docker restart adsbdb_postgres_backup

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use axum::extract::{OriginalUri, State};
-use axum::http::StatusCode;
+use axum::{
+    extract::{OriginalUri, State},
+    http::StatusCode,
+};
 
 use super::input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Validate};
 use super::response::{
@@ -10,14 +11,16 @@ use super::response::{
     ResponseJson,
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
-use crate::db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute};
-use crate::db_redis::{get_cache, insert_cache, RedisKey};
 use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
+use crate::{
+    db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
+    db_redis::{get_cache, insert_cache, RedisKey},
+};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for Option\<ModelFlightroute>, else query postgres
 async fn find_flightroute(
-    state: Arc<ApplicationState>,
+    state: ApplicationState,
     callsign: &Callsign,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(callsign);
@@ -40,7 +43,7 @@ async fn find_flightroute(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    state: Arc<ApplicationState>,
+    state: ApplicationState,
     aircraft_search: &AircraftSearch,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::from(aircraft_search);
@@ -69,7 +72,7 @@ async fn find_aircraft(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_airline(
-    state: Arc<ApplicationState>,
+    state: ApplicationState,
     airline: &AirlineCode,
 ) -> Result<Option<Vec<ModelAirline>>, AppError> {
     let redis_key = RedisKey::Airline(airline);
@@ -89,7 +92,7 @@ async fn find_airline(
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
 /// TODO turn this optional into an extractor?
 pub async fn aircraft_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     aircraft_search: AircraftSearch,
     axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
 ) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
@@ -127,7 +130,7 @@ pub async fn aircraft_get(
 
 /// Return an airline detail from a ICAO or IATA airline prefix
 pub async fn airline_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     airline_code: AirlineCode,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
     find_airline(state, &airline_code).await?.map_or(
@@ -143,7 +146,7 @@ pub async fn airline_get(
 
 /// Return a flightroute detail from a callsign input
 pub async fn callsign_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
     callsign: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(state, &callsign).await?.map_or(
@@ -185,7 +188,7 @@ pub async fn mode_s_get(
 /// Return a simple online status response
 #[allow(clippy::unused_async)]
 pub async fn online_get(
-    State(state): State<Arc<ApplicationState>>,
+    State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
     (
         StatusCode::OK,
@@ -220,7 +223,9 @@ mod tests {
     use super::*;
 
     use axum::http::Uri;
-    use redis::{AsyncCommands, RedisError};
+    use fred::error::RedisError;
+    use fred::interfaces::KeysInterface;
+    use fred::interfaces::ServerInterface;
     use tokio::sync::Mutex;
 
     use crate::api::input::Validate;
@@ -228,28 +233,25 @@ mod tests {
     use crate::api::response::Airport;
     use crate::api::Registration;
     use crate::db_postgres;
-    use crate::db_redis as Redis;
+    use crate::db_redis;
     use crate::parse_env;
     use crate::scraper::ScraperThreadMap;
     use crate::sleep;
 
     const CALLSIGN: &str = "ANA460";
 
-    async fn get_application_state() -> State<Arc<ApplicationState>> {
+    async fn get_application_state() -> State<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
-        let postgres = db_postgres::db_pool(&app_env).await.unwrap();
-        let mut redis = Redis::get_connection(&app_env).await.unwrap();
+        let postgres = db_postgres::get_pool(&app_env).await.unwrap();
+        let redis = db_redis::get_pool(&app_env).await.unwrap();
         let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-        redis::cmd("FLUSHDB")
-            .query_async::<_, ()>(&mut redis)
-            .await
-            .unwrap();
-        State(Arc::new(ApplicationState::new(
-            postgres,
-            Arc::new(Mutex::new(redis)),
+        redis.flushall::<()>(true).await.unwrap();
+        State(ApplicationState::new(
             &app_env,
+            postgres,
+            redis,
             scraper_threads,
-        )))
+        ))
     }
 
     #[tokio::test]
@@ -442,25 +444,15 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, fred::error::RedisError> =
+            application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -478,25 +470,14 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -512,25 +493,14 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(&result, response.1.response.aircraft.as_ref().unwrap());
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -545,13 +515,7 @@ mod tests {
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
-
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
@@ -560,8 +524,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -586,20 +549,13 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
             _ => unreachable!(),
         };
-
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -618,22 +574,11 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -655,23 +600,11 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
             _ => unreachable!(),
         };
-
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
 
         sleep!();
@@ -687,22 +620,11 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -959,12 +881,8 @@ mod tests {
 
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
 
@@ -1015,8 +933,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1032,12 +949,8 @@ mod tests {
         callsign_get(application_state.clone(), path).await.unwrap();
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
 
@@ -1097,8 +1010,7 @@ mod tests {
 
         let ttl: usize = application_state
             .redis
-            .lock()
-            .await
+            .clone()
             .ttl(key.to_string())
             .await
             .unwrap();
@@ -1176,22 +1088,12 @@ mod tests {
         };
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
 
         sleep!();
@@ -1207,22 +1109,11 @@ mod tests {
         };
 
         let key = RedisKey::Callsign(&tmp_callsign);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -1887,22 +1778,12 @@ mod tests {
             _ => unreachable!(),
         };
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
 
         sleep!();
@@ -1918,22 +1799,11 @@ mod tests {
         };
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -1953,22 +1823,12 @@ mod tests {
             _ => unreachable!(),
         };
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
 
         sleep!();
@@ -1984,22 +1844,11 @@ mod tests {
         };
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -2027,12 +1876,8 @@ mod tests {
         assert_eq!(response.1.response, expected);
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
 
         let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
@@ -2045,13 +1890,7 @@ mod tests {
         assert_eq!(result[0].icao_prefix, "RCK".to_owned());
         assert_eq!(result[0].airline_callsign, Some("ROCKROSE".to_owned()));
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
 
         sleep!();
@@ -2059,13 +1898,7 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 
@@ -2104,12 +1937,8 @@ mod tests {
         assert_eq!(response.1.response, expected);
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state
-            .redis
-            .lock()
-            .await
-            .hget(key.to_string(), "data")
-            .await;
+
+        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
         assert!(result.is_ok());
 
         let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
@@ -2132,13 +1961,7 @@ mod tests {
         assert_eq!(result[1].icao_prefix, "JOY".to_owned());
         assert_eq!(result[1].airline_callsign, Some("JOY AIR".to_owned()));
 
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
 
         sleep!();
@@ -2146,13 +1969,7 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let ttl: usize = application_state
-            .redis
-            .lock()
-            .await
-            .ttl(key.to_string())
-            .await
-            .unwrap();
+        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
     }
 }

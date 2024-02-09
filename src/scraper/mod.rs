@@ -368,6 +368,7 @@ mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, Registration, Validate};
     use crate::{db_postgres, db_redis, sleep};
+    use fred::interfaces::ServerInterface;
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
 
@@ -379,7 +380,7 @@ mod tests {
 
     async fn test_setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
-        let db = db_postgres::db_pool(&app_env).await.unwrap();
+        let db = db_postgres::get_pool(&app_env).await.unwrap();
         (app_env, db)
     }
 
@@ -421,11 +422,8 @@ mod tests {
                 .unwrap();
 
             let app_env = AppEnv::get_env();
-            let mut redis = db_redis::get_connection(&app_env).await.unwrap();
-            redis::cmd("FLUSHDB")
-                .query_async::<_, ()>(&mut redis)
-                .await
-                .unwrap();
+            let redis = db_redis::get_pool(&app_env).await.unwrap();
+            redis.flushall::<()>(true).await.unwrap();
         }
     }
 
