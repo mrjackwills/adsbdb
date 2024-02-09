@@ -2,7 +2,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use redis::RedisError;
+use fred::error::RedisErrorKind;
 use std::{fmt, num::ParseIntError};
 use thiserror::Error;
 use tracing::error;
@@ -50,7 +50,7 @@ pub enum AppError {
     #[error("rate limited for")]
     RateLimited(i64),
     #[error("redis error")]
-    RedisError(#[from] RedisError),
+    RedisError(#[from] fred::error::RedisError),
     #[error("invalid registration:")]
     Registration(String),
     #[error("Reqwest")]
@@ -121,9 +121,9 @@ impl IntoResponse for AppError {
             ),
             Self::RedisError(e) => {
                 error!("{e:?}");
-                if e.is_io_error() {
+                if e.kind() == &RedisErrorKind::IO {
                     exit();
-                };
+                }
                 internal!(prefix)
             }
             Self::Reqwest(e) => {

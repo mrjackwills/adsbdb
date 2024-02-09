@@ -145,79 +145,63 @@ mod tests {
     fn env_missing_env() {
         let mut map = HashMap::new();
         map.insert("not_fish".to_owned(), "not_fish".to_owned());
-        // ACTION
+
         let result = AppEnv::parse_string("fish", &map);
 
-        // CHECK
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "missing env: 'fish'");
     }
 
     #[test]
     fn env_parse_string_valid() {
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("RANDOM_STRING".to_owned(), "123".to_owned());
 
-        // ACTION
         let result = AppEnv::parse_string("RANDOM_STRING", &map).unwrap();
 
-        // CHECK
         assert_eq!(result, "123");
 
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("RANDOM_STRING".to_owned(), "hello_world".to_owned());
 
-        // ACTION
         let result = AppEnv::parse_string("RANDOM_STRING", &map).unwrap();
 
-        // CHECK
         assert_eq!(result, "hello_world");
     }
 
     #[test]
     fn env_parse_scrape_allow() {
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("SCRAPE_PHOTO".to_owned(), "true".to_owned());
         map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "true".to_owned());
 
-        // ACTION
         let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
         let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
 
-        // CHECK
         assert!(result01.is_ok());
         assert!(result01.unwrap().is_some());
         assert!(result02.is_ok());
         assert!(result02.unwrap().is_some());
 
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("SCRAPE_PHOTO".to_owned(), "false".to_owned());
         map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "false".to_owned());
 
-        // ACTION
         let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
         let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
 
-        // CHECK
         assert!(result01.is_ok());
         assert!(result01.unwrap().is_none());
         assert!(result02.is_ok());
         assert!(result02.unwrap().is_none());
 
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("SCRAPE_PHOTO".to_owned(), "tru".to_owned());
         map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "tre".to_owned());
 
-        // ACTION
         let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
         let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
 
-        // CHECK
         assert!(result01.is_ok());
         assert!(result01.unwrap().is_none());
         assert!(result02.is_ok());
@@ -226,19 +210,16 @@ mod tests {
 
     #[test]
     fn env_parse_boolean_ok() {
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("valid_true".to_owned(), "true".to_owned());
         map.insert("valid_false".to_owned(), "false".to_owned());
         map.insert("invalid_but_false".to_owned(), "as".to_owned());
 
-        // ACTION
         let result01 = AppEnv::parse_boolean("valid_true", &map);
         let result02 = AppEnv::parse_boolean("valid_false", &map);
         let result03 = AppEnv::parse_boolean("invalid_but_false", &map);
         let result04 = AppEnv::parse_boolean("missing", &map);
 
-        // CHECK
         assert!(result01);
         assert!(!result02);
         assert!(!result03);
@@ -249,7 +230,6 @@ mod tests {
     fn env_return_appenv() {
         dotenvy::dotenv().ok();
 
-        // ACTION
         let result = AppEnv::generate();
 
         assert!(result.is_ok());
@@ -257,101 +237,75 @@ mod tests {
 
     #[test]
     fn env_parse_log_valid() {
-        // FIXTURES
         let map = HashMap::from([("RANDOM_STRING".to_owned(), "123".to_owned())]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::INFO);
 
-        // FIXTURES
         let map = HashMap::from([("LOG_DEBUG".to_owned(), "false".to_owned())]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::INFO);
 
-        // FIXTURES
         let map = HashMap::from([("LOG_TRACE".to_owned(), "false".to_owned())]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::INFO);
 
-        // FIXTURES
         let map = HashMap::from([
             ("LOG_DEBUG".to_owned(), "false".to_owned()),
             ("LOG_TRACE".to_owned(), "false".to_owned()),
         ]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::INFO);
 
-        // FIXTURES
         let map = HashMap::from([
             ("LOG_DEBUG".to_owned(), "true".to_owned()),
             ("LOG_TRACE".to_owned(), "false".to_owned()),
         ]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::DEBUG);
 
-        // FIXTURES
         let map = HashMap::from([
             ("LOG_DEBUG".to_owned(), "true".to_owned()),
             ("LOG_TRACE".to_owned(), "true".to_owned()),
         ]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::TRACE);
 
-        // FIXTURES
         let map = HashMap::from([
             ("LOG_DEBUG".to_owned(), "false".to_owned()),
             ("LOG_TRACE".to_owned(), "true".to_owned()),
         ]);
 
-        // ACTION
         let result = AppEnv::parse_log(&map);
 
-        // CHECK
         assert_eq!(result, tracing::Level::TRACE);
     }
 
     #[test]
     fn env_parse_number_ok() {
-        // FIXTURES
         let mut map = HashMap::new();
         map.insert("U16_TEST".to_owned(), "88".to_owned());
 
-        // ACTION
         let result = AppEnv::parse_number("U16_TEST", &map).unwrap();
 
-        // CHECK
         assert_eq!(result, 88);
     }
 
     #[test]
     fn env_parse_number_is_err() {
-        // FIXTURES
         let map = HashMap::new();
 
-        // ACTION
         let result = AppEnv::parse_number("U16_TEST", &map);
 
         assert!(result.is_err());
