@@ -1,28 +1,21 @@
-### 2024-01-05
+### 2024-02-09
 
 ### Chores
-+ .devcontainer updated, [9f65dd57d285488ec0454dfdc979f09c2e9edc8c], [a6553e96e19845498df86d91ea98db006775b264]
-+ Alpine version bump, [218e6e5ac48436252d27222d1c1983cb0a027de7]
-+ dependencies updated, [4f6bb1266eaa4c8717e94d64d6c4705d83adcb07], [b242e2d4ef23d72245d1e09b38790727ec3a09bd], [ca17710265bb45714655cfee8c6df631ca6d994d]
-+ file linting, [815cde77e5bbc56421e3cf3bb7a63a9c0f8c6882]
-+ Rust 1.75.0 linting, [83a687872c3069cd1364aadbf88f3b9b8d45d57f]
++ create_release v0.5.2, [9915bb745e39b6fc3d51f2875677d8bb284f96d5]
++ run.sh v0.2.0, [960854b2119ef8d264facb5a259de5202bcb148a]
++ .devcontainer updated, [51bf7c33859a8bac38579f5208391e07ae7175c6], [a5407118d6e45afd6165a4a8ec2858c04d436e96]
++ dependencies updated, [b16951bdfb566a3120899e66ecb7f1a3e3003bda], [e1254ad31e431cd2485871c58e8e7c2314f4ac77], [dc9db787e0731d5c7db66b9a512df3f6cad5a1dd], [1427c4722173e5cece9b18a39229c93198166698]
 
 ### Features
-+ run.sh v0.1.0, [fbdd1a9423772b27a53d1d35c5b479f180dd3818]
++ change redis client to Fred, [df40d99430fbfc9a8610f56496bc23ab57064365]
++ matrix cross platform GitHub build, [eb7daedf0197d09771f5a5814805ce9c7338ca22]
 
 ### Fixes
-+ ApiError import/export,[0400ab66f8f877658830b57d85664415f4b649b3]
-+ .gitattributes(?), [b238df27d297b11254ce5a419225cae89c9c307d]
-+ redis dependency updates, [e6da9e0a0a60862ee0eaba3f929da320792bcd82]
-+ scraping error message more detail, [a3a1263f32a9afded8fc27d93779823d91549dd2]
++ create_release sqlx prepare, [65d23c4f203f72f9c0e5c8d67bad171c007b071e]
++ rate limit, closes #5, [7eb709ad18511197ff4c534b88d68e1e48b59ca1]
 
 ### Refactors
-+ dead code removed & re-ordered, [9d6d51bb5473d1752dd24b516772caca968f0d6a]
-
-### Reverts
-+ graceful shutdown re-introduced, [2fa3c1cc95b553197954a989e3e6f7a26115c90e]
-
-### Tests
-+ ratelimit tests improvement, [cbd7bb78b24711cf4c004b4679ed9d9599ca38fd]
++ sql files linted, [e51cfceb3d11ba7d5f1e00865ddde92109c649d3]
++ DockerFiles cleaned up, [77dc017b9c490e13e3fd0a1254f40c307c09aa13]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
