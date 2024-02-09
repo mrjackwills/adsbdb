@@ -11,11 +11,11 @@ use super::response::{
     ResponseJson,
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
+use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 use crate::{
     db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
     db_redis::{get_cache, insert_cache, RedisKey},
 };
-use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for Option\<ModelFlightroute>, else query postgres
