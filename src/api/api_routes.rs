@@ -20,7 +20,7 @@ use crate::{
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
 /// Check redis cache for Option\<ModelFlightroute>, else query postgres
 async fn find_flightroute(
-    state: ApplicationState,
+    state: &ApplicationState,
     callsign: &Callsign,
 ) -> Result<Option<ModelFlightroute>, AppError> {
     let redis_key = RedisKey::Callsign(callsign);
@@ -43,7 +43,7 @@ async fn find_flightroute(
 
 /// Check redis cache for Option\<ModelAircraft>, else query postgres
 async fn find_aircraft(
-    state: ApplicationState,
+    state: &ApplicationState,
     aircraft_search: &AircraftSearch,
 ) -> Result<Option<ModelAircraft>, AppError> {
     let redis_key = RedisKey::from(aircraft_search);
@@ -100,8 +100,8 @@ pub async fn aircraft_get(
     if let Some(query_param) = queries.get("callsign") {
         let callsign = Callsign::validate(query_param)?;
         let (aircraft, flightroute) = tokio::try_join!(
-            find_aircraft(state.clone(), &aircraft_search),
-            find_flightroute(state, &callsign),
+            find_aircraft(&state, &aircraft_search),
+            find_flightroute(&state, &callsign),
         )?;
         aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |a| {
             Ok((
@@ -113,7 +113,7 @@ pub async fn aircraft_get(
             ))
         })
     } else {
-        find_aircraft(state, &aircraft_search).await?.map_or(
+        find_aircraft(&state, &aircraft_search).await?.map_or(
             Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
             |aircraft| {
                 Ok((
@@ -149,7 +149,7 @@ pub async fn callsign_get(
     State(state): State<ApplicationState>,
     callsign: Callsign,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    find_flightroute(state, &callsign).await?.map_or(
+    find_flightroute(&state, &callsign).await?.map_or(
         Err(AppError::UnknownInDb(UnknownAC::Callsign)),
         |a| {
             Ok((
