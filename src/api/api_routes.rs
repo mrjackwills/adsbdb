@@ -224,6 +224,7 @@ mod tests {
 
     use axum::http::Uri;
     use fred::error::RedisError;
+    use fred::interfaces::HashesInterface;
     use fred::interfaces::KeysInterface;
     use fred::interfaces::ServerInterface;
     use tokio::sync::Mutex;
@@ -445,7 +446,7 @@ mod tests {
             .unwrap();
 
         let result: Result<String, fred::error::RedisError> =
-            application_state.redis.get(key.to_string()).await;
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
@@ -470,7 +471,8 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
@@ -493,7 +495,8 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
@@ -515,7 +518,8 @@ mod tests {
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
         let result: ResponseAircraft = serde_json::from_str(&result.unwrap()).unwrap();
@@ -549,7 +553,8 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
             _ => unreachable!(),
         };
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -574,7 +579,8 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -600,7 +606,8 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
             _ => unreachable!(),
         };
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -620,7 +627,8 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -882,9 +890,10 @@ mod tests {
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<ModelFlightroute, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
-        let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
+        let result = result.unwrap();
 
         assert_eq!(result.airline_callsign, Some("AIR CANADA".to_owned()));
         assert_eq!(result.airline_country_iso_name, Some("CA".to_owned()));
@@ -950,7 +959,8 @@ mod tests {
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
 
@@ -1089,7 +1099,8 @@ mod tests {
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -1109,7 +1120,8 @@ mod tests {
         };
 
         let key = RedisKey::Callsign(&tmp_callsign);
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -1779,7 +1791,8 @@ mod tests {
         };
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -1799,7 +1812,8 @@ mod tests {
         };
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -1824,7 +1838,8 @@ mod tests {
         };
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -1844,7 +1859,8 @@ mod tests {
         };
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
 
@@ -1877,7 +1893,8 @@ mod tests {
 
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
         let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
@@ -1938,7 +1955,8 @@ mod tests {
 
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> = application_state.redis.get(key.to_string()).await;
+        let result: Result<String, RedisError> =
+            application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
         let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();

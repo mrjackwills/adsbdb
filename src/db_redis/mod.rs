@@ -4,46 +4,69 @@ use crate::{
 };
 use fred::{
     clients::RedisPool,
-    interfaces::{ClientLike, KeysInterface},
-    types::{Expiration, ReconnectPolicy},
+    interfaces::{ClientLike, HashesInterface, KeysInterface},
+    types::{FromRedis, ReconnectPolicy},
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fmt, net::IpAddr};
+use std::{collections::HashMap, fmt, net::IpAddr};
 pub mod ratelimit;
 
 const ONE_WEEK_AS_SEC: i64 = 60 * 60 * 24 * 7;
+const HASH_FIELD: &str = "data";
+
+/// Macro to convert a stringified struct back into the struct
+#[macro_export]
+macro_rules! redis_hash_to_struct {
+    ($struct_name:ident) => {
+        impl fred::types::FromRedis for $struct_name {
+            fn from_value(
+                value: fred::prelude::RedisValue,
+            ) -> Result<Self, fred::prelude::RedisError> {
+                value.as_str().map_or(
+                    Err(fred::error::RedisError::new(
+                        fred::error::RedisErrorKind::Parse,
+                        format!("FromRedis: {}", stringify!(struct_name)),
+                    )),
+                    |i| {
+                        serde_json::from_str::<Self>(&i).map_err(|_| {
+                            fred::error::RedisError::new(
+                                fred::error::RedisErrorKind::Parse,
+                                "serde",
+                            )
+                        })
+                    },
+                )
+            }
+        }
+    };
+}
 
 /// Insert an Option<model> into cache, using redis hashset
-pub async fn insert_cache<'a, T: Serialize + Send + Sync + fmt::Debug>(
+pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
     redis: &RedisPool,
     to_insert: &Option<T>,
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-    let serialized = match to_insert {
-        Some(value) => serde_json::to_string(value)?,
-        None => String::new(),
-    };
-
+    let serialized = to_insert.as_ref().map_or_else(String::new, |i| {
+        serde_json::to_string(&i).unwrap_or_default()
+    });
     redis
-        .set(
-            &key,
-            serialized,
-            Some(Expiration::EX(ONE_WEEK_AS_SEC)),
-            None,
-            false,
-        )
+        .hset(&key, HashMap::from([(HASH_FIELD, serialized)]))
         .await?;
-    Ok(())
+    Ok(redis.expire(&key, ONE_WEEK_AS_SEC).await?)
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<'a, T: DeserializeOwned + Send + fmt::Debug>(
+pub async fn get_cache<'a, T: DeserializeOwned + Send + FromRedis>(
     redis: &RedisPool,
     key: &RedisKey<'a>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
-    if let Some(value) = redis.get::<Option<String>, &str>(&key).await? {
+    if let Some(value) = redis
+        .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
+        .await?
+    {
         redis.expire(&key, ONE_WEEK_AS_SEC).await?;
         if value.is_empty() {
             return Ok(Some(None));

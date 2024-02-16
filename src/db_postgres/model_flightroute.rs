@@ -3,6 +3,7 @@ use sqlx::PgPool;
 
 use crate::{
     api::{AppError, Callsign},
+    redis_hash_to_struct,
     scraper::ScrapedFlightroute,
 };
 
@@ -59,6 +60,7 @@ pub struct ModelFlightroute {
     pub destination_airport_municipality: String,
     pub destination_airport_name: String,
 }
+redis_hash_to_struct!(ModelFlightroute);
 
 impl ModelFlightroute {
     /// Query a flightroute based on a callsign with is a valid N-Number

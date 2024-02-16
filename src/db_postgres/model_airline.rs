@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-use crate::api::{AirlineCode, AppError, Callsign};
+use crate::{
+    api::{AirlineCode, AppError, Callsign},
+    redis_hash_to_struct,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAirline {
@@ -13,6 +16,8 @@ pub struct ModelAirline {
     pub icao_prefix: String,
     pub airline_callsign: Option<String>,
 }
+
+redis_hash_to_struct!(ModelAirline);
 
 impl ModelAirline {
     pub async fn get_by_icao_callsign(
@@ -119,6 +124,8 @@ ORDER BY
 mod tests {
     use super::*;
     use crate::api::tests::test_setup;
+
+    // http://127.0.0.1:8282/v0/airline/sa
 
     #[tokio::test]
     async fn model_airline_get_icao_iata_none() {
