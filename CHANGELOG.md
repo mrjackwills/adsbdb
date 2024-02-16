@@ -1,3 +1,11 @@
+### Chores
++ dependencies updated, [07b38338c9223f9a6fe379dc0d946724b95cdf16]
++ create_release v0.5.5, [4711e65788641d926f241bc217154a74539d96ee]
+
+### Features
++ store cache in redis hash, [5b60a49d052af71000eac01e3b1f0acab000b43d]
++ display package name & version at application start, [b421f1e8ef502197c31d66ab332fd44036461edc]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.2.8'>v0.2.8</a>
 ### 2024-02-09
 
