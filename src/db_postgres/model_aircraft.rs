@@ -3,6 +3,7 @@ use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use crate::{
     api::{AircraftSearch, AppError},
+    redis_hash_to_struct,
     scraper::PhotoData,
 };
 
@@ -23,6 +24,8 @@ pub struct ModelAircraft {
     pub url_photo: Option<String>,
     pub url_photo_thumbnail: Option<String>,
 }
+
+redis_hash_to_struct!(ModelAircraft);
 
 /// Used in transaction of inserting a new photo
 #[derive(sqlx::FromRow, Debug, Clone, Copy)]

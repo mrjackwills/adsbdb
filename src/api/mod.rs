@@ -186,7 +186,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Resul
         );
 
     let addr = get_addr(&app_env)?;
-	info!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    info!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     info!("starting server @ {addr}{prefix}");
 
     match axum::serve(
