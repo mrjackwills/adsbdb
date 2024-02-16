@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# rust create_release
-# v0.5.2
+# rust create_release v0.5.5
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -34,12 +33,22 @@ user_input() {
 	echo "$data"
 }
 
+# ask continue, or quit
+ask_continue() {
+	ask_yn "continue"
+	if [[ ! "$(user_input)" =~ ^y$ ]]; then
+		exit
+	fi
+}
+
+# semver major update
 update_major() {
 	local bumped_major
 	bumped_major=$((MAJOR + 1))
 	echo "${bumped_major}.0.0"
 }
 
+# semver minor update
 update_minor() {
 	local bumped_minor
 	bumped_minor=$((MINOR + 1))
@@ -47,6 +56,7 @@ update_minor() {
 	echo "${MAJOR}.${bumped_minor}.0"
 }
 
+# semver patch update
 update_patch() {
 	local bumped_patch
 	bumped_patch=$((PATCH + 1))
@@ -113,6 +123,7 @@ update_release_body_and_changelog() {
 	sed -i -r -E "s=closes \#([0-9]+)=closes [#\1](${GIT_REPO_URL}/issues/\1)=g" ./CHANGELOG.md
 }
 
+# Use the new semver version to update various files
 update_version_number_in_files() {
 	# update version in cargo.toml, to match selected current version
 	sed -i "s|^version = .*|version = \"${MAJOR}.${MINOR}.${PATCH}\"|" Cargo.toml
@@ -181,14 +192,6 @@ check_tag() {
 	done
 }
 
-# ask continue, or quit
-ask_continue() {
-	ask_yn "continue"
-	if [[ ! "$(user_input)" =~ ^y$ ]]; then
-		exit
-	fi
-}
-
 # run all tests
 cargo_test() {
 	cargo test -- --test-threads=1
@@ -213,18 +216,20 @@ check_allow_unused() {
 	matches_any=$(find . -type d \( -name .git -o -name target \) -prune -o -type f -exec grep -lE '^#!\[allow\(unused\)\]$' {} +)
 	matches_cargo=$(grep "^unused = \"allow\"" ./Cargo.toml)
 	if [ -n "$matches_any" ]; then
-		error_close "\"#[allow(unused)]\" in ${matches_any}"
+		echo "\"#[allow(unused)]\" in ${matches_any}"
+		ask_continue
 	elif [ -n "$matches_cargo" ]; then
-		error_close "\"unused = \"allow\"\" in Cargo.toml"
+		echo "\"unused = \"allow\"\" in Cargo.toml"
+		ask_continue
 	fi
 }
 
-# need to deal with sqlx issues via the .env
+# Comment out the .env file, for cross-rs sqlx issues
 remove_db_env() {
 	sed -i 's/^DATABASE_URL=/#DATABASE_URL=/' .env
 }
 
-# need to deal with sqlx issues via the .env
+# Uncomment out the .env file, for cross-rs sqlx issues
 add_db_env() {
 	sed -i 's/^#DATABASE_URL=/DATABASE_URL=/' .env
 }
@@ -234,6 +239,75 @@ sqlx_prepare() {
 	echo -e "\n${YELLOW}cargo sqlx prepare${RESET}"
 	cargo sqlx prepare
 	ask_continue
+}
+
+# Check to see if cross is installed - if not then install
+check_cross() {
+	if ! [ -x "$(command -v cross)" ]; then
+		echo -e "${YELLOW}cargo install cross${RESET}"
+		cargo install cross
+	fi
+}
+
+# build for x86, assume we're running on x86
+cargo_build_x86() {
+	remove_db_env
+	echo -e "${YELLOW}cargo build --release${RESET}"
+	cargo build --release
+	add_db_env
+}
+
+# cross build for arm64
+cargo_build_aarch64() {
+	remove_db_env
+	check_cross
+	echo -e "${YELLOW}cross build --target aarch64-unknown-linux-gnu --release${RESET}"
+	cross build --target aarch64-unknown-linux-gnu --release
+	add_db_env
+}
+
+# Build all releases that GitHub workflow would
+# This will download GB's of docker images
+cargo_build_all() {
+	cargo_build_x86
+	ask_continue
+	cargo_build_aarch64
+	ask_continue
+}
+
+# Select architectures to build for
+build_choice() {
+	cmd=(dialog --backtitle "Choose option" --radiolist "choose" 14 80 16)
+	options=(
+		1 "x86" off
+		2 "aarch64" off
+		5 "all" off
+	)
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
+	exitStatus=$?
+	clear
+	if [ $exitStatus -ne 0 ]; then
+		exit
+	fi
+	for choice in $choices; do
+		case $choice in
+		0)
+			exit
+			;;
+		1)
+			cargo_build_x86
+			exit
+			;;
+		2)
+			cargo_build_aarch64
+			exit
+			;;
+		5)
+			cargo_build_all
+			exit
+			;;
+		esac
+	done
 }
 
 # Full flow to create a new release
@@ -305,65 +379,7 @@ release_flow() {
 	git branch -d "$RELEASE_BRANCH"
 }
 
-cargo_build_x86() {
-	remove_db_env
-	echo -e "${YELLOW}cargo build --release${RESET}"
-	cargo build --release
-	add_db_env
-}
-
-cargo_build_aarch64() {
-	remove_db_env
-	echo -e "${YELLOW}cross build --target aarch64-unknown-linux-gnu --release${RESET}"
-	cross build --target aarch64-unknown-linux-gnu --release
-	add_db_env
-
-}
-
-# Build all releases that GitHub workflow would
-# This will download GB's of docker images
-cargo_build_all() {
-	cargo install cross
-	cargo_build_x86
-	ask_continue
-	cargo_build_aarch64
-	ask_continue
-}
-
-build_choice() {
-	cmd=(dialog --backtitle "Choose option" --radiolist "choose" 14 80 16)
-	options=(
-		1 "x86" off
-		2 "aarch64" off
-		5 "all" off
-	)
-	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
-	exitStatus=$?
-	clear
-	if [ $exitStatus -ne 0 ]; then
-		exit
-	fi
-	for choice in $choices; do
-		case $choice in
-		0)
-			exit
-			;;
-		1)
-			cargo_build_x86
-			exit
-			;;
-		2)
-			cargo_build_aarch64
-			exit
-			;;
-		5)
-			cargo_build_all
-			exit
-			;;
-		esac
-	done
-}
-
+# the main event
 main() {
 	cmd=(dialog --backtitle "Choose option" --radiolist "choose" 14 80 16)
 	options=(
