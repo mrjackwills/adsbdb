@@ -318,6 +318,8 @@ release_flow() {
 	check_git
 	get_git_remote_url
 
+	sqlx_prepare
+	
 	cargo_test
 	cargo_build_all
 
@@ -343,7 +345,7 @@ release_flow() {
 	echo -e "\n${PURPLE}cargo check${RESET}"
 	cargo check
 
-	sqlx_prepare
+	
 
 	release_continue "git add ."
 	git add .
