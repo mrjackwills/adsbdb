@@ -3,6 +3,7 @@ use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use crate::{
     api::{AircraftSearch, AppError},
+    redis_hash_to_struct,
     scraper::PhotoData,
 };
 
@@ -24,6 +25,8 @@ pub struct ModelAircraft {
     pub url_photo_thumbnail: Option<String>,
 }
 
+redis_hash_to_struct!(ModelAircraft);
+
 /// Used in transaction of inserting a new photo
 #[derive(sqlx::FromRow, Debug, Clone, Copy)]
 struct AircraftPhoto {
@@ -37,31 +40,46 @@ impl ModelAircraft {
         aircraft_search: &AircraftSearch,
         photo_prefix: &str,
     ) -> Result<Option<Self>, AppError> {
-        Ok(sqlx::query_as!(Self,r#"
+        Ok(sqlx::query_as!(
+            Self,
+            r#"
 SELECT
-    aa.aircraft_id,
-    $1 AS "mode_s!: _",
-    ar.registration,
-    aro.registered_owner,
-    aof.operator_flag_code AS registered_owner_operator_flag_code,
-    co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
-    am.manufacturer,
-    at.type AS aircraft_type,
-    ait.icao_type,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+	aa.aircraft_id,
+	$1 AS "mode_s!: _",
+	ar.registration,
+	aro.registered_owner,
+	aof.operator_flag_code AS registered_owner_operator_flag_code,
+	co.country_name AS registered_owner_country_name,
+	co.country_iso_name AS registered_owner_country_iso_name,
+	am.manufacturer,
+	at.type AS aircraft_type,
+	ait.icao_type,
+	CASE
+		WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)
+		ELSE NULL
+	END AS url_photo,
+	CASE
+		WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo)
+		ELSE NULL
+	END AS url_photo_thumbnail
 FROM
-    aircraft aa
-LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
-LEFT JOIN country co USING(country_id)
-LEFT JOIN aircraft_type at USING(aircraft_type_id)
-LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
-LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
-LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
-LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
-LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
-WHERE ams.mode_s = $1"#, aircraft_search.to_string(), photo_prefix).fetch_optional(db).await?)
+	aircraft aa
+	LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+	LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
+	LEFT JOIN country co USING(country_id)
+	LEFT JOIN aircraft_type at USING(aircraft_type_id)
+	LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+	LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+	LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+	LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
+	LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
+WHERE
+	ams.mode_s = $1"#,
+            aircraft_search.to_string(),
+            photo_prefix
+        )
+        .fetch_optional(db)
+        .await?)
     }
 
     /// Search for an aircraft by registration
@@ -70,32 +88,46 @@ WHERE ams.mode_s = $1"#, aircraft_search.to_string(), photo_prefix).fetch_option
         aircraft_search: &AircraftSearch,
         photo_prefix: &str,
     ) -> Result<Option<Self>, AppError> {
-        Ok(sqlx::query_as!(Self,r#"
+        Ok(sqlx::query_as!(
+            Self,
+            r#"
 SELECT
-    aa.aircraft_id,
-    ams.mode_s,
-    $1 AS "registration!: _",
-    aro.registered_owner,
-    aof.operator_flag_code AS registered_owner_operator_flag_code,
-    co.country_name AS registered_owner_country_name, co.country_iso_name AS registered_owner_country_iso_name,
-    am.manufacturer,
-    at.type AS aircraft_type,
-    ait.icao_type,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo) ELSE NULL END AS url_photo,
-    CASE WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo) ELSE NULL END AS url_photo_thumbnail
+	aa.aircraft_id,
+	ams.mode_s,
+	$1 AS "registration!: _",
+	aro.registered_owner,
+	aof.operator_flag_code AS registered_owner_operator_flag_code,
+	co.country_name AS registered_owner_country_name,
+	co.country_iso_name AS registered_owner_country_iso_name,
+	am.manufacturer,
+	at.type AS aircraft_type,
+	ait.icao_type,
+	CASE
+		WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)
+		ELSE NULL
+	END AS url_photo,
+	CASE
+		WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo)
+		ELSE NULL
+	END AS url_photo_thumbnail
 FROM
-    aircraft aa
-LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
-LEFT JOIN country co USING(country_id)
-LEFT JOIN aircraft_type at USING(aircraft_type_id)
-LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
-LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
-LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
-LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
-LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
+	aircraft aa
+	LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+	LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
+	LEFT JOIN country co USING(country_id)
+	LEFT JOIN aircraft_type at USING(aircraft_type_id)
+	LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+	LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+	LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+	LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
+	LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
-    ar.registration = $1"#, aircraft_search.to_string(), photo_prefix).fetch_optional(db).await?)
+	ar.registration = $1"#,
+            aircraft_search.to_string(),
+            photo_prefix
+        )
+        .fetch_optional(db)
+        .await?)
     }
 
     pub async fn get(
@@ -129,19 +161,22 @@ WHERE
     ) -> Result<(), AppError> {
         let aircraft_photo = sqlx::query_as!(
             AircraftPhoto,
-            "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id",
+            "
+INSERT INTO
+	aircraft_photo(url_photo)
+VALUES
+	($1) RETURNING aircraft_photo_id",
             photo.image
         )
         .fetch_one(&mut **transaction)
         .await?;
         sqlx::query!(
-            r#"
-UPDATE
+            "UPDATE
     aircraft
 SET
     aircraft_photo_id = $1
 WHERE
-aircraft_id = $2"#,
+	aircraft_id = $2",
             aircraft_photo.aircraft_photo_id,
             self.aircraft_id
         )

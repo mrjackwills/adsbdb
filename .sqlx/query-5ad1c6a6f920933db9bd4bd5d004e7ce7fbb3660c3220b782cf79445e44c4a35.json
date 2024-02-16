@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO aircraft_photo(url_photo) VALUES($1) RETURNING aircraft_photo_id",
+  "query": "\nSELECT\n\tflightroute_callsign_inner_id AS id\nFROM\n\tflightroute_callsign_inner\nWHERE\n\tcallsign = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "aircraft_photo_id",
+        "name": "id",
         "type_info": "Int8"
       }
     ],
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "35771612af2459d64b765ccde9470b5893d8254d269d4fec6ebc4bd5cdfc3867"
+  "hash": "5ad1c6a6f920933db9bd4bd5d004e7ce7fbb3660c3220b782cf79445e44c4a35"
 }
