@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT flightroute_callsign_inner_id AS id FROM flightroute_callsign_inner WHERE callsign = $1",
+  "query": "\nSELECT\n\tflightroute_callsign_inner_id AS id\nFROM\n\tflightroute_callsign_inner\nWHERE callsign = $1",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "e65359405d39d05909b12fbea318988a47e7f03a29d482505526301cd8fa3cf9"
+  "hash": "2b3ab42ec8e0494d14a81f22ec89564113aaac868d8d42cb7cf050ff837f2596"
 }

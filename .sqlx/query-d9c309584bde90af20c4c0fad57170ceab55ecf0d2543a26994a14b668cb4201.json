@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id) VALUES($1, $2, $3) RETURNING flightroute_callsign_id AS id",
+  "query": "\nINSERT INTO\n\tflightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id)\nVALUES\n\t($1, $2, $3) RETURNING flightroute_callsign_id AS id",
   "describe": {
     "columns": [
       {
@@ -20,5 +20,5 @@
       false
     ]
   },
-  "hash": "0b0ae1eb5f552df321d808b1c5ebf3b5a9a836eaa1525ee7a25088d927bbc3e6"
+  "hash": "d9c309584bde90af20c4c0fad57170ceab55ecf0d2543a26994a14b668cb4201"
 }
