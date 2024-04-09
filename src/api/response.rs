@@ -33,7 +33,7 @@ pub struct ResponseAircraft {
     pub registration: String,
     pub registered_owner_country_iso_name: String,
     pub registered_owner_country_name: String,
-    pub registered_owner_operator_flag_code: String,
+    pub registered_owner_operator_flag_code: Option<String>,
     pub registered_owner: String,
     pub url_photo: Option<String>,
     pub url_photo_thumbnail: Option<String>,

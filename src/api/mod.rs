@@ -537,7 +537,7 @@ pub mod tests {
     #[tokio::test]
     async fn http_mod_get_aircraft() {
         start_server().await;
-        let mode_s = "A6D27B";
+        let mode_s = "4CABD2";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}",
             get_api_version(),
@@ -552,15 +552,50 @@ pub mod tests {
         assert!(result.get("flightroute").is_none());
         let result = result.get("aircraft").unwrap();
 
-        assert_eq!(result["icao_type"], "CRJ7");
-        assert_eq!(result["manufacturer"], "Bombardier");
+        assert_eq!(result["icao_type"], "A21N");
+        assert_eq!(result["manufacturer"], "Airbus");
         assert_eq!(result["mode_s"], mode_s);
-        assert_eq!(result["registration"], "N539GJ");
-        assert_eq!(result["registered_owner"], "United Express");
-        assert_eq!(result["registered_owner_country_iso_name"], "US");
-        assert_eq!(result["registered_owner_country_name"], "United States");
-        assert_eq!(result["registered_owner_operator_flag_code"], "GJS");
-        assert_eq!(result["type"], "CRJ 700 702");
+        assert_eq!(result["registration"], "EI-LRF");
+        assert_eq!(result["registered_owner"], "Aer Lingus");
+        assert_eq!(result["registered_owner_country_iso_name"], "IE");
+        assert_eq!(result["registered_owner_country_name"], "Ireland");
+        assert_eq!(result["registered_owner_operator_flag_code"], "EIN");
+        assert_eq!(result["type"], "A321 253NXSL");
+        assert_eq!(result["url_photo"].to_string(), "null");
+        assert_eq!(result["url_photo_thumbnail"].to_string(), "null");
+    }
+
+    #[tokio::test]
+    // search via registration when theres no flag
+    async fn http_mod_get_aircraft_registration() {
+        start_server().await;
+        let registration = "G-HMGE";
+        let url = format!(
+            "http://127.0.0.1:8282{}/aircraft/{}",
+            get_api_version(),
+            registration
+        );
+        let resp = reqwest::get(url).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        assert!(result.get("flightroute").is_none());
+        let result = result.get("aircraft").unwrap();
+
+        assert_eq!(result["icao_type"], "DA62");
+        assert_eq!(result["manufacturer"], "Diamond");
+        assert_eq!(result["mode_s"], "407ED9");
+        assert_eq!(result["registration"], registration);
+        assert_eq!(result["registered_owner"], "AMPA LTD");
+        assert_eq!(result["registered_owner_country_iso_name"], "GB");
+        assert_eq!(result["registered_owner_country_name"], "United Kingdom");
+        assert_eq!(
+            result["registered_owner_operator_flag_code"].to_string(),
+            "null"
+        );
+        assert_eq!(result["type"], "DA 62");
         assert_eq!(result["url_photo"].to_string(), "null");
         assert_eq!(result["url_photo_thumbnail"].to_string(), "null");
     }
