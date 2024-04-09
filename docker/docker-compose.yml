@@ -1,4 +1,4 @@
-version: "3.8"
+
 networks:
   adsbdb-net:
     name: adsbdb-net

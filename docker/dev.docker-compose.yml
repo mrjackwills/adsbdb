@@ -1,4 +1,3 @@
-version: "3.9"
 networks:
   dev-adsbdb-net:
     name: dev-adsbdb-net
@@ -129,7 +128,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
     healthcheck:
       test: ["CMD", "/healthcheck/health_api.sh"]
       interval: 30s
