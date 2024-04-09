@@ -1,6 +1,11 @@
 // Only allow when debugging
 // #![allow(unused)]
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 mod api;
 mod db_postgres;
 mod db_redis;
