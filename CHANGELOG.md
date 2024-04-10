@@ -4,6 +4,7 @@
 
 ### Features
 + use mimalloc, [f3eef71e4a9d960f6328ca9a840a3aec9abbcc1f]
++ website updated, [a84bc0221ffafa1993de41c4b87e3f1adbe349bf]
 
 ### Fixes
 + site html typo, [ed01451803bce87014ba41540853884570154660]
