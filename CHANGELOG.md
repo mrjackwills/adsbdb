@@ -1,14 +1,17 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.0'>v0.3.0</a>
+### 2024-04-10
+
 ### Chores
-+ docker-compose version removed, [cb3f8ece38daa8fff6b8f1fb7004f104f2cd920a]
-+ dependencies updated, [40421977e9804241806721e53cabe96b777d5a09]
++ docker-compose version removed, [cb3f8ece](https://github.com/mrjackwills/adsbdb/commit/cb3f8ece38daa8fff6b8f1fb7004f104f2cd920a)
++ dependencies updated, [40421977](https://github.com/mrjackwills/adsbdb/commit/40421977e9804241806721e53cabe96b777d5a09)
 
 ### Features
-+ use mimalloc, [f3eef71e4a9d960f6328ca9a840a3aec9abbcc1f]
-+ website updated, [a84bc0221ffafa1993de41c4b87e3f1adbe349bf]
++ use mimalloc, [f3eef71e](https://github.com/mrjackwills/adsbdb/commit/f3eef71e4a9d960f6328ca9a840a3aec9abbcc1f)
++ website updated, [a84bc022](https://github.com/mrjackwills/adsbdb/commit/a84bc0221ffafa1993de41c4b87e3f1adbe349bf)
 
 ### Fixes
-+ site html typo, [ed01451803bce87014ba41540853884570154660]
-+ *Breaking Change* `registered_owner_operator_flag_code` is now an `Option<String>`, this was necessary due to the new data insertions as detailed below, [55da40f831ddeeab1fa1ebb9c1d9afd918fffd00]
++ site html typo, [ed014518](https://github.com/mrjackwills/adsbdb/commit/ed01451803bce87014ba41540853884570154660)
++ *Breaking Change* `registered_owner_operator_flag_code` is now an `Option<String>`, this was necessary due to the new data insertions as detailed below, [55da40f8](https://github.com/mrjackwills/adsbdb/commit/55da40f831ddeeab1fa1ebb9c1d9afd918fffd00)
 
 **New Aircraft**
 
