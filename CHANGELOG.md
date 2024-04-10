@@ -17,13 +17,11 @@ The number of aircraft that adsbdb contains has been expanded from 191872 to 414
 
 The vast majority of this data comes from the publish Civil Aircraft Registries of the respective countries. However not all data from these registries is included, either due to missing data fields, or in the case of mainly the American and Canadian registries, typos – far too many typos to try to correct. 
 
-If you are aware of more open aircraft registries, please let me know via the [GitHub issues](https://github.com/mrjackwills/adsbdb/issues) page
-
 **Flight route & other data**
 
 The flight routes coverage has also been improved, from 171907 to 250892, an increase of 78985. To supplement this, 381 airlines and 25 airports have also been inserted.
 
-Due to the size of the update, it is highly likely that some errors snuck in, so please feel free to report any to the [GitHub Issues](https://github.com/mrjackwills/adsbdb/issues) page.
+If you are aware of any more aircraft registries available for download, or find any errors that will have undoubtedly snuck in, please feel free to report them to the [GitHub Issues](https://github.com/mrjackwills/adsbdb/issues) page
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.2.9'>v0.2.9</a>
 ### 2024-02-16
