@@ -51,10 +51,10 @@
 			"registration": string,
 			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
-			"registered_owner_operator_flag_code": string,
+			"registered_owner_operator_flag_code": string || null,
 			"registered_owner": string,
-			"url_photo":string || null,
-			"url_photo_thumbnail":string || null
+			"url_photo": string || null,
+			"url_photo_thumbnail": string || null
 		}
 	}
 }
@@ -152,10 +152,10 @@ Unknown callsign return status 404 with
 			"registration": string,
 			"registered_owner_country_iso_name": string,
 			"registered_owner_country_name": string,
-			"registered_owner_operator_flag_code": string,
+			"registered_owner_operator_flag_code": string || null,
 			"registered_owner": string,
-			"url_photo":string || null,
-			"url_photo_thumbnail":string || null
+			"url_photo": string || null,
+			"url_photo_thumbnail": string || null
 		},
 
 		"flightroute":{
