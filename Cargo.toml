@@ -26,7 +26,7 @@ doc_markdown = "allow"
 [dependencies]
 axum = "0.7"
 dotenvy = "0.15"
-fred = {version = "8.0"}
+fred = {version = "9.0"}
 http-body = "1.0"
 mimalloc = "0.1"
 once_cell = "1.19"
