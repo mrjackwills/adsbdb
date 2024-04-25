@@ -239,8 +239,8 @@ pub mod tests {
     use crate::db_redis;
     use crate::parse_env;
 
+    use fred::interfaces::ClientLike;
     use fred::interfaces::KeysInterface;
-    use fred::interfaces::ServerInterface;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
