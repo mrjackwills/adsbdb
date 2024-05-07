@@ -224,9 +224,9 @@ mod tests {
 
     use axum::http::Uri;
     use fred::error::RedisError;
+    use fred::interfaces::ClientLike;
     use fred::interfaces::HashesInterface;
     use fred::interfaces::KeysInterface;
-    use fred::interfaces::ServerInterface;
     use tokio::sync::Mutex;
 
     use crate::api::input::Validate;

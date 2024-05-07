@@ -23,7 +23,10 @@ impl RateLimit {
         if let Some(count) = redis.get::<Option<u64>, &str>(&self.key).await? {
             redis.incr(&self.key).await?;
             if count >= UPPER_LIMIT {
-                tracing::info!("{} - {count}", self.key);
+                // Only show the count if is multiple of the upper limit
+                if count % UPPER_LIMIT == 0 {
+                    tracing::info!("{} - {count}", self.key);
+                }
                 redis.expire(&self.key, ONE_MINUTE * 5).await?;
             }
             if count > LOWER_LIMIT {

@@ -368,7 +368,7 @@ mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, Registration, Validate};
     use crate::{db_postgres, db_redis, sleep};
-    use fred::interfaces::ServerInterface;
+    use fred::interfaces::ClientLike;
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
 
