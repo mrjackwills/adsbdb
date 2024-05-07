@@ -1,29 +1,14 @@
-### 2024-04-10
+### 2024-05-07
 
 ### Chores
-+ docker-compose version removed, [cb3f8ece38daa8fff6b8f1fb7004f104f2cd920a]
-+ dependencies updated, [40421977e9804241806721e53cabe96b777d5a09]
-
-### Features
-+ use mimalloc, [f3eef71e4a9d960f6328ca9a840a3aec9abbcc1f]
-+ website updated, [a84bc0221ffafa1993de41c4b87e3f1adbe349bf]
++ dependencies updated, [31c7a498cd0468340ffc387b77cff06f5953c0bf], [83f819b9cd751ffd20039b2e58a912b1e6c6b96e], [da394df9908a1dc124cb228de14111ad4c9a851b], [f0f604d6f418eaca2fdeefddd38ce2c3c9a7473a]
++ .devcontainer use Ubuntu, [cbbd5540409141f12759d0ae95e474a635f42073]
 
 ### Fixes
-+ site html typo, [ed01451803bce87014ba41540853884570154660]
-+ *Breaking Change* `registered_owner_operator_flag_code` is now an `Option<String>`, this was necessary due to the new data insertions as detailed below, [55da40f831ddeeab1fa1ebb9c1d9afd918fffd00]
++ only print ratelimit details if % UPPER_LIMIT, [8d51bbe73026fac1a234e5d3a57015d2eae990a5]
++ site random callsign fix, [838f9a94a7d3bdf34ff42eda4f2a0211d20f79e1]
 
-**New Aircraft**
-
-The number of aircraft that adsbdb contains has been expanded from 191872 to 414002, an increase of 222130. This can be broken down by country of origin to;
-
-17 Switzerland, 25 Netherlands, 31 Singapore, 55 Isle of Man, 227 Ireland, 265 France, 840 China, 12335 Australia, 14388 United Kingdom, 18011 Canada, and 173358 United States of America. There is also an insertion of 2578 from miscellaneous sources.
-
-The vast majority of this data comes from the publish Civil Aircraft Registries of the respective countries. However not all data from these registries is included, either due to missing data fields, or in the case of mainly the American and Canadian registries, typos – far too many typos to try to correct. 
-
-**Flight route & other data**
-
-The flight routes coverage has also been improved, from 171907 to 250892, an increase of 78985. To supplement this, 381 airlines and 25 airports have also been inserted.
-
-If you are aware of any more aircraft registries available for download, or find any errors that will have undoubtedly snuck in, please feel free to report them to the [GitHub Issues](https://github.com/mrjackwills/adsbdb/issues) page
+### Tests
++ dependency change for redis method, [7d67aaba6093a0eda1ac34562776f51decea8756]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
