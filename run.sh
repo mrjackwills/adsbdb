@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# v0.2.0
+# 2024-06-03
+# v0.3.0
 
 APP_NAME='adsbdb'
 
@@ -11,6 +12,15 @@ RESET='\033[0m'
 
 PRO=production
 DEV=dev
+
+# Get the directory of the script
+APP_DIR=$(dirname "$(readlink -f "$0")")
+
+# Check if the directory is empty
+if [ -z "$(ls -A "$APP_DIR")" ]; then
+	error_close "The \$APP_DIR directory is empty."
+fi
+
 
 if ! [ -x "$(command -v dialog)" ]; then
 	error_close "dialog is not installed"
@@ -40,20 +50,16 @@ check_variable() {
 	fi
 }
 
-check_variable "$APP_NAME" "\$APP_NAME"
-
 set_base_dir() {
-	local workspace="/workspaces"
+	local workspace="/workspaces/$APP_NAME"
 	if [[ -d "$workspace" ]]; then
 		BASE_DIR="${workspace}"
 	else
 		BASE_DIR=$HOME
 	fi
 }
-
 set_base_dir
 
-APP_DIR="${BASE_DIR}/${APP_NAME}"
 DOCKER_DIR="${APP_DIR}/docker"
 
 # Containers
@@ -63,32 +69,29 @@ BASE_CONTAINERS=("${APP_NAME}_postgres" "${APP_NAME}_redis")
 ALL=("${BASE_CONTAINERS[@]}" "${API}" "${BACKUP_CONTAINER}")
 TO_RUN=("${BASE_CONTAINERS[@]}")
 
-make_db_data() {
-	cd "${BASE_DIR}" || error_close "${BASE_DIR} doesn't exist"
-	local pg_data="${BASE_DIR}/databases/${APP_NAME}/pg_data"
-	local redis_data="${BASE_DIR}/databases/${APP_NAME}/redis_data"
-	local backups="${BASE_DIR}/databases/${APP_NAME}/backups"
-
+# Make directories for database data
+make_db_data_directories() {
+	local pg_data="${BASE_DIR}/databases.d/${APP_NAME}/pg_data"
+	local redis_data="${BASE_DIR}/databases.d/${APP_NAME}/redis_data"
+	local backups="${BASE_DIR}/databases.d/${APP_NAME}/backups"
 	for DIRECTORY in $pg_data $redis_data $backups; do
 		if [[ ! -d "$DIRECTORY" ]]; then
+			echo -e "${GREEN}making directory:${RESET} \"$DIRECTORY\""
 			mkdir -p "$DIRECTORY"
 		fi
 	done
-	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-
 }
 
 make_logs_directories() {
-	cd "${BASE_DIR}" || error_close "${BASE_DIR} doesn't exist"
-	local logs_dir="${BASE_DIR}/logs/${APP_NAME}"
+	local logs_dir="$BASE_DIR/logs.d/${APP_NAME}"
 	if [[ ! -d "$logs_dir" ]]; then
+		echo -e "${GREEN}making directory:${RESET} \"$logs_dir\""
 		mkdir -p "$logs_dir"
 	fi
-	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 }
 
 make_all_directories() {
-	make_db_data
+	make_db_data_directories
 	make_logs_directories
 }
 
