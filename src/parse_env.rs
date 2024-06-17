@@ -15,7 +15,6 @@ pub struct AppEnv {
     pub allow_scrape_photo: Option<()>,
     pub api_host: String,
     pub api_port: u16,
-    pub domain: String,
     pub location_logs: String,
     pub log_level: tracing::Level,
     pub pg_database: String,
@@ -30,7 +29,6 @@ pub struct AppEnv {
     pub url_aircraft_photo: String,
     pub url_callsign: String,
     pub url_photo_prefix: String,
-    pub www_domain: String,
 }
 
 impl AppEnv {
@@ -88,7 +86,6 @@ impl AppEnv {
         Ok(Self {
             api_host: Self::parse_string("API_HOST", &env_map)?,
             api_port: Self::parse_number("API_PORT", &env_map)?,
-            domain: Self::parse_string("API_HOST", &env_map)?,
             location_logs: Self::parse_string("LOCATION_LOGS", &env_map)?,
             log_level: Self::parse_log(&env_map),
             pg_database: Self::parse_string("PG_DATABASE", &env_map)?,
@@ -105,7 +102,6 @@ impl AppEnv {
             url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &env_map)?,
             url_photo_prefix: Self::parse_string("URL_PHOTO_PREFIX", &env_map)?,
             url_callsign: Self::parse_string("URL_CALLSIGN", &env_map)?,
-            www_domain: Self::parse_string("WWW_DOMAIN", &env_map)?,
         })
     }
 

@@ -247,7 +247,7 @@ pub mod tests {
     use tokio::task::JoinHandle;
 
     pub struct TestSetup {
-        pub handle: Option<JoinHandle<()>>,
+        pub _handle: Option<JoinHandle<()>>,
         pub app_env: AppEnv,
         pub postgres: PgPool,
         pub redis: RedisPool,
@@ -260,7 +260,7 @@ pub mod tests {
         let redis = db_redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
         TestSetup {
-            handle: None,
+            _handle: None,
             app_env,
             postgres,
             redis,
@@ -291,7 +291,7 @@ pub mod tests {
         // just sleep to make sure the server is running - 1ms is enough
         sleep!(1);
         TestSetup {
-            handle: Some(handle),
+            _handle: Some(handle),
             app_env: setup.app_env,
             postgres: setup.postgres,
             redis: setup.redis,
