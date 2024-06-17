@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[tokio::test]
-	#[allow(unreachable_code)]
+    #[allow(unreachable_code)]
     // WARNING - this will test against a live, third party, website
     async fn scraper_extract_flightroute_live() {
         unimplemented!("`scraper_extract_flightroute_live` test currently disabled");
