@@ -50,16 +50,6 @@ check_variable() {
 	fi
 }
 
-set_base_dir() {
-	local workspace="/workspaces/$APP_NAME"
-	if [[ -d "$workspace" ]]; then
-		BASE_DIR="${workspace}"
-	else
-		BASE_DIR=$HOME
-	fi
-}
-set_base_dir
-
 DOCKER_DIR="${APP_DIR}/docker"
 
 # Containers
