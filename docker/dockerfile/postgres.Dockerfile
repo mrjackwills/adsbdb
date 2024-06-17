@@ -1,4 +1,4 @@
-FROM postgres:16-alpine3.19
+FROM postgres:16-alpine3.20
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
@@ -12,13 +12,14 @@ RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
 	&& chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /healthcheck /init /backups /logs
 
 # From dump OR scratch
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/postgres_init.sh /docker-entrypoint-initdb.d/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/postgres_init.sh /docker-entrypoint-initdb.d/
+
 # This is a bit of a hack, for pg_dump.tar
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/init_db.sql docker/data/pg_dump.tar* /init/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/init_db.sql ./docker/data/pg_dump.tar* /init/
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/confs/.psqlrc /home/app_user/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/confs/.psqlrc /home/app_user/
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_postgres.sh /healthcheck/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/healthcheck/health_postgres.sh /healthcheck/
 
 RUN chmod +x /healthcheck/health_postgres.sh /docker-entrypoint-initdb.d/postgres_init.sh
 

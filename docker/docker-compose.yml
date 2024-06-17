@@ -4,12 +4,12 @@ networks:
     name: adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.3.1
+    image: adsbdb_postgres:0.3.2
     container_name: adsbdb_postgres
     build:
-      context: $HOME/adsbdb/
-      dockerfile: $HOME/adsbdb/docker/dockerfile/postgres.Dockerfile
-    env_file: $HOME/adsbdb/docker/env/.postgres.env
+      context: $HOME/adsbdb.d/
+      dockerfile: $HOME/adsbdb.d/docker/dockerfile/postgres.Dockerfile
+    env_file: $HOME/adsbdb.d/docker/env/.postgres.env
     cap_drop:
       - all
     security_opt:
@@ -18,7 +18,7 @@ services:
     restart: always
     shm_size: 512MB
     volumes:
-      - $HOME/databases/adsbdb/pg_data:/pg_data
+      - $HOME/databases.d/adsbdb/pg_data:/pg_data
     command: -p 5433
     networks:
       - adsbdb-net
@@ -33,21 +33,21 @@ services:
       timeout: 20s
       retries: 3
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.3.1
+    image: adsbdb_postgres_backup:0.3.2
     container_name: adsbdb_postgres_backup
     build:
-      context: $HOME/adsbdb/
-      dockerfile: $HOME/adsbdb/docker/dockerfile/postgres_backup.Dockerfile
-    env_file: $HOME/adsbdb/docker/env/.postgres_backup.env
+      context: $HOME/adsbdb.d/
+      dockerfile: $HOME/adsbdb.d/docker/dockerfile/postgres_backup.Dockerfile
+    env_file: $HOME/adsbdb.d/docker/env/.postgres_backup.env
     cap_drop:
       - all
     security_opt:
       - no-new-privileges
     ipc: private
     volumes:
-      - $HOME/databases/adsbdb/backups:/backups
-      - $HOME/databases/adsbdb/redis_data:/redis_data:ro
-      - $HOME/logs/adsbdb:/logs:ro
+      - $HOME/databases.d/adsbdb/backups:/backups
+      - $HOME/databases.d/adsbdb/redis_data:/redis_data:ro
+      - $HOME/logs.d/adsbdb:/logs:ro
     networks:
       - adsbdb-net
     logging:
@@ -59,15 +59,15 @@ services:
         condition: service_healthy
     restart: 'no'
   adsbdb_redis:
-    image: adsbdb_redis:0.3.1
+    image: adsbdb_redis:0.3.2
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
-      context: $HOME/adsbdb/
-      dockerfile: $HOME/adsbdb/docker/dockerfile/redis.Dockerfile
-    env_file: $HOME/adsbdb/docker/env/.redis.env
+      context: $HOME/adsbdb.d/
+      dockerfile: $HOME/adsbdb.d/docker/dockerfile/redis.Dockerfile
+    env_file: $HOME/adsbdb.d/docker/env/.redis.env
     volumes:
-      - $HOME/databases/adsbdb/redis_data:/redis_data
+      - $HOME/databases.d/adsbdb/redis_data:/redis_data
     cap_drop:
       - all
     security_opt:
@@ -90,15 +90,15 @@ services:
         limits:
           memory: 128M
   adsbdb_api:
-    image: adsbdb_api:0.3.1
+    image: adsbdb_api:0.3.2
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
-      context: $HOME/adsbdb/
-      dockerfile: $HOME/adsbdb/docker/dockerfile/api.Dockerfile
+      context: $HOME/adsbdb.d/
+      dockerfile: $HOME/adsbdb.d/docker/dockerfile/api.Dockerfile
     volumes:
-      - $HOME/logs/adsbdb:/logs
-      - $HOME/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
+      - $HOME/logs.d/adsbdb:/logs
+      - $HOME/adsbdb.d/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8282:8282"
     cap_drop:

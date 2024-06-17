@@ -491,31 +491,32 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(unreachable_code)]
     // WARNING - this will test against a live, third party, website
     async fn scraper_extract_flightroute_live() {
         unimplemented!("`scraper_extract_flightroute_live` test currently disabled");
 
-        // let setup = test_setup().await;
+        let setup = test_setup().await;
 
-        // let url = format!("{}/{TEST_CALLSIGN}", setup.0.url_callsign);
-        // let html = Scraper::client_get(url)
-        //     .await
-        //     .unwrap()
-        //     .text()
-        //     .await
-        //     .unwrap();
+        let url = format!("{}/{TEST_CALLSIGN}", setup.0.url_callsign);
+        let html = Scraper::client_get(url)
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
 
-        // let result = Scraper::extract_flightroute(&html);
-        // let expected = ScrapedFlightroute {
-        //     callsign_icao: Callsign::Icao(("ANA".to_owned(), "460".to_owned())),
-        //     callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
-        //     origin: TEST_ORIGIN.to_owned(),
-        //     destination: TEST_DESTINATION.to_owned(),
-        // };
+        let result = Scraper::extract_flightroute(&html);
+        let expected = ScrapedFlightroute {
+            callsign_icao: Callsign::Icao(("ANA".to_owned(), "460".to_owned())),
+            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+            origin: TEST_ORIGIN.to_owned(),
+            destination: TEST_DESTINATION.to_owned(),
+        };
 
-        // assert!(result.is_some());
-        // assert_eq!(result.unwrap(), expected);
-        // remove_scraped_data(&setup.1).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), expected);
+        remove_scraped_data(&setup.1).await;
     }
 
     #[tokio::test]

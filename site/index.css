@@ -1,3 +1,20 @@
 .masto{
 	display: none;
 }
+
+.mr{
+	margin-right: 8px;
+}
+
+.ta{
+	text-align: center;
+}
+
+.da{
+	display: flex;
+	align-items: center;
+}
+
+.hd{
+	display: hidden
+}
