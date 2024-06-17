@@ -17,7 +17,7 @@ create_adsbdb_database() {
 
 # Create db from .sql file, requires other data (*.csv etc) to read to build
 bootstrap_from_sql_file() {
-	psql -U "${POSTGRES_USER}" -d postgres -f /init/init_db.sql
+	psql -U "${POSTGRES_USER}" -d "${POSTGRES_USER}" -f /init/init_db.sql
 }
 
 # restore a db from a pg_dump file
