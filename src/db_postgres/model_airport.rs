@@ -18,12 +18,12 @@ impl ModelAirport {
             Self,
             "
 SELECT
-	airport_id
+    airport_id
 FROM
-	airport
-	LEFT JOIN airport_icao_code ar USING (airport_icao_code_id)
+    airport
+    LEFT JOIN airport_icao_code ar USING (airport_icao_code_id)
 WHERE
-	ar.icao_code = $1",
+    ar.icao_code = $1",
             airport_icao
         )
         .fetch_optional(db)

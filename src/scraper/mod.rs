@@ -401,12 +401,12 @@ mod tests {
 
             let query = r#"
         UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_photo_id = (
-			SELECT
-			ap.aircraft_photo_id
+            SELECT
+            ap.aircraft_photo_id
             FROM
-			aircraft_photo ap
+            aircraft_photo ap
             WHERE
-			ap.url_photo = '001/001/example.jpg'
+            ap.url_photo = '001/001/example.jpg'
         )"#;
 
             sqlx::query(query)

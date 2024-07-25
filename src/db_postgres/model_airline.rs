@@ -29,18 +29,18 @@ impl ModelAirline {
                 Self,
                 "
 SELECT
-	co.country_name,
-	co.country_iso_name,
-	ai.airline_id,
-	ai.airline_callsign,
-	ai.airline_name,
-	ai.iata_prefix,
-	ai.icao_prefix
+    co.country_name,
+    co.country_iso_name,
+    ai.airline_id,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix,
+    ai.icao_prefix
 FROM
-	airline ai
-	LEFT JOIN country co USING(country_id)
+    airline ai
+    LEFT JOIN country co USING(country_id)
 WHERE
-	icao_prefix = $1",
+    icao_prefix = $1",
                 x.0
             )
             .fetch_optional(db)
@@ -58,20 +58,20 @@ WHERE
             Self,
             "
 SELECT
-	co.country_name,
-	co.country_iso_name,
-	ai.airline_id,
-	ai.airline_callsign,
-	ai.airline_name,
-	ai.iata_prefix,
-	ai.icao_prefix
+    co.country_name,
+    co.country_iso_name,
+    ai.airline_id,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix,
+    ai.icao_prefix
 FROM
-	airline ai
-	LEFT JOIN country co USING(country_id)
+    airline ai
+    LEFT JOIN country co USING(country_id)
 WHERE
-	iata_prefix = $1
+    iata_prefix = $1
 ORDER BY
-	ai.airline_name",
+    ai.airline_name",
             prefix
         )
         .fetch_all(db)
@@ -92,20 +92,20 @@ ORDER BY
             Self,
             "
 SELECT
-	co.country_name,
-	co.country_iso_name,
-	ai.airline_id,
-	ai.airline_callsign,
-	ai.airline_name,
-	ai.iata_prefix,
-	ai.icao_prefix
+    co.country_name,
+    co.country_iso_name,
+    ai.airline_id,
+    ai.airline_callsign,
+    ai.airline_name,
+    ai.iata_prefix,
+    ai.icao_prefix
 FROM
-	airline ai
-	LEFT JOIN country co USING(country_id)
+    airline ai
+    LEFT JOIN country co USING(country_id)
 WHERE
-	icao_prefix = $1
+    icao_prefix = $1
 ORDER BY
-	ai.airline_name",
+    ai.airline_name",
             prefix
         )
         .fetch_all(db)
