@@ -172,7 +172,8 @@ RETURNING
         )
         .fetch_one(&mut **transaction)
         .await?;
-        sqlx::query!("
+        sqlx::query!(
+            "
 UPDATE
     aircraft
 SET

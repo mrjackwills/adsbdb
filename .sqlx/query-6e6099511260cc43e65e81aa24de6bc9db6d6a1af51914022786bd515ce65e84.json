@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nSELECT\n\taa.aircraft_id,\n\t$1 AS \"mode_s!: _\",\n\tar.registration,\n\taro.registered_owner,\n\taof.operator_flag_code AS \"registered_owner_operator_flag_code?\",\n\tco.country_name AS registered_owner_country_name,\n\tco.country_iso_name AS registered_owner_country_iso_name,\n\tam.manufacturer,\n\tat.type AS aircraft_type,\n\tait.icao_type,\n\tCASE\n\t\tWHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)\n\t\tELSE NULL\n\tEND AS url_photo,\n\tCASE\n\t\tWHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo)\n\t\tELSE NULL\n\tEND AS url_photo_thumbnail\nFROM\n\taircraft aa\n\tLEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)\n\tLEFT JOIN aircraft_registration ar USING(aircraft_registration_id)\n\tLEFT JOIN country co USING(country_id)\n\tLEFT JOIN aircraft_type at USING(aircraft_type_id)\n\tLEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)\n\tLEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)\n\tLEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)\n\tLEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)\n\tLEFT JOIN aircraft_photo ap USING(aircraft_photo_id)\nWHERE\n\tams.mode_s = $1",
+  "query": "\nSELECT\n    aa.aircraft_id,\n    $1 AS \"mode_s!: _\",\n    ar.registration,\n    aro.registered_owner,\n    aof.operator_flag_code AS \"registered_owner_operator_flag_code?\",\n    co.country_name AS registered_owner_country_name,\n    co.country_iso_name AS registered_owner_country_iso_name,\n    am.manufacturer,\n    at.type AS aircraft_type,\n    ait.icao_type,\n    CASE\n        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)\n        ELSE NULL\n    END AS url_photo,\n    CASE\n        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo)\n        ELSE NULL\n    END AS url_photo_thumbnail\nFROM\n    aircraft aa\n    LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)\n    LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)\n    LEFT JOIN country co USING(country_id)\n    LEFT JOIN aircraft_type at USING(aircraft_type_id)\n    LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)\n    LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)\n    LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)\n    LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)\n    LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)\nWHERE\n    ams.mode_s = $1",
   "describe": {
     "columns": [
       {
@@ -85,5 +85,5 @@
       null
     ]
   },
-  "hash": "4e75d51d157f6fede7e03ca2c730d984b99da5ce14cdb537509685a2cd87eb14"
+  "hash": "6e6099511260cc43e65e81aa24de6bc9db6d6a1af51914022786bd515ce65e84"
 }

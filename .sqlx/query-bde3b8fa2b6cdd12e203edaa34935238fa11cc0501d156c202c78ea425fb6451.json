@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nSELECT\n\tco.country_name,\n\tco.country_iso_name,\n\tai.airline_id,\n\tai.airline_callsign,\n\tai.airline_name,\n\tai.iata_prefix,\n\tai.icao_prefix\nFROM\n\tairline ai\n\tLEFT JOIN country co USING(country_id)\nWHERE\n\ticao_prefix = $1\nORDER BY\n\tai.airline_name",
+  "query": "\nSELECT\n    co.country_name,\n    co.country_iso_name,\n    ai.airline_id,\n    ai.airline_callsign,\n    ai.airline_name,\n    ai.iata_prefix,\n    ai.icao_prefix\nFROM\n    airline ai\n    LEFT JOIN country co USING(country_id)\nWHERE\n    iata_prefix = $1\nORDER BY\n    ai.airline_name",
   "describe": {
     "columns": [
       {
@@ -54,5 +54,5 @@
       false
     ]
   },
-  "hash": "842bf52ecba917ff71f16c3064cba3362da853db52dc07616c62c8919f2c9e4c"
+  "hash": "bde3b8fa2b6cdd12e203edaa34935238fa11cc0501d156c202c78ea425fb6451"
 }
