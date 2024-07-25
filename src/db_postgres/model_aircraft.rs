@@ -165,13 +165,15 @@ WHERE
 INSERT INTO
     aircraft_photo(url_photo)
 VALUES
-    ($1) RETURNING aircraft_photo_id",
+    ($1)
+RETURNING
+    aircraft_photo_id",
             photo.image
         )
         .fetch_one(&mut **transaction)
         .await?;
-        sqlx::query!(
-            "UPDATE
+        sqlx::query!("
+UPDATE
     aircraft
 SET
     aircraft_photo_id = $1

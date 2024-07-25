@@ -137,8 +137,6 @@ mod tests {
     use super::*;
     use crate::api::tests::test_setup;
 
-    // http://127.0.0.1:8282/v0/airline/sa
-
     #[tokio::test]
     async fn model_airline_get_icao_iata_none() {
         let test_setup = test_setup().await;

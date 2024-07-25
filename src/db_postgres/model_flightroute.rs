@@ -320,7 +320,10 @@ WHERE
 INSERT INTO
     flightroute_callsign_inner(callsign)
 VALUES
-    ($1) ON CONFLICT (callsign) DO NOTHING",
+    ($1)
+ON CONFLICT
+    (callsign)
+DO NOTHING",
                     scraped_flightroute.callsign_icao.get_suffix()
                 )
                 .execute(&mut *transaction)
@@ -331,7 +334,10 @@ VALUES
 INSERT INTO
     flightroute_callsign_inner(callsign)
 VALUES
-    ($1) ON CONFLICT (callsign) DO NOTHING",
+    ($1)
+ON CONFLICT
+    (callsign)
+DO NOTHING",
                     scraped_flightroute.callsign_iata.get_suffix()
                 )
                 .execute(&mut *transaction)
@@ -358,7 +364,8 @@ SELECT
     flightroute_callsign_inner_id AS id
 FROM
     flightroute_callsign_inner
-WHERE callsign = $1",
+WHERE
+    callsign = $1",
                     scraped_flightroute.callsign_iata.get_suffix()
                 )
                 .fetch_one(&mut *transaction)
@@ -370,7 +377,9 @@ WHERE callsign = $1",
 INSERT INTO
     flightroute_callsign(airline_id, iata_prefix_id, icao_prefix_id)
 VALUES
-    ($1, $2, $3) RETURNING flightroute_callsign_id AS id",
+    ($1, $2, $3)
+RETURNING
+    flightroute_callsign_id AS id",
                     airline_id.airline_id,
                     iata_prefix.id,
                     icao_prefix.id

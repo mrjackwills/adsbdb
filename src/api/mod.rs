@@ -113,7 +113,7 @@ fn get_api_version() -> String {
 }
 #[macro_export]
 macro_rules! define_routes {
-    ($enum_name:ident, $base_path:expr, $($variant:ident => $route:expr),*) => {
+    ($enum_name:ident, $($variant:ident => $route:expr),*) => {
         enum $enum_name {
             $($variant,)*
         }
@@ -123,7 +123,7 @@ macro_rules! define_routes {
                 let route_name = match self {
                     $(Self::$variant => $route,)*
                 };
-                format!("{}{}", $base_path, route_name)
+                format!("/{}", route_name)
             }
         }
     };
@@ -131,7 +131,6 @@ macro_rules! define_routes {
 
 define_routes!(
     Routes,
-    "/",
     Aircraft => "aircraft/:mode_s",
     Airline => "airline/:airline",
     Callsign => "callsign/:callsign",
