@@ -18,7 +18,7 @@ APP_DIR=$(dirname "$(readlink -f "$0")")
 
 # Check if the directory is empty
 if [ -z "$(ls -A "$APP_DIR")" ]; then
-	error_close "The \$APP_DIR directory is empty."
+	error_close "The ${APP_DIR} directory is empty."
 fi
 
 
@@ -49,6 +49,17 @@ check_variable() {
 		error_close "Missing variable $2"
 	fi
 }
+
+set_base_dir() {
+	local workspace="/workspaces"
+	if [[ -d "$workspace" ]]; then
+		BASE_DIR="${workspace}"
+	else
+		BASE_DIR=$HOME
+	fi
+}
+
+set_base_dir
 
 DOCKER_DIR="${APP_DIR}/docker"
 

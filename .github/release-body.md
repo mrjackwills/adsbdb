@@ -1,16 +1,15 @@
-### 2024-06-17
+### 2024-07-25
 
 ### Chores
-+ docker alpine bump, [2d9901f3b1f15e87890eb178197073dbaf1f89b3]
-+ dependencies updated, [39fa04595f37d00a9f23b459544a3beafd944a19], [eb3f99404b487d5d494384b855afd4e9696795bd]
-+ run.sh updated, [73262ac4f2af37579182d2cb691093364573a25a]
++ dependencies updated, [9181e70e8f2675e427fddf0587119f5445baa59d]
++ .devcontainer updated, [057a49ce704d4168955fdcf9e2e65131669df741]
 
 ### Fixes
-+ sql init, [c6ed9767354c55d7fd83e57719be962689f4d267]
-+ change docker-compose directory locations, [8fa49f0594e3ef15e3b837f37ca8e09e26959241]
-+ move styles into index.css, [9a74305ad0730977566e1e085474e0ef9e37be0f]
++ connect to postgres using `new_without_pgpass()`, [78736e692de7d704d5424543b2c73f02ef20a1e3]
++ run.sh, [0a8c13ad672d085491f4bebe42751a1e260dd925]
 
 ### Refactors
-+ dead code removed, [f93fad8911b60555488f62b03f80cfdc14f43d1e], [8d0567da9da9a0c1df2be2c4d5b920bcfdd068cf]
++ dead code removed, [4062f4ae8a17ebd5e3d0c1b44ff203fbf7f7c09d]
++ switch from tabs to spaces in SQL queries, [fb85706230173c0081f8af35a9a89f0c9e931ee2]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details

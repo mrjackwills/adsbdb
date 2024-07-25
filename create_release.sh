@@ -345,8 +345,6 @@ release_flow() {
 	echo -e "\n${PURPLE}cargo check${RESET}"
 	cargo check
 
-	
-
 	release_continue "git add ."
 	git add .
 

@@ -14,7 +14,7 @@ pub use model_flightroute::ModelFlightroute;
 use crate::{api::AppError, parse_env::AppEnv};
 
 pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
-    let mut options = sqlx::postgres::PgConnectOptions::new()
+    let mut options = sqlx::postgres::PgConnectOptions::new_without_pgpass()
         .host(&app_env.pg_host)
         .port(app_env.pg_port)
         .database(&app_env.pg_database)
