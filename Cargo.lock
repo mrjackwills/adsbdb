@@ -26,7 +26,6 @@ dependencies = [
  "fred",
  "http-body",
  "mimalloc",
- "once_cell",
  "reqwest",
  "serde",
  "serde_json",
