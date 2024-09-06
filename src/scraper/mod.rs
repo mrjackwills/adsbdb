@@ -90,7 +90,7 @@ impl ScraperThreadMap {
 }
 
 #[derive(Debug, Clone)]
-#[expect(unused)]
+#[allow(dead_code)]
 pub struct Scraper {
     flight_scrape_url: String,
     allow_scrape_flightroute: Option<()>,

@@ -52,7 +52,7 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
         serde_json::to_string(&i).unwrap_or_default()
     });
     redis
-        .hset::<(),_,_>(&key, HashMap::from([(HASH_FIELD, serialized)]))
+        .hset::<(), _, _>(&key, HashMap::from([(HASH_FIELD, serialized)]))
         .await?;
     Ok(redis.expire(&key, ONE_WEEK_AS_SEC).await?)
 }
