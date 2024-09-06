@@ -90,7 +90,7 @@ impl ScraperThreadMap {
 }
 
 #[derive(Debug, Clone)]
-#[allow(unused)]
+#[expect(unused)]
 pub struct Scraper {
     flight_scrape_url: String,
     allow_scrape_flightroute: Option<()>,
@@ -130,7 +130,6 @@ impl Scraper {
 
     /// Build a reqwest client, with a default timeout, and compression enabled
     /// Then send a get request to the url given
-    #[allow(dead_code)]
     async fn client_get(url: String) -> Result<Response, AppError> {
         Ok(Client::builder()
             .connect_timeout(SCRAPE_TIMEOUT)
@@ -363,7 +362,7 @@ impl Scraper {
 ///
 /// cargo watch -q -c -w src/ -x 'test scraper_ '
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
+#[expect(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, Registration, Validate};
@@ -491,7 +490,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(unreachable_code)]
+    #[expect(unreachable_code)]
     // WARNING - this will test against a live, third party, website
     async fn scraper_extract_flightroute_live() {
         unimplemented!("`scraper_extract_flightroute_live` test currently disabled");

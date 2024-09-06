@@ -1,6 +1,3 @@
-// Only allow when debugging
-// #![allow(unused)]
-
 use mimalloc::MiMalloc;
 
 #[global_allocator]

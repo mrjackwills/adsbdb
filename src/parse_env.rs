@@ -133,7 +133,7 @@ impl AppEnv {
 ///
 /// cargo watch -q -c -w src/ -x 'test env_ -- --nocapture'
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
+#[expect(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn env_parse_scrape_allow() {
+    fn env_parse_scrape_expect() {
         let mut map = HashMap::new();
         map.insert("SCRAPE_PHOTO".to_owned(), "true".to_owned());
         map.insert("SCRAPE_FLIGHTROUTE".to_owned(), "true".to_owned());
