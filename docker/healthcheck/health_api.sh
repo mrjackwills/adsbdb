@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 main() {
 	port=$(grep "API_PORT" /app_env/.api.env | cut -c 10-13)
