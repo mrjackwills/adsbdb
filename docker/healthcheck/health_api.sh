@@ -1,11 +1,11 @@
 #!/bin/sh
 
 main() {
-	API_PORT=$(grep "API_PORT" /app_env/.api.env | cut -c 10-13)
-	URL="adsbdb_api:${API_PORT}/v0/online"
+	port=$(grep "API_PORT" /app_env/.api.env | cut -c 10-13)
+	url="adsbdb_api:${port}/v0/online"
 
 	# Make the request using wget and process the response
-	response=$(wget -S -O - --timeout=1 "$URL" 2>&1)
+	response=$(wget -S -O - --timeout=3 "$url" 2>&1)
 
 	# Extract the status code
 	status_code=$(echo "$response" | grep -oP 'HTTP/[0-9\.]+\s+\K[0-9]+')
