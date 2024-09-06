@@ -3,7 +3,7 @@ networks:
     name: dev-adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.3.3
+    image: adsbdb_postgres:0.3.4
     container_name: adsbdb_postgres
     build:
       context: /workspaces/adsbdb/
@@ -17,7 +17,7 @@ services:
     restart: always
     shm_size: 512MB
     volumes:
-      - /dev/shm/adsbdb/pg_data:/pg_data
+      - /ramdrive/adsbdb/pg_data:/pg_data
     command: -p 5433
     ports:
       - 127.0.0.1:5433:5433
@@ -39,7 +39,7 @@ services:
           memory: 512M
 
   adsbdb_redis:
-    image: adsbdb_redis:0.3.3
+    image: adsbdb_redis:0.3.4
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -47,7 +47,7 @@ services:
       dockerfile: /workspaces/adsbdb/docker/dockerfile/redis.Dockerfile
     env_file: /workspaces/adsbdb/docker/env/.redis.env
     volumes:
-      - /dev/shm/adsbdb/redis_data:/redis_data
+      - /ramdrive/adsbdb/redis_data:/redis_data
     cap_drop:
       - all
     security_opt:
@@ -72,7 +72,7 @@ services:
         limits:
           memory: 32MB
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.3.3
+    image: adsbdb_postgres_backup:0.3.4
     container_name: adsbdb_postgres_backup
     build:
       context: /workspaces/adsbdb/
@@ -84,9 +84,9 @@ services:
       - no-new-privileges
     ipc: private
     volumes:
-      - /dev/shm/adsbdb/backups:/backups
-      - /dev/shm/adsbdb/redis_data:/redis_data:ro
-      - /dev/shm/adsbdb/logs:/logs
+      - /ramdrive/adsbdb/backups:/backups
+      - /ramdrive/adsbdb/redis_data:/redis_data:ro
+      - /ramdrive/adsbdb/logs:/logs
     networks:
       - dev-adsbdb-net
     logging:
@@ -102,14 +102,14 @@ services:
         limits:
           memory: 32M
   adsbdb_api:
-    image: adsbdb_api:0.3.3
+    image: adsbdb_api:0.3.4
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
       context: /workspaces/adsbdb/
       dockerfile: /workspaces/adsbdb/docker/dockerfile/api.Dockerfile
     volumes:
-      - /dev/shm/adsbdb/logs:/logs
+      - /ramdrive/adsbdb/logs:/logs
       - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8282:8282"

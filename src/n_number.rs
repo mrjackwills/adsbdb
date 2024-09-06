@@ -5,10 +5,9 @@
 
 // Honestly don't truly understand what is happening in most of these functions
 // But it seems to work as expected, although probably inefficient
-use std::fmt;
+use std::{fmt, sync::LazyLock};
 
 use crate::api::{AppError, ModeS, NNumber, Validate};
-use once_cell::sync::Lazy;
 
 const ICAO_SIZE: usize = 6;
 
@@ -17,7 +16,7 @@ const ICAO_CHARSET: &str = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DIGITSET: &str = "0123456789";
 const CHARSET_LEN: usize = 24;
 
-pub static ALLCHARS: Lazy<String> = Lazy::new(|| format!("{ICAO_CHARSET}{DIGITSET}"));
+pub static ALLCHARS: LazyLock<String> = LazyLock::new(|| format!("{ICAO_CHARSET}{DIGITSET}"));
 
 const SUFFIX_SIZE: usize = 601;
 
@@ -272,7 +271,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::nursery, clippy::unwrap_used)]
+#[expect(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

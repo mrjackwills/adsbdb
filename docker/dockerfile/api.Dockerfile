@@ -2,7 +2,7 @@
 ## Builder ##
 #############
 
-FROM rust:slim as BUILDER
+FROM rust:slim AS builder
 
 WORKDIR /usr/src
 
@@ -34,7 +34,7 @@ RUN cargo build --release
 ## Runtime Ubuntu ##
 ####################
 
-FROM ubuntu:22.04 AS RUNTIME
+FROM ubuntu:22.04
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
@@ -58,7 +58,7 @@ RUN chmod +x /healthcheck/health_api.sh
 # Copy from host filesystem - used when debugging
 # COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} target/release/adsbdb /app
 
-COPY --from=BUILDER /usr/src/adsbdb/target/release/adsbdb /app/
+COPY --from=builder /usr/src/adsbdb/target/release/adsbdb /app/
 
 # Use an unprivileged user
 USER ${DOCKER_APP_USER}

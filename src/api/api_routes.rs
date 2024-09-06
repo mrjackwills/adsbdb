@@ -164,7 +164,6 @@ pub async fn callsign_get(
 }
 
 /// Route to convert N-Number to Mode_S
-#[allow(clippy::unused_async)]
 pub async fn n_number_get(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
@@ -175,7 +174,6 @@ pub async fn n_number_get(
 }
 
 /// Route to convert Mode_S to N-Number
-#[allow(clippy::unused_async)]
 pub async fn mode_s_get(
     mode_s: ModeS,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
@@ -186,7 +184,6 @@ pub async fn mode_s_get(
 }
 
 /// Return a simple online status response
-#[allow(clippy::unused_async)]
 pub async fn online_get(
     State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
@@ -200,7 +197,6 @@ pub async fn online_get(
 }
 
 /// return a unknown endpoint response
-#[allow(clippy::unused_async)]
 pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, AsJsonRes<String>) {
     (
         StatusCode::NOT_FOUND,
@@ -211,7 +207,7 @@ pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, As
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::pedantic,
     clippy::nursery,
     clippy::unwrap_used,

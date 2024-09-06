@@ -234,9 +234,7 @@ Unknown airline return status 404 with
 Convert from MODE-S string to N-Number string
 ```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
 ```json
-{
-	"response": string
-}
+{ "response": string }
 
 ```
 ---
@@ -244,9 +242,7 @@ Convert from MODE-S string to N-Number string
 Convert from N-Number string to Mode_S string
 ```https://api.adsbdb.com/v[semver.major]/n-number/[N-NUMBER]```
 ```json
-{
-	"response": string
-}
+{ "response": string }
 
 ```
 ---

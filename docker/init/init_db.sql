@@ -626,4 +626,4 @@ GRANT USAGE, SELECT ON SEQUENCE flightroute_callsign_flightroute_callsign_id_seq
 -- DROP TABLE temp_flightroute_callsign_data;
 -- echo "Insert complete" \ echo "Insert complete"
 
--- docker rm -f $(docker ps -aq);  docker image prune -a; rm -rf /dev/shm/adsbdb/pg_data/*
+-- docker rm -f $(docker ps -aq);  docker image prune -a; rm -rf /ramdrive/adsbdb/pg_data/*

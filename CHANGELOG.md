@@ -1,3 +1,23 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.4'>v0.3.4</a>
+### 2024-09-06
+
+### Chores
++ .devcontainer updated, [0cc17a6d](https://github.com/mrjackwills/adsbdb/commit/0cc17a6dd2b6bb8197a6c3a0c9987453b4297cf4), [5a466628](https://github.com/mrjackwills/adsbdb/commit/5a466628df116cd32283142fb9b2a8a3c962728d)
++ dependencies updated, [8d6bfeff](https://github.com/mrjackwills/adsbdb/commit/8d6bfeff68b538d63ab8dcb55172d28683f74e22), [81737cc4](https://github.com/mrjackwills/adsbdb/commit/81737cc45b659973077590cd3d237e078350431d)
++ use expect, instead of allow, for unused lint, [ff818d3e](https://github.com/mrjackwills/adsbdb/commit/ff818d3e3b4e8a8039f45d981decb1b1c1241d9b)
++ fred.rs never type return, [3338a6cc](https://github.com/mrjackwills/adsbdb/commit/3338a6cc0f65d30ea5539cf740f7038936b24485)
+
+### Docs
++ README.md updated, [2f0b0755](https://github.com/mrjackwills/adsbdb/commit/2f0b0755c961608e0d1f00e2e3bb47befa81e6ac)
+
+### Fixes
++ health_api.sh updated, [70af303a](https://github.com/mrjackwills/adsbdb/commit/70af303ab0eebb598fb7b361bd49fb241d15cc83)
++ Dockerfile commands change case, [ecaab209](https://github.com/mrjackwills/adsbdb/commit/ecaab2095f0d4314161b00cbba35eaa58ae0036e)
+
+### Refactors
++ replace OnceCell with std::sync::LazyLock, [94308fb3](https://github.com/mrjackwills/adsbdb/commit/94308fb383e68dfb1e47f2d1cdaa9d9d0e375ae9)
++ Healthchecks updated, [a852f6cb](https://github.com/mrjackwills/adsbdb/commit/a852f6cb51215aba4e8558d1d58df0270ba3ca38)
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.3'>v0.3.3</a>
 ### 2024-07-25
 
