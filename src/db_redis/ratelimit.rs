@@ -21,13 +21,13 @@ impl RateLimit {
     /// Check if request has been rate limited, always increases the current value of the given rate limit
     pub async fn check(&self, redis: &RedisPool) -> Result<(), AppError> {
         if let Some(count) = redis.get::<Option<u64>, &str>(&self.key).await? {
-            redis.incr(&self.key).await?;
+            redis.incr::<(), _>(&self.key).await?;
             if count >= UPPER_LIMIT {
                 // Only show the count if is multiple of the upper limit
                 if count % UPPER_LIMIT == 0 {
                     tracing::info!("{} - {count}", self.key);
                 }
-                redis.expire(&self.key, ONE_MINUTE * 5).await?;
+                let _: () =redis.expire(&self.key, ONE_MINUTE * 5).await?;
             }
             if count > LOWER_LIMIT {
                 return Err(AppError::RateLimited(
@@ -35,12 +35,12 @@ impl RateLimit {
                 ));
             }
             if count == LOWER_LIMIT {
-                redis.expire(&self.key, ONE_MINUTE).await?;
+				redis.expire::<i64, &String>(&self.key, ONE_MINUTE).await?;
                 return Err(AppError::RateLimited(ONE_MINUTE));
             }
         } else {
-            redis.incr(&self.key).await?;
-            redis.expire(&self.key, ONE_MINUTE).await?;
+			redis.incr::<(), _>(&self.key).await?;
+            redis.expire::<i64, &String>(&self.key, ONE_MINUTE).await?;
         }
         Ok(())
     }
