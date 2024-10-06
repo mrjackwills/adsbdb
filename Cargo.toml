@@ -7,6 +7,7 @@ description = "aircraft & flightroute api"
 repository = "https://github.com/mrjackwills/adsbdb"
 homepage = "https://www.adsbdb.com"
 license = "MIT"
+rust-version = "1.81.0"
 readme = "README.md"
 
 [lints.rust]
@@ -48,7 +49,7 @@ sqlx = { version = "0.8", features = [
 thiserror = "1.0"
 tokio = { version = "1.40", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
-tower-http = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
