@@ -254,7 +254,7 @@ impl Validate for Callsign {
 
 /// cargo watch -q -c -w src/ -x 'test mod_api_input -- --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -271,7 +271,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

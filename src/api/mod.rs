@@ -200,7 +200,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Resul
     }
 }
 
-#[expect(clippy::expect_used)]
+#[allow(clippy::expect_used)]
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
@@ -230,7 +230,7 @@ async fn shutdown_signal() {
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
     use super::*;
 

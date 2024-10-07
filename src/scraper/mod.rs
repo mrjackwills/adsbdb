@@ -362,7 +362,7 @@ impl Scraper {
 ///
 /// cargo watch -q -c -w src/ -x 'test scraper_ '
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, Registration, Validate};
@@ -490,7 +490,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[expect(unreachable_code)]
+    #[allow(unreachable_code)]
     // WARNING - this will test against a live, third party, website
     async fn scraper_extract_flightroute_live() {
         unimplemented!("`scraper_extract_flightroute_live` test currently disabled");

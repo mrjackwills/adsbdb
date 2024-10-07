@@ -193,7 +193,7 @@ WHERE
 //
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::{tests::test_setup, ModeS, Registration, Validate};
