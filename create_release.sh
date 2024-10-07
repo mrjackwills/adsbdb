@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# rust create_release v0.5.5
+# rust create_release v0.5.6
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
