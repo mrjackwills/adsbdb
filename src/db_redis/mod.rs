@@ -67,7 +67,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send + FromRedis>(
         .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
         .await?
     {
-        let _: () = redis.expire(&key, ONE_WEEK_AS_SEC).await?;
+        redis.expire::<(), &str>(&key, ONE_WEEK_AS_SEC).await?;
         if value.is_empty() {
             return Ok(Some(None));
         }
