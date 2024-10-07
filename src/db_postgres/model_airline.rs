@@ -132,7 +132,7 @@ ORDER BY
 //
 // cargo watch -q -c -w src/ -x 'test model_airline '
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::unwrap_used)]
+#[expect(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::api::tests::test_setup;

@@ -207,7 +207,7 @@ pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, As
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[allow(
+#[expect(
     clippy::pedantic,
     clippy::nursery,
     clippy::unwrap_used,
