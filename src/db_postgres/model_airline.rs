@@ -135,12 +135,12 @@ ORDER BY
 #[expect(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::api::tests::test_setup;
+    use crate::{api::tests::test_setup, S};
 
     #[tokio::test]
     async fn model_airline_get_icao_iata_none() {
         let test_setup = test_setup().await;
-        let callsign = &&Callsign::Iata(("EZ".to_owned(), "123".to_owned()));
+        let callsign = &&Callsign::Iata((S!("EZ"), S!("123")));
 
         let result = ModelAirline::get_by_icao_callsign(&test_setup.postgres, callsign).await;
 
@@ -152,7 +152,7 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_icao_unknown() {
         let test_setup = test_setup().await;
-        let callsign = &Callsign::Icao(("DDD".to_owned(), "123".to_owned()));
+        let callsign = &Callsign::Icao((S!("DDD"), S!("123")));
 
         let result = ModelAirline::get_by_icao_callsign(&test_setup.postgres, callsign).await;
 
@@ -164,7 +164,7 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_icao_ok() {
         let test_setup = test_setup().await;
-        let callsign = &Callsign::Icao(("EZY".to_owned(), "123".to_owned()));
+        let callsign = &Callsign::Icao((S!("EZY"), S!("123")));
 
         let result = ModelAirline::get_by_icao_callsign(&test_setup.postgres, callsign).await;
 
@@ -175,12 +175,12 @@ mod tests {
 
         let expected = ModelAirline {
             airline_id: result.airline_id,
-            airline_name: "easyJet".to_owned(),
-            country_name: "United Kingdom".to_owned(),
-            country_iso_name: "GB".to_owned(),
-            iata_prefix: Some("U2".to_owned()),
-            icao_prefix: "EZY".to_owned(),
-            airline_callsign: Some("EASY".to_owned()),
+            airline_name: S!("easyJet"),
+            country_name: S!("United Kingdom"),
+            country_iso_name: S!("GB"),
+            iata_prefix: Some(S!("U2")),
+            icao_prefix: S!("EZY"),
+            airline_callsign: Some(S!("EASY")),
         };
 
         assert_eq!(result, expected)
@@ -189,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_airlinecode_icao_none() {
         let test_setup = test_setup().await;
-        let airline_code = &AirlineCode::Icao("DDD".to_owned());
+        let airline_code = &AirlineCode::Icao(S!("DDD"));
 
         let result =
             ModelAirline::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
@@ -202,7 +202,7 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_airlinecode_icao_ok() {
         let test_setup = test_setup().await;
-        let airline_code = &AirlineCode::Icao("EZY".to_owned());
+        let airline_code = &AirlineCode::Icao(S!("EZY"));
 
         let result =
             ModelAirline::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
@@ -215,12 +215,12 @@ mod tests {
 
         let expected = [ModelAirline {
             airline_id: result[0].airline_id,
-            airline_name: "easyJet".to_owned(),
-            country_name: "United Kingdom".to_owned(),
-            country_iso_name: "GB".to_owned(),
-            iata_prefix: Some("U2".to_owned()),
-            icao_prefix: "EZY".to_owned(),
-            airline_callsign: Some("EASY".to_owned()),
+            airline_name: S!("easyJet"),
+            country_name: S!("United Kingdom"),
+            country_iso_name: S!("GB"),
+            iata_prefix: Some(S!("U2")),
+            icao_prefix: S!("EZY"),
+            airline_callsign: Some(S!("EASY")),
         }];
 
         assert_eq!(result, expected)
@@ -229,7 +229,7 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_airlinecode_iata_none() {
         let test_setup = test_setup().await;
-        let airline_code = &&AirlineCode::Iata("33".to_owned());
+        let airline_code = &&AirlineCode::Iata(S!("33"));
 
         let result =
             ModelAirline::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
@@ -242,7 +242,7 @@ mod tests {
     #[tokio::test]
     async fn model_airline_get_airlinecode_iata_ok() {
         let test_setup = test_setup().await;
-        let airline_code = &AirlineCode::Iata("ZY".to_owned());
+        let airline_code = &AirlineCode::Iata(S!("ZY"));
 
         let result =
             ModelAirline::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
@@ -256,21 +256,21 @@ mod tests {
         let expected = [
             ModelAirline {
                 airline_id: result[0].airline_id,
-                airline_name: "Ada Air".to_owned(),
-                country_name: "Albania".to_owned(),
-                country_iso_name: "AL".to_owned(),
-                iata_prefix: Some("ZY".to_owned()),
-                icao_prefix: "ADE".to_owned(),
-                airline_callsign: Some("ADA AIR".to_owned()),
+                airline_name: S!("Ada Air"),
+                country_name: S!("Albania"),
+                country_iso_name: S!("AL"),
+                iata_prefix: Some(S!("ZY")),
+                icao_prefix: S!("ADE"),
+                airline_callsign: Some(S!("ADA AIR")),
             },
             ModelAirline {
                 airline_id: result[1].airline_id,
-                airline_name: "Eznis Airways".to_owned(),
-                country_name: "Mongolia".to_owned(),
-                country_iso_name: "MN".to_owned(),
-                iata_prefix: Some("ZY".to_owned()),
-                icao_prefix: "EZA".to_owned(),
-                airline_callsign: Some("EZNIS".to_owned()),
+                airline_name: S!("Eznis Airways"),
+                country_name: S!("Mongolia"),
+                country_iso_name: S!("MN"),
+                iata_prefix: Some(S!("ZY")),
+                icao_prefix: S!("EZA"),
+                airline_callsign: Some(S!("EZNIS")),
             },
         ];
         assert_eq!(result, expected)

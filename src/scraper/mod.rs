@@ -271,13 +271,15 @@ impl Scraper {
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
     async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
+        use crate::S;
+
         sleep!(500);
         match aircraft.mode_s.as_str() {
             "393C00" => Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
                 data: Some([PhotoData {
-                    image: "001/001/example.jpg".to_owned(),
+                    image: S!("001/001/example.jpg"),
                 }]),
             }),
             _ => None,
@@ -366,7 +368,7 @@ impl Scraper {
 mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, Registration, Validate};
-    use crate::{db_postgres, db_redis, sleep};
+    use crate::{db_postgres, db_redis, sleep, S};
     use fred::interfaces::ClientLike;
     use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
@@ -448,17 +450,17 @@ mod tests {
     #[test]
     fn scraper_validate_icao_codes() {
         // Too long
-        let valid = String::from("AaBb12");
+        let valid = S!("AaBb12");
         let result = Scraper::validate_airport(&valid);
         assert!(result.is_none());
 
         // Too short
-        let valid = String::from("aa");
+        let valid = S!("aa");
         let result = Scraper::validate_airport(&valid);
         assert!(result.is_none());
 
         // Invalid char short
-        let valid = String::from("AAA*");
+        let valid = S!("AAA*");
         let result = Scraper::validate_airport(&valid);
         assert!(result.is_none());
 
@@ -479,8 +481,8 @@ mod tests {
         let result = Scraper::extract_flightroute(html_string);
 
         let expected = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "460".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+            callsign_icao: Callsign::Icao((S!("ANA"), S!("460"))),
+            callsign_iata: Callsign::Iata((S!("NH"), S!("460"))),
             origin: TEST_ORIGIN.to_owned(),
             destination: TEST_DESTINATION.to_owned(),
         };
@@ -507,8 +509,8 @@ mod tests {
 
         let result = Scraper::extract_flightroute(&html);
         let expected = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "460".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "460".to_owned())),
+            callsign_icao: Callsign::Icao((S!("ANA"), S!("460"))),
+            callsign_iata: Callsign::Iata((S!("NH"), S!("460"))),
             origin: TEST_ORIGIN.to_owned(),
             destination: TEST_DESTINATION.to_owned(),
         };
@@ -538,24 +540,24 @@ mod tests {
 
         let expected = ModelFlightroute {
             flightroute_id: result.flightroute_id,
-            callsign: "ANA460".to_owned(),
-            callsign_iata: Some("NH460".to_owned()),
-            callsign_icao: Some("ANA460".to_owned()),
-            airline_name: Some("All Nippon Airways".to_owned()),
-            airline_country_name: Some("Japan".to_owned()),
-            airline_country_iso_name: Some("JP".to_owned()),
-            airline_callsign: Some("ALL NIPPON".to_owned()),
-            airline_iata: Some("NH".to_owned()),
-            airline_icao: Some("ANA".to_owned()),
-            origin_airport_country_iso_name: "JP".to_owned(),
-            origin_airport_country_name: "Japan".to_owned(),
+            callsign: S!("ANA460"),
+            callsign_iata: Some(S!("NH460")),
+            callsign_icao: Some(S!("ANA460")),
+            airline_name: Some(S!("All Nippon Airways")),
+            airline_country_name: Some(S!("Japan")),
+            airline_country_iso_name: Some(S!("JP")),
+            airline_callsign: Some(S!("ALL NIPPON")),
+            airline_iata: Some(S!("NH")),
+            airline_icao: Some(S!("ANA")),
+            origin_airport_country_iso_name: S!("JP"),
+            origin_airport_country_name: S!("Japan"),
             origin_airport_elevation: 12,
-            origin_airport_iata_code: "OKA".to_owned(),
-            origin_airport_icao_code: "ROAH".to_owned(),
+            origin_airport_iata_code: S!("OKA"),
+            origin_airport_icao_code: S!("ROAH"),
             origin_airport_latitude: 26.195_801,
             origin_airport_longitude: 127.646_004,
-            origin_airport_municipality: "Naha".to_owned(),
-            origin_airport_name: "Naha Airport / JASDF Naha Air Base".to_owned(),
+            origin_airport_municipality: S!("Naha"),
+            origin_airport_name: S!("Naha Airport / JASDF Naha Air Base"),
             midpoint_airport_country_iso_name: None,
             midpoint_airport_country_name: None,
             midpoint_airport_elevation: None,
@@ -565,15 +567,15 @@ mod tests {
             midpoint_airport_longitude: None,
             midpoint_airport_municipality: None,
             midpoint_airport_name: None,
-            destination_airport_country_iso_name: "JP".to_owned(),
-            destination_airport_country_name: "Japan".to_owned(),
+            destination_airport_country_iso_name: S!("JP"),
+            destination_airport_country_name: S!("Japan"),
             destination_airport_elevation: 35,
-            destination_airport_iata_code: "HND".to_owned(),
-            destination_airport_icao_code: "RJTT".to_owned(),
+            destination_airport_iata_code: S!("HND"),
+            destination_airport_icao_code: S!("RJTT"),
             destination_airport_latitude: 35.552_299,
             destination_airport_longitude: 139.779_999,
-            destination_airport_municipality: "Tokyo".to_owned(),
-            destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
+            destination_airport_municipality: S!("Tokyo"),
+            destination_airport_name: S!("Tokyo Haneda International Airport"),
         };
         assert_eq!(result, expected);
         remove_scraped_data(&setup.1).await;
@@ -636,15 +638,15 @@ mod tests {
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "393C00".to_owned(),
-            registration: "N429AW".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
+            aircraft_type: S!("CRJ 200LR"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("393C00"),
+            registration: S!("N429AW"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -655,22 +657,22 @@ mod tests {
             status: 200,
             count: Some(1),
             data: Some([PhotoData {
-                image: "001/001/example.jpg".to_owned(),
+                image: S!("001/001/example.jpg"),
             }]),
         };
         assert_eq!(result.unwrap(), expected);
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "AAAAAA".to_owned(),
-            registration: "N429AW".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
+            aircraft_type: S!("CRJ 200LR"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("AAAAAA"),
+            registration: S!("N429AW"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -680,15 +682,15 @@ mod tests {
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "AAAAAB".to_owned(),
-            registration: "N429AW".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
+            aircraft_type: S!("CRJ 200LR"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("AAAAAB"),
+            registration: S!("N429AW"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -706,15 +708,15 @@ mod tests {
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "393C00".to_owned(),
-            registration: "N429AW".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
+            aircraft_type: S!("CRJ 200LR"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("393C00"),
+            registration: S!("N429AW"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
             url_photo: None,
             url_photo_thumbnail: None,
         };

@@ -415,7 +415,7 @@ VALUES
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crate::{db_postgres, parse_env::AppEnv};
+    use crate::{db_postgres, parse_env::AppEnv, S};
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -443,10 +443,10 @@ mod tests {
         let setup = setup().await;
 
         let scraped_flightroute = ScrapedFlightroute {
-            callsign_icao: Callsign::Icao(("ANA".to_owned(), "000".to_owned())),
-            callsign_iata: Callsign::Iata(("NH".to_owned(), "000".to_owned())),
-            origin: "ROAH".to_owned(),
-            destination: "RJTT".to_owned(),
+            callsign_icao: Callsign::Icao((S!("ANA"), S!("000"))),
+            callsign_iata: Callsign::Iata((S!("NH"), S!("000"))),
+            origin: S!("ROAH"),
+            destination: S!("RJTT"),
         };
 
         let result = ModelFlightroute::get(&setup.1, &scraped_flightroute.callsign_icao).await;
@@ -464,24 +464,24 @@ mod tests {
 
         let expected = ModelFlightroute {
             flightroute_id: result.flightroute_id,
-            callsign: "ANA000".to_owned(),
-            callsign_iata: Some("NH000".to_owned()),
-            callsign_icao: Some("ANA000".to_owned()),
-            airline_name: Some("All Nippon Airways".to_owned()),
-            airline_country_name: Some("Japan".to_owned()),
-            airline_country_iso_name: Some("JP".to_owned()),
-            airline_callsign: Some("ALL NIPPON".to_owned()),
-            airline_iata: Some("NH".to_owned()),
-            airline_icao: Some("ANA".to_owned()),
-            origin_airport_country_iso_name: "JP".to_owned(),
-            origin_airport_country_name: "Japan".to_owned(),
+            callsign: S!("ANA000"),
+            callsign_iata: Some(S!("NH000")),
+            callsign_icao: Some(S!("ANA000")),
+            airline_name: Some(S!("All Nippon Airways")),
+            airline_country_name: Some(S!("Japan")),
+            airline_country_iso_name: Some(S!("JP")),
+            airline_callsign: Some(S!("ALL NIPPON")),
+            airline_iata: Some(S!("NH")),
+            airline_icao: Some(S!("ANA")),
+            origin_airport_country_iso_name: S!("JP"),
+            origin_airport_country_name: S!("Japan"),
             origin_airport_elevation: 12,
-            origin_airport_iata_code: "OKA".to_owned(),
-            origin_airport_icao_code: "ROAH".to_owned(),
+            origin_airport_iata_code: S!("OKA"),
+            origin_airport_icao_code: S!("ROAH"),
             origin_airport_latitude: 26.195_801,
             origin_airport_longitude: 127.646_004,
-            origin_airport_municipality: "Naha".to_owned(),
-            origin_airport_name: "Naha Airport / JASDF Naha Air Base".to_owned(),
+            origin_airport_municipality: S!("Naha"),
+            origin_airport_name: S!("Naha Airport / JASDF Naha Air Base"),
             midpoint_airport_country_iso_name: None,
             midpoint_airport_country_name: None,
             midpoint_airport_elevation: None,
@@ -491,15 +491,15 @@ mod tests {
             midpoint_airport_longitude: None,
             midpoint_airport_municipality: None,
             midpoint_airport_name: None,
-            destination_airport_country_iso_name: "JP".to_owned(),
-            destination_airport_country_name: "Japan".to_owned(),
+            destination_airport_country_iso_name: S!("JP"),
+            destination_airport_country_name: S!("Japan"),
             destination_airport_elevation: 35,
-            destination_airport_iata_code: "HND".to_owned(),
-            destination_airport_icao_code: "RJTT".to_owned(),
+            destination_airport_iata_code: S!("HND"),
+            destination_airport_icao_code: S!("RJTT"),
             destination_airport_latitude: 35.552_299,
             destination_airport_longitude: 139.779_999,
-            destination_airport_municipality: "Tokyo".to_owned(),
-            destination_airport_name: "Tokyo Haneda International Airport".to_owned(),
+            destination_airport_municipality: S!("Tokyo"),
+            destination_airport_name: S!("Tokyo Haneda International Airport"),
         };
 
         assert_eq!(result, expected);

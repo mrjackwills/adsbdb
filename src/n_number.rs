@@ -7,7 +7,7 @@
 // But it seems to work as expected, although probably inefficient
 use std::{fmt, sync::LazyLock};
 
-use crate::api::{AppError, ModeS, NNumber, Validate};
+use crate::{api::{AppError, ModeS, NNumber, Validate}, S};
 
 const ICAO_SIZE: usize = 6;
 
@@ -164,7 +164,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     }
 
     // All N-Numbers start with 'N'
-    let mut output = String::from("N");
+    let mut output = S!("N");
     // remove the 'A' first char, and convert to hex
     let mut rem = usize::from_str_radix(&mode_s.to_string()[1..], 16)? - 1;
 

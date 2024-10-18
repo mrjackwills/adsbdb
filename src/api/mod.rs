@@ -27,7 +27,7 @@ mod response;
 use crate::{
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
-    scraper::{Scraper, ScraperThreadMap},
+    scraper::{Scraper, ScraperThreadMap}, S,
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
@@ -196,7 +196,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Resul
     .await
     {
         Ok(()) => Ok(()),
-        Err(_) => Err(AppError::Internal("api_server".to_owned())),
+        Err(_) => Err(AppError::Internal(S!("api_server"))),
     }
 }
 
@@ -305,7 +305,7 @@ pub mod tests {
     #[test]
     fn http_mod_get_api_version() {
         let prefix = get_api_version();
-        assert_eq!(prefix, "/v0".to_owned());
+        assert_eq!(prefix, S!("/v0"));
     }
 
     #[tokio::test]
@@ -377,7 +377,7 @@ pub mod tests {
         assert!(result.get("aircraft").is_none());
 
         assert_eq!(result["callsign"], callsign.to_uppercase());
-        assert_eq!(result["callsign_icao"], "ACA959".to_owned());
+        assert_eq!(result["callsign_icao"], S!("ACA959"));
         assert_eq!(result["callsign_iata"], callsign.to_uppercase());
         assert_eq!(result["origin"]["country_name"], "Canada");
         assert_eq!(result["origin"]["elevation"], 118);
