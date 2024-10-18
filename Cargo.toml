@@ -7,7 +7,7 @@ description = "aircraft & flightroute api"
 repository = "https://github.com/mrjackwills/adsbdb"
 homepage = "https://www.adsbdb.com"
 license = "MIT"
-rust-version = "1.81.0"
+rust-version = "1.82.0"
 readme = "README.md"
 
 [lints.rust]
