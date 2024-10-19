@@ -11,10 +11,13 @@ use super::response::{
     ResponseJson,
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
-use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 use crate::{
     db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
     db_redis::{get_cache, insert_cache, RedisKey},
+};
+use crate::{
+    n_number::{mode_s_to_n_number, n_number_to_mode_s},
+    S,
 };
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
@@ -169,7 +172,7 @@ pub async fn n_number_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         StatusCode::OK,
-        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
+        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(S!(), |f| f.to_string())),
     ))
 }
 
@@ -179,7 +182,7 @@ pub async fn mode_s_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         StatusCode::OK,
-        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
+        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(S!(), |f| f.to_string())),
     ))
 }
 

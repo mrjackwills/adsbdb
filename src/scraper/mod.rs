@@ -228,11 +228,13 @@ impl Scraper {
     #[cfg(test)]
     async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
         // artificial sleep, so can make sure things are in the hashmap
+
+        use crate::S;
         sleep!(500);
         if callsign.to_string() == "ANA460" {
             Ok(include_str!("./test_scrape.txt").to_owned())
         } else {
-            Ok(String::new())
+            Ok(S!())
         }
     }
 

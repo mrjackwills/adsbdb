@@ -93,7 +93,7 @@ impl Bucket {
 /// 1 -> 'A'
 fn get_suffix(offset: usize) -> Result<String, AppError> {
     if offset == 0 {
-        return Ok(String::new());
+        return Ok(S!());
     }
     let index = (offset - 1) / (CHARSET_LEN + 1);
 

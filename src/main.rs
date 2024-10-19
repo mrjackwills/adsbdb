@@ -14,9 +14,12 @@ use api::AppError;
 use parse_env::AppEnv;
 use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
 
-/// Simple macro to create a String from a &str, just gets rid of `.to_owned()`/ String::new() etc
+/// Simple macro to create an empty String, or create String from a &str - to get rid of .to_owned() / String::from() etc
 #[macro_export]
 macro_rules! S {
+    () => {
+        String::new()
+    };
     ($s:expr) => {
         String::from($s)
     };

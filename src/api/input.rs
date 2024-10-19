@@ -2,7 +2,10 @@ use std::fmt;
 
 use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 
-use crate::n_number::{n_number_to_mode_s, ALLCHARS};
+use crate::{
+    n_number::{n_number_to_mode_s, ALLCHARS},
+    S,
+};
 
 use super::AppError;
 
@@ -102,7 +105,7 @@ where
                 }
                 Err(AppError::AircraftSearch(value.0))
             }
-            Err(_) => Err(AppError::AircraftSearch(String::new())),
+            Err(_) => Err(AppError::AircraftSearch(S!())),
         }
     }
 }
@@ -141,7 +144,7 @@ macro_rules! from_request_parts {
             ) -> Result<Self, Self::Rejection> {
                 match axum::extract::Path::<String>::from_request_parts(parts, state).await {
                     Ok(value) => Ok(Self::validate(&value.0)?),
-                    Err(_) => Err(AppError::AircraftSearch(String::new())),
+                    Err(_) => Err(AppError::AircraftSearch(S!())),
                 }
             }
         }
