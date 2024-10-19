@@ -133,7 +133,7 @@ impl AppEnv {
 ///
 /// cargo watch -q -c -w src/ -x 'test env_ -- --nocapture'
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::S;
 
@@ -168,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn env_parse_scrape_expect() {
+    fn env_parse_scrape_allow() {
         let mut map = HashMap::new();
         map.insert(S!("SCRAPE_PHOTO"), S!("true"));
         map.insert(S!("SCRAPE_FLIGHTROUTE"), S!("true"));
@@ -271,10 +271,7 @@ mod tests {
 
         assert_eq!(result, tracing::Level::DEBUG);
 
-        let map = HashMap::from([
-            (S!("LOG_DEBUG"), S!("true")),
-            (S!("LOG_TRACE"), S!("true")),
-        ]);
+        let map = HashMap::from([(S!("LOG_DEBUG"), S!("true")), (S!("LOG_TRACE"), S!("true"))]);
 
         let result = AppEnv::parse_log(&map);
 

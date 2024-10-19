@@ -74,7 +74,7 @@ macro_rules! internal {
 }
 
 impl IntoResponse for AppError {
-    #[expect(clippy::cognitive_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
         let exit = || {
             error!("EXITING");

@@ -7,7 +7,10 @@
 // But it seems to work as expected, although probably inefficient
 use std::{fmt, sync::LazyLock};
 
-use crate::{api::{AppError, ModeS, NNumber, Validate}, S};
+use crate::{
+    api::{AppError, ModeS, NNumber, Validate},
+    S,
+};
 
 const ICAO_SIZE: usize = 6;
 
@@ -271,7 +274,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

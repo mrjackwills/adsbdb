@@ -193,10 +193,13 @@ WHERE
 //
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::{api::{tests::test_setup, ModeS, Registration, Validate}, S};
+    use crate::{
+        api::{tests::test_setup, ModeS, Registration, Validate},
+        S,
+    };
 
     #[tokio::test]
     async fn model_aircraft_photo_transaction_mode_s() {

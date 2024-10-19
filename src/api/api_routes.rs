@@ -207,7 +207,7 @@ pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, As
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[expect(
+#[allow(
     clippy::pedantic,
     clippy::nursery,
     clippy::unwrap_used,
@@ -983,23 +983,14 @@ mod tests {
             "Sydney Kingsford Smith International Airport"
         );
 
-        assert_eq!(
-            result.midpoint_airport_country_iso_name,
-            Some(S!("SG"))
-        );
-        assert_eq!(
-            result.midpoint_airport_country_name,
-            Some(S!("Singapore"))
-        );
+        assert_eq!(result.midpoint_airport_country_iso_name, Some(S!("SG")));
+        assert_eq!(result.midpoint_airport_country_name, Some(S!("Singapore")));
         assert_eq!(result.midpoint_airport_elevation, Some(22));
         assert_eq!(result.midpoint_airport_iata_code, Some(S!("SIN")));
         assert_eq!(result.midpoint_airport_icao_code, Some(S!("WSSS")));
         assert_eq!(result.midpoint_airport_latitude, Some(1.35019));
         assert_eq!(result.midpoint_airport_longitude, Some(103.994_003));
-        assert_eq!(
-            result.midpoint_airport_municipality,
-            Some(S!("Singapore"))
-        );
+        assert_eq!(result.midpoint_airport_municipality, Some(S!("Singapore")));
         assert_eq!(
             result.midpoint_airport_name,
             Some(S!("Singapore Changi Airport"))
@@ -1964,10 +1955,7 @@ mod tests {
         assert_eq!(result[0].country_iso_name, S!("MX"));
         assert_eq!(result[0].iata_prefix, Some(S!("JR")));
         assert_eq!(result[0].icao_prefix, S!("SER"));
-        assert_eq!(
-            result[0].airline_callsign,
-            Some(S!("AEROCALIFORNIA"))
-        );
+        assert_eq!(result[0].airline_callsign, Some(S!("AEROCALIFORNIA")));
 
         assert_eq!(result[1].airline_name, S!("Joy Air"));
         assert_eq!(result[1].country_name, S!("China"));

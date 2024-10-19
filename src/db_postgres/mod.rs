@@ -25,7 +25,6 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
         _ => options = options.disable_statement_logging(),
     }
 
-
     Ok(PgPoolOptions::new()
         .max_connections(32)
         .connect_with(options)
