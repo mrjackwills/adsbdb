@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# rust create_release v0.5.6
+# rust create_release v0.6.1
+# 2024-10-22
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -124,6 +125,10 @@ update_release_body_and_changelog() {
 	# Update changelog to add links to closed issues - comma included!
 	# "closes #1" -> "closes [#1](https:/www.../issues/1)"
 	sed -i -r -E "s=closes \#([0-9]+)=closes [#\1](${GIT_REPO_URL}/issues/\1)=g" ./CHANGELOG.md
+
+	# Update changelog to add links to merged PR's
+	# "merges #1" -> "merges [#1](https:/www.../pull/1)""
+	sed -i -r -E "s=merges \#([0-9]+)=merges [#\1](${GIT_REPO_URL}/pull/\1)=g" CHANGELOG.md
 }
 
 # Use the new semver version to update various files
@@ -261,7 +266,7 @@ cargo_build_x86() {
 }
 
 # cross build for arm64
-cargo_build_aarch64() {
+cross_build_aarch64() {
 	remove_db_env
 	check_cross
 	echo -e "${YELLOW}cross build --target aarch64-unknown-linux-gnu --release${RESET}"
@@ -274,7 +279,7 @@ cargo_build_aarch64() {
 cargo_build_all() {
 	cargo_build_x86
 	ask_continue
-	cargo_build_aarch64
+	cross_build_aarch64
 	ask_continue
 }
 
@@ -302,7 +307,7 @@ build_choice() {
 			exit
 			;;
 		2)
-			cargo_build_aarch64
+			cross_build_aarch64
 			exit
 			;;
 		5)
