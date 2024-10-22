@@ -125,7 +125,7 @@ macro_rules! from_request_parts {
             ) -> Result<Self, Self::Rejection> {
                 match axum::extract::Path::<String>::from_request_parts(parts, state).await {
                     Ok(value) => Ok(Self::validate(&value.0)?),
-                    Err(_) => Err(AppError::$variant(String::from("invalid"))),
+                    Err(_) => Err(AppError::$variant(S!("invalid"))),
                 }
             }
         }

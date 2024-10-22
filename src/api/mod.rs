@@ -144,10 +144,11 @@ define_routes!(
 /// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
     match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
-        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().first().map_or_else(
-            || Err(AppError::Internal(S!("No addr"))),
-            |addr| Ok(*addr),
-        ),
+        Ok(i) => i
+            .take(1)
+            .collect::<Vec<SocketAddr>>()
+            .first()
+            .map_or_else(|| Err(AppError::Internal(S!("No addr"))), |addr| Ok(*addr)),
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
 }
