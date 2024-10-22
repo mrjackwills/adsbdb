@@ -2,7 +2,10 @@ use std::fmt;
 
 use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 
-use crate::n_number::{n_number_to_mode_s, ALLCHARS};
+use crate::{
+    n_number::{n_number_to_mode_s, ALLCHARS},
+    S,
+};
 
 use super::AppError;
 
@@ -102,7 +105,7 @@ where
                 }
                 Err(AppError::AircraftSearch(value.0))
             }
-            Err(_) => Err(AppError::AircraftSearch(String::new())),
+            Err(_) => Err(AppError::AircraftSearch(S!())),
         }
     }
 }
@@ -122,7 +125,7 @@ macro_rules! from_request_parts {
             ) -> Result<Self, Self::Rejection> {
                 match axum::extract::Path::<String>::from_request_parts(parts, state).await {
                     Ok(value) => Ok(Self::validate(&value.0)?),
-                    Err(_) => Err(AppError::$variant(String::from("invalid"))),
+                    Err(_) => Err(AppError::$variant(S!("invalid"))),
                 }
             }
         }
@@ -141,7 +144,7 @@ macro_rules! from_request_parts {
             ) -> Result<Self, Self::Rejection> {
                 match axum::extract::Path::<String>::from_request_parts(parts, state).await {
                     Ok(value) => Ok(Self::validate(&value.0)?),
-                    Err(_) => Err(AppError::AircraftSearch(String::new())),
+                    Err(_) => Err(AppError::AircraftSearch(S!())),
                 }
             }
         }
@@ -254,7 +257,7 @@ impl Validate for Callsign {
 
 /// cargo watch -q -c -w src/ -x 'test mod_api_input -- --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

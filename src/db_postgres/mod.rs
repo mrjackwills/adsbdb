@@ -1,5 +1,4 @@
 use sqlx::{postgres::PgPoolOptions, ConnectOptions, PgPool};
-use std::time::Duration;
 
 mod model_aircraft;
 mod model_airline;
@@ -26,13 +25,8 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
         _ => options = options.disable_statement_logging(),
     }
 
-    let acquire_timeout = Duration::from_secs(5);
-    let idle_timeout = Duration::from_secs(30);
-
     Ok(PgPoolOptions::new()
         .max_connections(32)
-        .idle_timeout(idle_timeout)
-        .acquire_timeout(acquire_timeout)
         .connect_with(options)
         .await?)
 }

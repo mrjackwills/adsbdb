@@ -14,6 +14,17 @@ use api::AppError;
 use parse_env::AppEnv;
 use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
 
+/// Simple macro to create an empty String, or create String from a &str - to get rid of .to_owned() / String::from() etc
+#[macro_export]
+macro_rules! S {
+    () => {
+        String::new()
+    };
+    ($s:expr) => {
+        String::from($s)
+    };
+}
+
 fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
     let logfile = tracing_appender::rolling::never(&app_env.location_logs, "api.log");
 
@@ -33,7 +44,7 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
         Ok(()) => Ok(()),
         Err(e) => {
             println!("{e:?}");
-            Err(AppError::Internal("Unable to start tracing".to_owned()))
+            Err(AppError::Internal(S!("Unable to start tracing")))
         }
     }
 }

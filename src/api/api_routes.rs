@@ -11,10 +11,13 @@ use super::response::{
     ResponseJson,
 };
 use super::{app_error::UnknownAC, AppError, ApplicationState};
-use crate::n_number::{mode_s_to_n_number, n_number_to_mode_s};
 use crate::{
     db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
     db_redis::{get_cache, insert_cache, RedisKey},
+};
+use crate::{
+    n_number::{mode_s_to_n_number, n_number_to_mode_s},
+    S,
 };
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
@@ -169,7 +172,7 @@ pub async fn n_number_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         StatusCode::OK,
-        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(String::new(), |f| f.to_string())),
+        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(S!(), |f| f.to_string())),
     ))
 }
 
@@ -179,7 +182,7 @@ pub async fn mode_s_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
     Ok((
         StatusCode::OK,
-        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(String::new(), |f| f.to_string())),
+        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(S!(), |f| f.to_string())),
     ))
 }
 
@@ -207,7 +210,7 @@ pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, As
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[expect(
+#[allow(
     clippy::pedantic,
     clippy::nursery,
     clippy::unwrap_used,
@@ -234,6 +237,7 @@ mod tests {
     use crate::parse_env;
     use crate::scraper::ScraperThreadMap;
     use crate::sleep;
+    use crate::S;
 
     const CALLSIGN: &str = "ANA460";
 
@@ -285,7 +289,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_mode_s_ok_with_photo() {
-        let mode_s = "A44F3B".to_owned();
+        let mode_s = S!("A44F3B");
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
@@ -295,15 +299,15 @@ mod tests {
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let aircraft = ResponseAircraft {
-            aircraft_type: "Citation Sovereign".to_owned(),
-            icao_type: "C680".to_owned(),
-            manufacturer: "Cessna".to_owned(),
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
             mode_s,
-            registration: "N377QS".to_owned(),
-            registered_owner: "NetJets".to_owned(),
-            registered_owner_operator_flag_code: Some("EJA".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registration: S!("N377QS"),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
                 application_state.url_prefix, "001/572/001572354.jpg"
@@ -324,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_registration_ok_with_photo() {
-        let registration = "N377QS".to_owned();
+        let registration = S!("N377QS");
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
@@ -334,15 +338,15 @@ mod tests {
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let aircraft = ResponseAircraft {
-            aircraft_type: "Citation Sovereign".to_owned(),
-            icao_type: "C680".to_owned(),
-            manufacturer: "Cessna".to_owned(),
-            mode_s: "A44F3B".to_owned(),
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
+            mode_s: S!("A44F3B"),
             registration,
-            registered_owner: "NetJets".to_owned(),
-            registered_owner_operator_flag_code: Some("EJA".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
                 application_state.url_prefix, "001/572/001572354.jpg"
@@ -373,15 +377,15 @@ mod tests {
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let aircraft = ResponseAircraft {
-            aircraft_type: "737MAX 9".to_owned(),
-            icao_type: "B39M".to_owned(),
-            manufacturer: "Boeing".to_owned(),
+            aircraft_type: S!("737MAX 9"),
+            icao_type: S!("B39M"),
+            manufacturer: S!("Boeing"),
             mode_s: mode_s.to_owned(),
-            registration: "N37522".to_owned(),
-            registered_owner: "United Airlines".to_owned(),
-            registered_owner_operator_flag_code: Some("UAL".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registration: S!("N37522"),
+            registered_owner: S!("United Airlines"),
+            registered_owner_operator_flag_code: Some(S!("UAL")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -406,15 +410,15 @@ mod tests {
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let aircraft = ResponseAircraft {
-            aircraft_type: "737MAX 9".to_owned(),
-            icao_type: "B39M".to_owned(),
-            manufacturer: "Boeing".to_owned(),
-            mode_s: "A44917".to_owned(),
+            aircraft_type: S!("737MAX 9"),
+            icao_type: S!("B39M"),
+            manufacturer: S!("Boeing"),
+            mode_s: S!("A44917"),
             registration: registration.to_owned(),
-            registered_owner: "United Airlines".to_owned(),
-            registered_owner_operator_flag_code: Some("UAL".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner: S!("United Airlines"),
+            registered_owner_operator_flag_code: Some(S!("UAL")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -481,7 +485,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_mode_s_cached_no_photo() {
-        let mode_s = "A44917".to_owned();
+        let mode_s = S!("A44917");
         let tmp_mode_s = ModeS::validate(&mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
@@ -505,7 +509,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_registration_cached_no_photo() {
-        let registration = "N37522".to_owned();
+        let registration = S!("N37522");
         let tmp_registration = Registration::validate(&registration).unwrap();
         let key = RedisKey::Registration(&tmp_registration);
         let application_state = get_application_state().await;
@@ -535,7 +539,7 @@ mod tests {
     // Make sure unknown aircraft gets placed into cache as ""
     // and a second request will extend the ttl
     async fn http_api_get_mode_s_unknown_cached() {
-        let mode_s = "ABABAB".to_owned();
+        let mode_s = S!("ABABAB");
         let tmp_mode_s = ModeS::validate(&mode_s).unwrap();
         let key = RedisKey::ModeS(&tmp_mode_s);
         let application_state = get_application_state().await;
@@ -588,7 +592,7 @@ mod tests {
     // Make sure unknown aircraft gets placed into cache as ""
     // and a second request will extend the ttl
     async fn http_api_get_registration_unknown_cached() {
-        let registration = "AB-ABAB".to_owned();
+        let registration = S!("AB-ABAB");
         let tmp_registration = Registration::validate(&registration).unwrap();
         let key = RedisKey::Registration(&tmp_registration);
         let application_state = get_application_state().await;
@@ -646,37 +650,37 @@ mod tests {
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
             callsign_icao: Some(callsign.to_owned()),
-            callsign_iata: Some("AC959".to_owned()),
+            callsign_iata: Some(S!("AC959")),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
@@ -701,38 +705,38 @@ mod tests {
 
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
-            callsign_icao: Some("ACA959".to_owned()),
+            callsign_icao: Some(S!("ACA959")),
             callsign_iata: Some(callsign.to_owned()),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
@@ -757,48 +761,48 @@ mod tests {
 
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
-            callsign_iata: Some("QF31".to_owned()),
+            callsign_iata: Some(S!("QF31")),
             callsign_icao: Some(callsign.to_owned()),
             airline: Some(Airline {
-                name: "Qantas".to_owned(),
-                icao: "QFA".to_owned(),
-                iata: Some("QF".to_owned()),
-                callsign: Some("QANTAS".to_owned()),
-                country: "Australia".to_owned(),
-                country_iso: "AU".to_owned(),
+                name: S!("Qantas"),
+                icao: S!("QFA"),
+                iata: Some(S!("QF")),
+                callsign: Some(S!("QANTAS")),
+                country: S!("Australia"),
+                country_iso: S!("AU"),
             }),
             origin: Airport {
-                country_iso_name: "AU".to_owned(),
-                country_name: "Australia".to_owned(),
+                country_iso_name: S!("AU"),
+                country_name: S!("Australia"),
                 elevation: 21,
-                iata_code: "SYD".to_owned(),
-                icao_code: "YSSY".to_owned(),
+                iata_code: S!("SYD"),
+                icao_code: S!("YSSY"),
                 latitude: -33.946_098_327_636_72,
                 longitude: 151.177_001_953_125,
-                municipality: "Sydney".to_owned(),
-                name: "Sydney Kingsford Smith International Airport".to_owned(),
+                municipality: S!("Sydney"),
+                name: S!("Sydney Kingsford Smith International Airport"),
             },
             midpoint: Some(Airport {
-                country_iso_name: "SG".to_owned(),
-                country_name: "Singapore".to_owned(),
+                country_iso_name: S!("SG"),
+                country_name: S!("Singapore"),
                 elevation: 22,
-                iata_code: "SIN".to_owned(),
-                icao_code: "WSSS".to_owned(),
+                iata_code: S!("SIN"),
+                icao_code: S!("WSSS"),
                 latitude: 1.35019,
                 longitude: 103.994_003,
-                municipality: "Singapore".to_owned(),
-                name: "Singapore Changi Airport".to_owned(),
+                municipality: S!("Singapore"),
+                name: S!("Singapore Changi Airport"),
             }),
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
+                country_iso_name: S!("GB"),
+                country_name: S!("United Kingdom"),
                 elevation: 83,
-                iata_code: "LHR".to_owned(),
-                icao_code: "EGLL".to_owned(),
+                iata_code: S!("LHR"),
+                icao_code: S!("EGLL"),
                 latitude: 51.4706,
                 longitude: -0.461_941,
-                municipality: "London".to_owned(),
-                name: "London Heathrow Airport".to_owned(),
+                municipality: S!("London"),
+                name: S!("London Heathrow Airport"),
             },
         };
 
@@ -824,47 +828,47 @@ mod tests {
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
             callsign_iata: Some(callsign.to_owned()),
-            callsign_icao: Some("QFA31".to_owned()),
+            callsign_icao: Some(S!("QFA31")),
             airline: Some(Airline {
-                name: "Qantas".to_owned(),
-                icao: "QFA".to_owned(),
-                iata: Some("QF".to_owned()),
-                callsign: Some("QANTAS".to_owned()),
-                country: "Australia".to_owned(),
-                country_iso: "AU".to_owned(),
+                name: S!("Qantas"),
+                icao: S!("QFA"),
+                iata: Some(S!("QF")),
+                callsign: Some(S!("QANTAS")),
+                country: S!("Australia"),
+                country_iso: S!("AU"),
             }),
             origin: Airport {
-                country_iso_name: "AU".to_owned(),
-                country_name: "Australia".to_owned(),
+                country_iso_name: S!("AU"),
+                country_name: S!("Australia"),
                 elevation: 21,
-                iata_code: "SYD".to_owned(),
-                icao_code: "YSSY".to_owned(),
+                iata_code: S!("SYD"),
+                icao_code: S!("YSSY"),
                 latitude: -33.946_098_327_636_72,
                 longitude: 151.177_001_953_125,
-                municipality: "Sydney".to_owned(),
-                name: "Sydney Kingsford Smith International Airport".to_owned(),
+                municipality: S!("Sydney"),
+                name: S!("Sydney Kingsford Smith International Airport"),
             },
             midpoint: Some(Airport {
-                country_iso_name: "SG".to_owned(),
-                country_name: "Singapore".to_owned(),
+                country_iso_name: S!("SG"),
+                country_name: S!("Singapore"),
                 elevation: 22,
-                iata_code: "SIN".to_owned(),
-                icao_code: "WSSS".to_owned(),
+                iata_code: S!("SIN"),
+                icao_code: S!("WSSS"),
                 latitude: 1.35019,
                 longitude: 103.994_003,
-                municipality: "Singapore".to_owned(),
-                name: "Singapore Changi Airport".to_owned(),
+                municipality: S!("Singapore"),
+                name: S!("Singapore Changi Airport"),
             }),
             destination: Airport {
-                country_iso_name: "GB".to_owned(),
-                country_name: "United Kingdom".to_owned(),
+                country_iso_name: S!("GB"),
+                country_name: S!("United Kingdom"),
                 elevation: 83,
-                iata_code: "LHR".to_owned(),
-                icao_code: "EGLL".to_owned(),
+                iata_code: S!("LHR"),
+                icao_code: S!("EGLL"),
                 latitude: 51.4706,
                 longitude: -0.461_941,
-                municipality: "London".to_owned(),
-                name: "London Heathrow Airport".to_owned(),
+                municipality: S!("London"),
+                name: S!("London Heathrow Airport"),
             },
         };
         match &response.1.response.flightroute {
@@ -891,12 +895,12 @@ mod tests {
         assert!(result.is_ok());
         let result = result.unwrap();
 
-        assert_eq!(result.airline_callsign, Some("AIR CANADA".to_owned()));
-        assert_eq!(result.airline_country_iso_name, Some("CA".to_owned()));
-        assert_eq!(result.airline_country_name, Some("Canada".to_owned()));
-        assert_eq!(result.airline_iata, Some("AC".to_owned()));
-        assert_eq!(result.airline_icao, Some("ACA".to_owned()));
-        assert_eq!(result.airline_name, Some("Air Canada".to_owned()));
+        assert_eq!(result.airline_callsign, Some(S!("AIR CANADA")));
+        assert_eq!(result.airline_country_iso_name, Some(S!("CA")));
+        assert_eq!(result.airline_country_name, Some(S!("Canada")));
+        assert_eq!(result.airline_iata, Some(S!("AC")));
+        assert_eq!(result.airline_icao, Some(S!("ACA")));
+        assert_eq!(result.airline_name, Some(S!("Air Canada")));
 
         assert_eq!(result.callsign, callsign);
         assert_eq!(result.origin_airport_country_iso_name, "CA");
@@ -962,12 +966,12 @@ mod tests {
 
         assert_eq!(result.callsign, callsign);
 
-        assert_eq!(result.airline_callsign, Some("QANTAS".to_owned()));
-        assert_eq!(result.airline_country_iso_name, Some("AU".to_owned()));
-        assert_eq!(result.airline_country_name, Some("Australia".to_owned()));
-        assert_eq!(result.airline_iata, Some("QF".to_owned()));
-        assert_eq!(result.airline_icao, Some("QFA".to_owned()));
-        assert_eq!(result.airline_name, Some("Qantas".to_owned()));
+        assert_eq!(result.airline_callsign, Some(S!("QANTAS")));
+        assert_eq!(result.airline_country_iso_name, Some(S!("AU")));
+        assert_eq!(result.airline_country_name, Some(S!("Australia")));
+        assert_eq!(result.airline_iata, Some(S!("QF")));
+        assert_eq!(result.airline_icao, Some(S!("QFA")));
+        assert_eq!(result.airline_name, Some(S!("Qantas")));
 
         assert_eq!(result.origin_airport_country_iso_name, "AU");
         assert_eq!(result.origin_airport_country_name, "Australia");
@@ -982,26 +986,17 @@ mod tests {
             "Sydney Kingsford Smith International Airport"
         );
 
-        assert_eq!(
-            result.midpoint_airport_country_iso_name,
-            Some("SG".to_owned())
-        );
-        assert_eq!(
-            result.midpoint_airport_country_name,
-            Some("Singapore".to_owned())
-        );
+        assert_eq!(result.midpoint_airport_country_iso_name, Some(S!("SG")));
+        assert_eq!(result.midpoint_airport_country_name, Some(S!("Singapore")));
         assert_eq!(result.midpoint_airport_elevation, Some(22));
-        assert_eq!(result.midpoint_airport_iata_code, Some("SIN".to_owned()));
-        assert_eq!(result.midpoint_airport_icao_code, Some("WSSS".to_owned()));
+        assert_eq!(result.midpoint_airport_iata_code, Some(S!("SIN")));
+        assert_eq!(result.midpoint_airport_icao_code, Some(S!("WSSS")));
         assert_eq!(result.midpoint_airport_latitude, Some(1.35019));
         assert_eq!(result.midpoint_airport_longitude, Some(103.994_003));
-        assert_eq!(
-            result.midpoint_airport_municipality,
-            Some("Singapore".to_owned())
-        );
+        assert_eq!(result.midpoint_airport_municipality, Some(S!("Singapore")));
         assert_eq!(
             result.midpoint_airport_name,
-            Some("Singapore Changi Airport".to_owned())
+            Some(S!("Singapore Changi Airport"))
         );
 
         assert_eq!(result.destination_airport_country_iso_name, "GB");
@@ -1036,39 +1031,39 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
 
         let expected = ResponseFlightRoute {
-            callsign: "ANA460".to_owned(),
-            callsign_icao: Some("ANA460".to_owned()),
-            callsign_iata: Some("NH460".to_owned()),
+            callsign: S!("ANA460"),
+            callsign_icao: Some(S!("ANA460")),
+            callsign_iata: Some(S!("NH460")),
             airline: Some(Airline {
-                name: "All Nippon Airways".to_owned(),
-                icao: "ANA".to_owned(),
-                iata: Some("NH".to_owned()),
-                country: "Japan".to_owned(),
-                country_iso: "JP".to_owned(),
-                callsign: Some("ALL NIPPON".to_owned()),
+                name: S!("All Nippon Airways"),
+                icao: S!("ANA"),
+                iata: Some(S!("NH")),
+                country: S!("Japan"),
+                country_iso: S!("JP"),
+                callsign: Some(S!("ALL NIPPON")),
             }),
             origin: Airport {
-                country_iso_name: "JP".to_owned(),
-                country_name: "Japan".to_owned(),
+                country_iso_name: S!("JP"),
+                country_name: S!("Japan"),
                 elevation: 12,
-                iata_code: "OKA".to_owned(),
-                icao_code: "ROAH".to_owned(),
+                iata_code: S!("OKA"),
+                icao_code: S!("ROAH"),
                 latitude: 26.195_801,
                 longitude: 127.646_004,
-                municipality: "Naha".to_owned(),
-                name: "Naha Airport / JASDF Naha Air Base".to_owned(),
+                municipality: S!("Naha"),
+                name: S!("Naha Airport / JASDF Naha Air Base"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "JP".to_owned(),
-                country_name: "Japan".to_owned(),
+                country_iso_name: S!("JP"),
+                country_name: S!("Japan"),
                 elevation: 35,
-                iata_code: "HND".to_owned(),
-                icao_code: "RJTT".to_owned(),
+                iata_code: S!("HND"),
+                icao_code: S!("RJTT"),
                 latitude: 35.552_299,
                 longitude: 139.779_999,
-                municipality: "Tokyo".to_owned(),
-                name: "Tokyo Haneda International Airport".to_owned(),
+                municipality: S!("Tokyo"),
+                name: S!("Tokyo Haneda International Airport"),
             },
         };
 
@@ -1127,12 +1122,12 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_icao_callsign_and_flightroute_mode_s_ok_with_photo() {
-        let callsign = "ACA959".to_owned();
-        let mode_s = "A44F3B".to_owned();
+        let callsign = S!("ACA959");
+        let mode_s = S!("A44F3B");
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1143,50 +1138,50 @@ mod tests {
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
             callsign_icao: Some(callsign.to_owned()),
-            callsign_iata: Some("AC959".to_owned()),
+            callsign_iata: Some(S!("AC959")),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
         let aircraft = ResponseAircraft {
-            aircraft_type: "Citation Sovereign".to_owned(),
-            icao_type: "C680".to_owned(),
-            manufacturer: "Cessna".to_owned(),
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
             mode_s: mode_s.clone(),
-            registration: "N377QS".to_owned(),
-            registered_owner: "NetJets".to_owned(),
-            registered_owner_operator_flag_code: Some("EJA".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registration: S!("N377QS"),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
                 application_state.url_prefix, "001/572/001572354.jpg"
@@ -1210,12 +1205,12 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_iata_callsign_and_flightroute_mode_s_ok_with_photo() {
-        let callsign = "AC959".to_owned();
-        let mode_s = "A44F3B".to_owned();
+        let callsign = S!("AC959");
+        let mode_s = S!("A44F3B");
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1225,51 +1220,51 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
-            callsign_icao: Some("ACA959".to_owned()),
+            callsign_icao: Some(S!("ACA959")),
             callsign_iata: Some(callsign.to_owned()),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
         let aircraft = ResponseAircraft {
-            aircraft_type: "Citation Sovereign".to_owned(),
-            icao_type: "C680".to_owned(),
-            manufacturer: "Cessna".to_owned(),
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
             mode_s: mode_s.clone(),
-            registration: "N377QS".to_owned(),
-            registered_owner: "NetJets".to_owned(),
-            registered_owner_operator_flag_code: Some("EJA".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registration: S!("N377QS"),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
                 application_state.url_prefix, "001/572/001572354.jpg"
@@ -1293,12 +1288,12 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_icao_callsign_and_flightroute_registration_ok_with_photo() {
-        let callsign = "ACA959".to_owned();
-        let registration = "N377QS".to_owned();
+        let callsign = S!("ACA959");
+        let registration = S!("N377QS");
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1309,49 +1304,49 @@ mod tests {
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
             callsign_icao: Some(callsign.to_owned()),
-            callsign_iata: Some("AC959".to_owned()),
+            callsign_iata: Some(S!("AC959")),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
         let aircraft = ResponseAircraft {
-            aircraft_type: "Citation Sovereign".to_owned(),
-            icao_type: "C680".to_owned(),
-            manufacturer: "Cessna".to_owned(),
-            mode_s: "A44F3B".to_owned(),
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
+            mode_s: S!("A44F3B"),
             registration: registration.to_owned(),
-            registered_owner: "NetJets".to_owned(),
-            registered_owner_operator_flag_code: Some("EJA".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
                 application_state.url_prefix, "001/572/001572354.jpg"
@@ -1375,12 +1370,12 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_iata_callsign_and_flightroute_registration_ok_with_photo() {
-        let callsign = "AC959".to_owned();
-        let registration = "N377QS".to_owned();
+        let callsign = S!("AC959");
+        let registration = S!("N377QS");
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1390,50 +1385,50 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
-            callsign_icao: Some("ACA959".to_owned()),
+            callsign_icao: Some(S!("ACA959")),
             callsign_iata: Some(callsign.to_owned()),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
         let aircraft = ResponseAircraft {
-            aircraft_type: "Citation Sovereign".to_owned(),
-            icao_type: "C680".to_owned(),
-            manufacturer: "Cessna".to_owned(),
-            mode_s: "A44F3B".to_owned(),
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
+            mode_s: S!("A44F3B"),
             registration: registration.to_owned(),
-            registered_owner: "NetJets".to_owned(),
-            registered_owner_operator_flag_code: Some("EJA".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
                 application_state.url_prefix, "001/572/001572354.jpg"
@@ -1457,13 +1452,13 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_icao_callsign_mode_s_and_flightroute_ok_no_photo() {
-        let callsign = "ACA959".to_owned();
-        let mode_s = "A44917".to_owned();
+        let callsign = S!("ACA959");
+        let mode_s = S!("A44917");
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
 
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1474,50 +1469,50 @@ mod tests {
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
             callsign_icao: Some(callsign.to_owned()),
-            callsign_iata: Some("AC959".to_owned()),
+            callsign_iata: Some(S!("AC959")),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
         let aircraft = ResponseAircraft {
-            aircraft_type: "737MAX 9".to_owned(),
-            icao_type: "B39M".to_owned(),
-            manufacturer: "Boeing".to_owned(),
+            aircraft_type: S!("737MAX 9"),
+            icao_type: S!("B39M"),
+            manufacturer: S!("Boeing"),
             mode_s: mode_s.clone(),
-            registration: "N37522".to_owned(),
-            registered_owner: "United Airlines".to_owned(),
-            registered_owner_operator_flag_code: Some("UAL".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registration: S!("N37522"),
+            registered_owner: S!("United Airlines"),
+            registered_owner_operator_flag_code: Some(S!("UAL")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -1535,13 +1530,13 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_iata_callsign_mode_s_and_flightroute_ok_no_photo() {
-        let callsign = "AC959".to_owned();
-        let mode_s = "A44917".to_owned();
+        let callsign = S!("AC959");
+        let mode_s = S!("A44917");
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
 
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1551,51 +1546,51 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
-            callsign_icao: Some("ACA959".to_owned()),
+            callsign_icao: Some(S!("ACA959")),
             callsign_iata: Some(callsign.to_owned()),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
         let aircraft = ResponseAircraft {
-            aircraft_type: "737MAX 9".to_owned(),
-            icao_type: "B39M".to_owned(),
-            manufacturer: "Boeing".to_owned(),
+            aircraft_type: S!("737MAX 9"),
+            icao_type: S!("B39M"),
+            manufacturer: S!("Boeing"),
             mode_s: mode_s.clone(),
-            registration: "N37522".to_owned(),
-            registered_owner: "United Airlines".to_owned(),
-            registered_owner_operator_flag_code: Some("UAL".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registration: S!("N37522"),
+            registered_owner: S!("United Airlines"),
+            registered_owner_operator_flag_code: Some(S!("UAL")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -1613,13 +1608,13 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_icao_callsign_registration_and_flightroute_ok_no_photo() {
-        let callsign = "ACA959".to_owned();
-        let registration = "N37522".to_owned();
+        let callsign = S!("ACA959");
+        let registration = S!("N37522");
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
 
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1630,50 +1625,50 @@ mod tests {
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
             callsign_icao: Some(callsign.to_owned()),
-            callsign_iata: Some("AC959".to_owned()),
+            callsign_iata: Some(S!("AC959")),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
         let aircraft = ResponseAircraft {
-            aircraft_type: "737MAX 9".to_owned(),
-            icao_type: "B39M".to_owned(),
-            manufacturer: "Boeing".to_owned(),
-            mode_s: "A44917".to_owned(),
+            aircraft_type: S!("737MAX 9"),
+            icao_type: S!("B39M"),
+            manufacturer: S!("Boeing"),
+            mode_s: S!("A44917"),
             registration: registration.clone(),
-            registered_owner: "United Airlines".to_owned(),
-            registered_owner_operator_flag_code: Some("UAL".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner: S!("United Airlines"),
+            registered_owner_operator_flag_code: Some(S!("UAL")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -1691,13 +1686,13 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_iata_callsign_registration_and_flightroute_ok_no_photo() {
-        let callsign = "AC959".to_owned();
-        let registration = "N37522".to_owned();
+        let callsign = S!("AC959");
+        let registration = S!("N37522");
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
 
         let mut hm = HashMap::new();
-        hm.insert("callsign".to_owned(), callsign.clone());
+        hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
         let response = aircraft_get(application_state.clone(), path, hm).await;
 
@@ -1707,51 +1702,51 @@ mod tests {
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
-            callsign_icao: Some("ACA959".to_owned()),
+            callsign_icao: Some(S!("ACA959")),
             callsign_iata: Some(callsign.to_owned()),
             airline: Some(Airline {
-                name: "Air Canada".to_owned(),
-                icao: "ACA".to_owned(),
-                iata: Some("AC".to_owned()),
-                country: "Canada".to_owned(),
-                country_iso: "CA".to_owned(),
-                callsign: Some("AIR CANADA".to_owned()),
+                name: S!("Air Canada"),
+                icao: S!("ACA"),
+                iata: Some(S!("AC")),
+                country: S!("Canada"),
+                country_iso: S!("CA"),
+                callsign: Some(S!("AIR CANADA")),
             }),
             origin: Airport {
-                country_iso_name: "CA".to_owned(),
-                country_name: "Canada".to_owned(),
+                country_iso_name: S!("CA"),
+                country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: "YUL".to_owned(),
-                icao_code: "CYUL".to_owned(),
+                iata_code: S!("YUL"),
+                icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
-                municipality: "Montréal".to_owned(),
-                name: "Montreal / Pierre Elliott Trudeau International Airport".to_owned(),
+                municipality: S!("Montréal"),
+                name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
             },
             midpoint: None,
             destination: Airport {
-                country_iso_name: "CR".to_owned(),
-                country_name: "Costa Rica".to_owned(),
+                country_iso_name: S!("CR"),
+                country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: "SJO".to_owned(),
-                icao_code: "MROC".to_owned(),
+                iata_code: S!("SJO"),
+                icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
-                municipality: "San José (Alajuela)".to_owned(),
-                name: "Juan Santamaría International Airport".to_owned(),
+                municipality: S!("San José (Alajuela)"),
+                name: S!("Juan Santamaría International Airport"),
             },
         };
 
         let aircraft = ResponseAircraft {
-            aircraft_type: "737MAX 9".to_owned(),
-            icao_type: "B39M".to_owned(),
-            manufacturer: "Boeing".to_owned(),
-            mode_s: "A44917".to_owned(),
+            aircraft_type: S!("737MAX 9"),
+            icao_type: S!("B39M"),
+            manufacturer: S!("Boeing"),
+            mode_s: S!("A44917"),
             registration: registration.clone(),
-            registered_owner: "United Airlines".to_owned(),
-            registered_owner_operator_flag_code: Some("UAL".to_owned()),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
+            registered_owner: S!("United Airlines"),
+            registered_owner_operator_flag_code: Some(S!("UAL")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -1878,12 +1873,12 @@ mod tests {
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
         let expected = [ResponseAirline {
-            name: "Faroejet".to_owned(),
-            icao: "RCK".to_owned(),
-            iata: Some("F6".to_owned()),
-            country: "Faroe Islands".to_owned(),
-            country_iso: "FO".to_owned(),
-            callsign: Some("ROCKROSE".to_owned()),
+            name: S!("Faroejet"),
+            icao: S!("RCK"),
+            iata: Some(S!("F6")),
+            country: S!("Faroe Islands"),
+            country_iso: S!("FO"),
+            callsign: Some(S!("ROCKROSE")),
         }];
         assert_eq!(response.1.response, expected);
 
@@ -1896,12 +1891,12 @@ mod tests {
         let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].airline_name, "Faroejet".to_owned());
-        assert_eq!(result[0].country_name, "Faroe Islands".to_owned());
-        assert_eq!(result[0].country_iso_name, "FO".to_owned());
-        assert_eq!(result[0].iata_prefix, Some("F6".to_owned()));
-        assert_eq!(result[0].icao_prefix, "RCK".to_owned());
-        assert_eq!(result[0].airline_callsign, Some("ROCKROSE".to_owned()));
+        assert_eq!(result[0].airline_name, S!("Faroejet"));
+        assert_eq!(result[0].country_name, S!("Faroe Islands"));
+        assert_eq!(result[0].country_iso_name, S!("FO"));
+        assert_eq!(result[0].iata_prefix, Some(S!("F6")));
+        assert_eq!(result[0].icao_prefix, S!("RCK"));
+        assert_eq!(result[0].airline_callsign, Some(S!("ROCKROSE")));
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
@@ -1931,20 +1926,20 @@ mod tests {
 
         let expected = [
             ResponseAirline {
-                name: "Aero California".to_owned(),
-                icao: "SER".to_owned(),
-                iata: Some("JR".to_owned()),
-                country: "Mexico".to_owned(),
-                country_iso: "MX".to_owned(),
-                callsign: Some("AEROCALIFORNIA".to_owned()),
+                name: S!("Aero California"),
+                icao: S!("SER"),
+                iata: Some(S!("JR")),
+                country: S!("Mexico"),
+                country_iso: S!("MX"),
+                callsign: Some(S!("AEROCALIFORNIA")),
             },
             ResponseAirline {
-                name: "Joy Air".to_owned(),
-                icao: "JOY".to_owned(),
-                iata: Some("JR".to_owned()),
-                country: "China".to_owned(),
-                country_iso: "CN".to_owned(),
-                callsign: Some("JOY AIR".to_owned()),
+                name: S!("Joy Air"),
+                icao: S!("JOY"),
+                iata: Some(S!("JR")),
+                country: S!("China"),
+                country_iso: S!("CN"),
+                callsign: Some(S!("JOY AIR")),
             },
         ];
         assert_eq!(response.1.response, expected);
@@ -1958,22 +1953,19 @@ mod tests {
         let result: Vec<ModelAirline> = serde_json::from_str(&result.unwrap()).unwrap();
 
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].airline_name, "Aero California".to_owned());
-        assert_eq!(result[0].country_name, "Mexico".to_owned());
-        assert_eq!(result[0].country_iso_name, "MX".to_owned());
-        assert_eq!(result[0].iata_prefix, Some("JR".to_owned()));
-        assert_eq!(result[0].icao_prefix, "SER".to_owned());
-        assert_eq!(
-            result[0].airline_callsign,
-            Some("AEROCALIFORNIA".to_owned())
-        );
+        assert_eq!(result[0].airline_name, S!("Aero California"));
+        assert_eq!(result[0].country_name, S!("Mexico"));
+        assert_eq!(result[0].country_iso_name, S!("MX"));
+        assert_eq!(result[0].iata_prefix, Some(S!("JR")));
+        assert_eq!(result[0].icao_prefix, S!("SER"));
+        assert_eq!(result[0].airline_callsign, Some(S!("AEROCALIFORNIA")));
 
-        assert_eq!(result[1].airline_name, "Joy Air".to_owned());
-        assert_eq!(result[1].country_name, "China".to_owned());
-        assert_eq!(result[1].country_iso_name, "CN".to_owned());
-        assert_eq!(result[1].iata_prefix, Some("JR".to_owned()));
-        assert_eq!(result[1].icao_prefix, "JOY".to_owned());
-        assert_eq!(result[1].airline_callsign, Some("JOY AIR".to_owned()));
+        assert_eq!(result[1].airline_name, S!("Joy Air"));
+        assert_eq!(result[1].country_name, S!("China"));
+        assert_eq!(result[1].country_iso_name, S!("CN"));
+        assert_eq!(result[1].iata_prefix, Some(S!("JR")));
+        assert_eq!(result[1].icao_prefix, S!("JOY"));
+        assert_eq!(result[1].airline_callsign, Some(S!("JOY AIR")));
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);

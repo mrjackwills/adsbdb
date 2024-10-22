@@ -7,7 +7,10 @@
 // But it seems to work as expected, although probably inefficient
 use std::{fmt, sync::LazyLock};
 
-use crate::api::{AppError, ModeS, NNumber, Validate};
+use crate::{
+    api::{AppError, ModeS, NNumber, Validate},
+    S,
+};
 
 const ICAO_SIZE: usize = 6;
 
@@ -90,7 +93,7 @@ impl Bucket {
 /// 1 -> 'A'
 fn get_suffix(offset: usize) -> Result<String, AppError> {
     if offset == 0 {
-        return Ok(String::new());
+        return Ok(S!());
     }
     let index = (offset - 1) / (CHARSET_LEN + 1);
 
@@ -164,7 +167,7 @@ pub fn mode_s_to_n_number(mode_s: &ModeS) -> Result<NNumber, AppError> {
     }
 
     // All N-Numbers start with 'N'
-    let mut output = String::from("N");
+    let mut output = S!("N");
     // remove the 'A' first char, and convert to hex
     let mut rem = usize::from_str_radix(&mode_s.to_string()[1..], 16)? - 1;
 
@@ -271,7 +274,7 @@ pub fn n_number_to_mode_s(n_number: &NNumber) -> Result<ModeS, AppError> {
 
 /// cargo watch -q -c -w src/ -x 'test n_number_mod -- --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

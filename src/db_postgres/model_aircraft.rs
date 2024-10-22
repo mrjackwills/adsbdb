@@ -193,10 +193,13 @@ WHERE
 //
 // cargo watch -q -c -w src/ -x 'test model_aircraft '
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::api::{tests::test_setup, ModeS, Registration, Validate};
+    use crate::{
+        api::{tests::test_setup, ModeS, Registration, Validate},
+        S,
+    };
 
     #[tokio::test]
     async fn model_aircraft_photo_transaction_mode_s() {
@@ -205,7 +208,7 @@ mod tests {
         let mut transaction = test_setup.postgres.begin().await.unwrap();
 
         let photodata = PhotoData {
-            image: "example.jpg".to_owned(),
+            image: S!("example.jpg"),
         };
 
         let mode_s = "A51D23";
@@ -214,15 +217,15 @@ mod tests {
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "A51D23".to_owned(),
-            registration: "N429AW".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
+            aircraft_type: S!("CRJ 200LR"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("A51D23"),
+            registration: S!("N429AW"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -243,17 +246,17 @@ mod tests {
 
         let expected = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            registration: "N429AW".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "A51D23".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
-            url_photo: Some("http://www.example.com/example.jpg".to_owned()),
-            url_photo_thumbnail: Some("http://www.example.com/thumbnails/example.jpg".to_owned()),
+            aircraft_type: S!("CRJ 200LR"),
+            registration: S!("N429AW"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("A51D23"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
+            url_photo: Some(S!("http://www.example.com/example.jpg")),
+            url_photo_thumbnail: Some(S!("http://www.example.com/thumbnails/example.jpg")),
         };
 
         assert_eq!(result, expected);
@@ -269,7 +272,7 @@ mod tests {
         let mut transaction = test_setup.postgres.begin().await.unwrap();
 
         let photodata = PhotoData {
-            image: "example.jpg".to_owned(),
+            image: S!("example.jpg"),
         };
 
         let registration = "N429AW";
@@ -278,15 +281,15 @@ mod tests {
 
         let test_aircraft = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "A51D23".to_owned(),
-            registration: "N429AW".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
+            aircraft_type: S!("CRJ 200LR"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("A51D23"),
+            registration: S!("N429AW"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
             url_photo: None,
             url_photo_thumbnail: None,
         };
@@ -307,17 +310,17 @@ mod tests {
 
         let expected = ModelAircraft {
             aircraft_id: 8415,
-            aircraft_type: "CRJ 200LR".to_owned(),
-            registration: "N429AW".to_owned(),
-            icao_type: "CRJ2".to_owned(),
-            manufacturer: "Bombardier".to_owned(),
-            mode_s: "A51D23".to_owned(),
-            registered_owner_country_iso_name: "US".to_owned(),
-            registered_owner_country_name: "United States".to_owned(),
-            registered_owner_operator_flag_code: Some("AWI".to_owned()),
-            registered_owner: "United Express".to_owned(),
-            url_photo: Some("http://www.example.com/example.jpg".to_owned()),
-            url_photo_thumbnail: Some("http://www.example.com/thumbnails/example.jpg".to_owned()),
+            aircraft_type: S!("CRJ 200LR"),
+            registration: S!("N429AW"),
+            icao_type: S!("CRJ2"),
+            manufacturer: S!("Bombardier"),
+            mode_s: S!("A51D23"),
+            registered_owner_country_iso_name: S!("US"),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_operator_flag_code: Some(S!("AWI")),
+            registered_owner: S!("United Express"),
+            url_photo: Some(S!("http://www.example.com/example.jpg")),
+            url_photo_thumbnail: Some(S!("http://www.example.com/thumbnails/example.jpg")),
         };
 
         assert_eq!(result, expected);

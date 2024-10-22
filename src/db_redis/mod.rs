@@ -1,6 +1,7 @@
 use crate::{
     api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
     parse_env::AppEnv,
+    S,
 };
 use fred::{
     clients::RedisPool,
@@ -48,9 +49,9 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
-    let serialized = to_insert.as_ref().map_or_else(String::new, |i| {
-        serde_json::to_string(&i).unwrap_or_default()
-    });
+    let serialized = to_insert
+        .as_ref()
+        .map_or_else(|| S!(), |i| serde_json::to_string(&i).unwrap_or_default());
     redis
         .hset::<(), _, _>(&key, HashMap::from([(HASH_FIELD, serialized)]))
         .await?;
@@ -67,7 +68,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send + FromRedis>(
         .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
         .await?
     {
-        let _: () = redis.expire(&key, ONE_WEEK_AS_SEC).await?;
+        redis.expire::<(), &str>(&key, ONE_WEEK_AS_SEC).await?;
         if value.is_empty() {
             return Ok(Some(None));
         }

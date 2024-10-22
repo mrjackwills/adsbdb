@@ -28,6 +28,7 @@ use crate::{
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
     scraper::{Scraper, ScraperThreadMap},
+    S,
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
@@ -143,10 +144,11 @@ define_routes!(
 /// Get an useable axum address, from app_env:host+port
 fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
     match (app_env.api_host.clone(), app_env.api_port).to_socket_addrs() {
-        Ok(i) => i.take(1).collect::<Vec<SocketAddr>>().first().map_or_else(
-            || Err(AppError::Internal("No addr".to_string())),
-            |addr| Ok(*addr),
-        ),
+        Ok(i) => i
+            .take(1)
+            .collect::<Vec<SocketAddr>>()
+            .first()
+            .map_or_else(|| Err(AppError::Internal(S!("No addr"))), |addr| Ok(*addr)),
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
 }
@@ -196,11 +198,11 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Resul
     .await
     {
         Ok(()) => Ok(()),
-        Err(_) => Err(AppError::Internal("api_server".to_owned())),
+        Err(_) => Err(AppError::Internal(S!("api_server"))),
     }
 }
 
-#[expect(clippy::expect_used)]
+#[allow(clippy::expect_used)]
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
@@ -230,7 +232,7 @@ async fn shutdown_signal() {
 /// http tests - ran via actual requests to a (local) server
 /// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
 #[cfg(test)]
-#[expect(clippy::pedantic, clippy::unwrap_used)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
     use super::*;
 
@@ -305,7 +307,7 @@ pub mod tests {
     #[test]
     fn http_mod_get_api_version() {
         let prefix = get_api_version();
-        assert_eq!(prefix, "/v0".to_owned());
+        assert_eq!(prefix, S!("/v0"));
     }
 
     #[tokio::test]
@@ -377,7 +379,7 @@ pub mod tests {
         assert!(result.get("aircraft").is_none());
 
         assert_eq!(result["callsign"], callsign.to_uppercase());
-        assert_eq!(result["callsign_icao"], "ACA959".to_owned());
+        assert_eq!(result["callsign_icao"], S!("ACA959"));
         assert_eq!(result["callsign_iata"], callsign.to_uppercase());
         assert_eq!(result["origin"]["country_name"], "Canada");
         assert_eq!(result["origin"]["elevation"], 118);

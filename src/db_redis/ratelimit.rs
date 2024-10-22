@@ -27,7 +27,7 @@ impl RateLimit {
                 if count % UPPER_LIMIT == 0 {
                     tracing::info!("{} - {count}", self.key);
                 }
-                let _: () = redis.expire(&self.key, ONE_MINUTE * 5).await?;
+                redis.expire::<(), &str>(&self.key, ONE_MINUTE * 5).await?;
             }
             if count > LOWER_LIMIT {
                 return Err(AppError::RateLimited(
