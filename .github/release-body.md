@@ -1,20 +1,21 @@
-### 2024-09-06
+### 2024-10-22
 
 ### Chores
-+ .devcontainer updated, [0cc17a6dd2b6bb8197a6c3a0c9987453b4297cf4], [5a466628df116cd32283142fb9b2a8a3c962728d]
-+ dependencies updated, [8d6bfeff68b538d63ab8dcb55172d28683f74e22], [81737cc45b659973077590cd3d237e078350431d]
-+ use expect, instead of allow, for unused lint, [ff818d3e3b4e8a8039f45d981decb1b1c1241d9b]
-+ fred.rs never type return, [3338a6cc0f65d30ea5539cf740f7038936b24485]
++ .devcontainer update, [d71b6973d4df55052dd15c27755888809381a3ad]
++ create_release.sh updated, [9cf12fb8d92c932462d86b10b298fe04f506b584]
++ dependencies updated, [05c955070b67ef593559ae458dd69e9cb39a41e6], [9c677e5aac93c61d35b60c04fd9232f6316da544], [d25b53f1134c6dcbd3f31dc7871bf63cebec92ef]
++ create_release version bump, [c9ba8644100250aefee038b2853e725309e4e4d8]
 
-### Docs
-+ README.md updated, [2f0b0755c961608e0d1f00e2e3bb47befa81e6ac]
+### Features
++ use `S!` macro, [34cd4064f658c4d4c16367070a5253c30c659d58], [44d873b30c0a1ded116640a991963a46090acdd1]
 
 ### Fixes
-+ health_api.sh updated, [70af303ab0eebb598fb7b361bd49fb241d15cc83]
-+ Dockerfile commands change case, [ecaab2095f0d4314161b00cbba35eaa58ae0036e]
++ remove postgres connection timeout options, [dda709a1e936712eba18a5140af31f80ac6cec11]
 
 ### Refactors
-+ replace OnceCell with std::sync::LazyLock, [94308fb383e68dfb1e47f2d1cdaa9d9d0e375ae9]
-+ Healthchecks updated, [a852f6cb51215aba4e8558d1d58df0270ba3ca38]
++ use turbofish with redis expire, [ee370b261a0b7aeab4b296522326851f4b425518]
+
+### Reverts
++ switch back from expect lint to allow lint, [10ee38c450a0a7e2cfcc7be672e937a236ae28d4], [561cd4cfbef43b71a98ca4e3a931560503bbc6a9] [856b947e73084767bb228380ac6e250643e5f861]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
