@@ -4,9 +4,10 @@ use crate::{
     S,
 };
 use fred::{
-    clients::RedisPool,
+    clients::Pool,
     interfaces::{ClientLike, HashesInterface, KeysInterface},
-    types::{FromRedis, ReconnectPolicy},
+    prelude::ReconnectPolicy,
+    types::FromValue,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, fmt, net::IpAddr};
@@ -19,21 +20,16 @@ const HASH_FIELD: &str = "data";
 #[macro_export]
 macro_rules! redis_hash_to_struct {
     ($struct_name:ident) => {
-        impl fred::types::FromRedis for $struct_name {
-            fn from_value(
-                value: fred::prelude::RedisValue,
-            ) -> Result<Self, fred::prelude::RedisError> {
+        impl fred::types::FromValue for $struct_name {
+            fn from_value(value: fred::prelude::Value) -> Result<Self, fred::prelude::Error> {
                 value.as_str().map_or(
-                    Err(fred::error::RedisError::new(
-                        fred::error::RedisErrorKind::Parse,
+                    Err(fred::error::Error::new(
+                        fred::error::ErrorKind::Parse,
                         format!("FromRedis: {}", stringify!(struct_name)),
                     )),
                     |i| {
                         serde_json::from_str::<Self>(&i).map_err(|_| {
-                            fred::error::RedisError::new(
-                                fred::error::RedisErrorKind::Parse,
-                                "serde",
-                            )
+                            fred::error::Error::new(fred::error::ErrorKind::Parse, "serde")
                         })
                     },
                 )
@@ -44,7 +40,7 @@ macro_rules! redis_hash_to_struct {
 
 /// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
-    redis: &RedisPool,
+    redis: &Pool,
     to_insert: Option<&T>,
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
@@ -55,12 +51,12 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
     redis
         .hset::<(), _, _>(&key, HashMap::from([(HASH_FIELD, serialized)]))
         .await?;
-    Ok(redis.expire(&key, ONE_WEEK_AS_SEC).await?)
+    Ok(redis.expire(&key, ONE_WEEK_AS_SEC, None).await?)
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<'a, T: DeserializeOwned + Send + FromRedis>(
-    redis: &RedisPool,
+pub async fn get_cache<'a, T: DeserializeOwned + Send + FromValue>(
+    redis: &Pool,
     key: &RedisKey<'a>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
@@ -68,7 +64,9 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send + FromRedis>(
         .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
         .await?
     {
-        redis.expire::<(), &str>(&key, ONE_WEEK_AS_SEC).await?;
+        redis
+            .expire::<(), &str>(&key, ONE_WEEK_AS_SEC, None)
+            .await?;
         if value.is_empty() {
             return Ok(Some(None));
         }
@@ -79,7 +77,7 @@ pub async fn get_cache<'a, T: DeserializeOwned + Send + FromRedis>(
     Ok(None)
 }
 
-pub async fn get_pool(app_env: &AppEnv) -> Result<RedisPool, AppError> {
+pub async fn get_pool(app_env: &AppEnv) -> Result<Pool, AppError> {
     let redis_url = format!(
         "redis://:{password}@{host}:{port}/{db}",
         password = app_env.redis_password,
@@ -88,12 +86,8 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<RedisPool, AppError> {
         db = app_env.redis_database
     );
 
-    let config = fred::types::RedisConfig::from_url(&redis_url)?;
+    let config = fred::types::config::Config::from_url(&redis_url)?;
     let pool = fred::types::Builder::from_config(config)
-        .with_performance_config(|config| {
-            config.auto_pipeline = true;
-        })
-        // use exponential backoff, starting at 100 ms and doubling on each failed attempt up to 30 sec
         .set_policy(ReconnectPolicy::new_exponential(0, 100, 30_000, 2))
         .build_pool(32)?;
     pool.init().await?;

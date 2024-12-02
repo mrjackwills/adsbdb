@@ -1,5 +1,5 @@
 use crate::{api::AppError, db_redis::RedisKey};
-use fred::{clients::RedisPool, interfaces::KeysInterface};
+use fred::{clients::Pool, interfaces::KeysInterface};
 use std::net::IpAddr;
 
 pub struct RateLimit {
@@ -19,7 +19,7 @@ impl RateLimit {
     }
 
     /// Check if request has been rate limited, always increases the current value of the given rate limit
-    pub async fn check(&self, redis: &RedisPool) -> Result<(), AppError> {
+    pub async fn check(&self, redis: &Pool) -> Result<(), AppError> {
         if let Some(count) = redis.get::<Option<u64>, &str>(&self.key).await? {
             redis.incr::<(), _>(&self.key).await?;
             if count >= UPPER_LIMIT {
@@ -27,7 +27,9 @@ impl RateLimit {
                 if count % UPPER_LIMIT == 0 {
                     tracing::info!("{} - {count}", self.key);
                 }
-                redis.expire::<(), &str>(&self.key, ONE_MINUTE * 5).await?;
+                redis
+                    .expire::<(), &str>(&self.key, ONE_MINUTE * 5, None)
+                    .await?;
             }
             if count > LOWER_LIMIT {
                 return Err(AppError::RateLimited(
@@ -35,12 +37,16 @@ impl RateLimit {
                 ));
             }
             if count == LOWER_LIMIT {
-                redis.expire::<i64, &String>(&self.key, ONE_MINUTE).await?;
+                redis
+                    .expire::<i64, &String>(&self.key, ONE_MINUTE, None)
+                    .await?;
                 return Err(AppError::RateLimited(ONE_MINUTE));
             }
         } else {
             redis.incr::<(), _>(&self.key).await?;
-            redis.expire::<i64, &String>(&self.key, ONE_MINUTE).await?;
+            redis
+                .expire::<i64, &String>(&self.key, ONE_MINUTE, None)
+                .await?;
         }
         Ok(())
     }
