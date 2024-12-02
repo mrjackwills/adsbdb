@@ -45,7 +45,7 @@ macro_rules! redis_hash_to_struct {
 /// Insert an Option<model> into cache, using redis hashset
 pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
     redis: &RedisPool,
-    to_insert: &Option<T>,
+    to_insert: Option<&T>,
     key: &RedisKey<'a>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
@@ -109,7 +109,7 @@ pub enum RedisKey<'a> {
     RateLimit(IpAddr),
 }
 
-impl<'a> fmt::Display for RedisKey<'a> {
+impl fmt::Display for RedisKey<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Airline(airline) => write!(f, "airline::{airline}"),

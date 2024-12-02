@@ -196,7 +196,7 @@ pub struct ResponseFlightRoute {
 }
 
 impl ResponseFlightRoute {
-    pub fn from_model(flightroute_airline: &Option<ModelFlightroute>) -> Option<Self> {
+    pub fn from_model(flightroute_airline: Option<&ModelFlightroute>) -> Option<Self> {
         flightroute_airline.as_ref().map(|flightroute| {
             let airports = Airport::from_model(flightroute);
             Self {
