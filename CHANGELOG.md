@@ -1,3 +1,16 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.6'>v0.3.6</a>
+### 2024-12-03
+
+### Chores
++ dependencies updated, [eaa1ea3e](https://github.com/mrjackwills/adsbdb/commit/eaa1ea3efc4ba014de3693293b61f0a1d7f807cf)
++ Rust 1.83 linting, [f2e150e6](https://github.com/mrjackwills/adsbdb/commit/f2e150e6a0cc1370f124164783357dd89f92f5df)
+
+### Features
++ spawn in main.rs, [35565294](https://github.com/mrjackwills/adsbdb/commit/355652945d952087c3b2fc82738221babd86a867)
+
+### Fixes
++ increase redis container memory limit, [ 0f46369f8b6a20493b18aa890575b82f55a5d226]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.5'>v0.3.5</a>
 ### 2024-10-22
 

@@ -1,10 +1,11 @@
 FROM alpine:3.20
 
 ARG DOCKER_GUID=1000 \
-	DOCKER_UID=1000 \
-	DOCKER_APP_USER=app_user \
-	DOCKER_APP_GROUP=app_group
+DOCKER_UID=1000 \
+DOCKER_APP_USER=app_user \
+DOCKER_APP_GROUP=app_group
 
+# TODO update to postgres 17 once the package is available in Alpine
 RUN apk add --update --no-cache gnupg age \
 	&& apk add --update --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main postgresql16-client \
 	&& addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \

@@ -1,4 +1,4 @@
-use fred::clients::RedisPool;
+use fred::clients::Pool;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -39,7 +39,7 @@ const X_FORWARDED_FOR: &str = "x-forwarded-for";
 #[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
-    redis: RedisPool,
+    redis: Pool,
     scraper_threads: Arc<Mutex<ScraperThreadMap>>,
     scraper: Scraper,
     uptime: Instant,
@@ -50,7 +50,7 @@ impl ApplicationState {
     pub fn new(
         app_env: &AppEnv,
         postgres: PgPool,
-        redis: RedisPool,
+        redis: Pool,
         scraper_threads: Arc<Mutex<ScraperThreadMap>>,
     ) -> Self {
         Self {
@@ -154,7 +154,8 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 }
 
 /// Serve the app!
-pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: RedisPool) -> Result<(), AppError> {
+pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
+    // TODO change this to RX/TX instead of Arc<Mutex>
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
 
@@ -251,7 +252,7 @@ pub mod tests {
         pub _handle: Option<JoinHandle<()>>,
         pub app_env: AppEnv,
         pub postgres: PgPool,
-        pub redis: RedisPool,
+        pub redis: Pool,
     }
 
     // Get basic api params, also flushes all redis keys

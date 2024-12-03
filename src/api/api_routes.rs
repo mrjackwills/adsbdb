@@ -39,7 +39,7 @@ async fn find_flightroute(
                 .scrape_flightroute(&state.postgres, callsign, &state.scraper_threads)
                 .await?;
         }
-        insert_cache(&state.redis, &flightroute, &redis_key).await?;
+        insert_cache(&state.redis, flightroute.as_ref(), &redis_key).await?;
         Ok(flightroute)
     }
 }
@@ -68,7 +68,7 @@ async fn find_aircraft(
                     ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
         }
-        insert_cache(&state.redis, &aircraft, &redis_key).await?;
+        insert_cache(&state.redis, aircraft.as_ref(), &redis_key).await?;
         Ok(aircraft)
     }
 }
@@ -86,7 +86,7 @@ async fn find_airline(
         })
     } else {
         let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
-        insert_cache(&state.redis, &airline, &redis_key).await?;
+        insert_cache(&state.redis, airline.as_ref(), &redis_key).await?;
         Ok(airline)
     }
 }
@@ -106,15 +106,18 @@ pub async fn aircraft_get(
             find_aircraft(&state, &aircraft_search),
             find_flightroute(&state, &callsign),
         )?;
-        aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |a| {
-            Ok((
-                StatusCode::OK,
-                ResponseJson::new(AircraftAndRoute {
-                    aircraft: Some(ResponseAircraft::from(a)),
-                    flightroute: ResponseFlightRoute::from_model(&flightroute),
-                }),
-            ))
-        })
+        aircraft.map_or(
+            Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
+            |aircraft| {
+                Ok((
+                    StatusCode::OK,
+                    ResponseJson::new(AircraftAndRoute {
+                        aircraft: Some(ResponseAircraft::from(aircraft)),
+                        flightroute: ResponseFlightRoute::from_model(flightroute.as_ref()),
+                    }),
+                ))
+            },
+        )
     } else {
         find_aircraft(&state, &aircraft_search).await?.map_or(
             Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
@@ -154,12 +157,12 @@ pub async fn callsign_get(
 ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
     find_flightroute(&state, &callsign).await?.map_or(
         Err(AppError::UnknownInDb(UnknownAC::Callsign)),
-        |a| {
+        |model| {
             Ok((
                 StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
                     aircraft: None,
-                    flightroute: ResponseFlightRoute::from_model(&Some(a)),
+                    flightroute: ResponseFlightRoute::from_model(Some(&model)),
                 }),
             ))
         },
@@ -222,7 +225,7 @@ mod tests {
     use super::*;
 
     use axum::http::Uri;
-    use fred::error::RedisError;
+    // use fred::error::Error;
     use fred::interfaces::ClientLike;
     use fred::interfaces::HashesInterface;
     use fred::interfaces::KeysInterface;
@@ -445,7 +448,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, fred::error::RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
@@ -471,7 +474,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
@@ -495,7 +498,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
@@ -518,7 +521,7 @@ mod tests {
         let response = aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
@@ -553,7 +556,7 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
             _ => unreachable!(),
         };
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -579,7 +582,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -606,7 +609,7 @@ mod tests {
             AppError::UnknownInDb(x) => assert_eq!(x, UnknownAC::Aircraft),
             _ => unreachable!(),
         };
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -627,7 +630,7 @@ mod tests {
             _ => unreachable!(),
         };
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -890,7 +893,7 @@ mod tests {
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
-        let result: Result<ModelFlightroute, RedisError> =
+        let result: Result<ModelFlightroute, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -959,7 +962,7 @@ mod tests {
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         let result: ModelFlightroute = serde_json::from_str(&result.unwrap()).unwrap();
@@ -1090,7 +1093,7 @@ mod tests {
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -1111,7 +1114,7 @@ mod tests {
         };
 
         let key = RedisKey::Callsign(&tmp_callsign);
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -1782,7 +1785,7 @@ mod tests {
         };
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -1803,7 +1806,7 @@ mod tests {
         };
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -1829,7 +1832,7 @@ mod tests {
         };
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -1850,7 +1853,7 @@ mod tests {
         };
 
         let key = RedisKey::Airline(&path);
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -1884,7 +1887,7 @@ mod tests {
 
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
@@ -1946,7 +1949,7 @@ mod tests {
 
         let key = RedisKey::Airline(&path);
 
-        let result: Result<String, RedisError> =
+        let result: Result<String, fred::error::Error> =
             application_state.redis.hget(key.to_string(), "data").await;
         assert!(result.is_ok());
 
