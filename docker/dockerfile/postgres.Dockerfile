@@ -1,3 +1,4 @@
+# TODO update to postgres 17 once the package is available in Alpine
 FROM postgres:16-alpine3.20
 
 ARG DOCKER_GUID=1000 \
