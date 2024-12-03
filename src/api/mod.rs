@@ -155,6 +155,7 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 
 /// Serve the app!
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
+    // TODO change this to RX/TX instead of Arc<Mutex>
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
 
