@@ -1,6 +1,6 @@
 use std::fmt;
 
-use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
+use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
     n_number::{n_number_to_mode_s, ALLCHARS},
@@ -88,7 +88,6 @@ unit_struct!(ModeS);
 unit_struct!(NNumber);
 unit_struct!(Registration);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AircraftSearch
 where
     S: Send + Sync,
@@ -113,7 +112,6 @@ where
 /// from_request_parts macro, to run Self::validate
 macro_rules! from_request_parts {
     ($struct_name:ident, AppError::$variant:ident) => {
-        #[async_trait]
         impl<S> FromRequestParts<S> for $struct_name
         where
             S: Send + Sync,
@@ -132,7 +130,6 @@ macro_rules! from_request_parts {
     };
 
     ($struct_name:ident) => {
-        #[async_trait]
         impl<S> FromRequestParts<S> for $struct_name
         where
             S: Send + Sync,

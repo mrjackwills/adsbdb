@@ -25,7 +25,7 @@ module_name_repetitions = "allow"
 doc_markdown = "allow"
 
 [dependencies]
-axum = "0.7"
+axum = "0.8"
 dotenvy = "0.15"
 fred = { version = "10.0" }
 http-body = "1.0"
@@ -47,7 +47,7 @@ sqlx = { version = "0.8", features = [
 	"time",
 ] }
 thiserror = "2.0"
-tokio = { version = "1.41", features = ["full"] }
+tokio = { version = "1.42", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1"

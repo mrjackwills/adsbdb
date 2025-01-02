@@ -132,12 +132,12 @@ macro_rules! define_routes {
 
 define_routes!(
     Routes,
-    Aircraft => "aircraft/:mode_s",
-    Airline => "airline/:airline",
-    Callsign => "callsign/:callsign",
+    Aircraft => "aircraft/{mode_s}",
+    Airline => "airline/{airline}",
+    Callsign => "callsign/{callsign}",
     Online => "online",
-    NNumber => "n-number/:n-number",
-    ModeS => "mode-s/:mode_s"
+    NNumber => "n-number/{n-number}",
+    ModeS => "mode-s/{mode_s}"
 
 );
 
