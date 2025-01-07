@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use std::{
@@ -23,6 +23,7 @@ mod api_routes;
 mod app_error;
 mod input;
 mod response;
+mod update_routes;
 
 use crate::{
     db_redis::ratelimit::RateLimit,
@@ -32,6 +33,7 @@ use crate::{
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
+pub use response::ResponseAircraft;
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -159,7 +161,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
     let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
 
-    let api_routes = Router::new()
+    let mut api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
         .route(&Routes::Airline.addr(), get(api_routes::airline_get))
         .route(&Routes::Callsign.addr(), get(api_routes::callsign_get))
@@ -167,6 +169,24 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
         .route(&Routes::NNumber.addr(), get(api_routes::n_number_get))
         .route(&Routes::ModeS.addr(), get(api_routes::mode_s_get));
 
+    // If .env flag is set, enable update routes
+    if app_env.allow_update.is_some() {
+        api_routes = api_routes
+            .route(
+                &Routes::Callsign.addr(),
+                post(update_routes::callsign_post).layer(middleware::from_fn_with_state(
+                    app_env.argon_hash.clone(),
+                    update_routes::auth_header,
+                )),
+            )
+            .route(
+                &Routes::Aircraft.addr(),
+                post(update_routes::aircraft_post).layer(middleware::from_fn_with_state(
+                    app_env.argon_hash.clone(),
+                    update_routes::auth_header,
+                )),
+            );
+    }
     let prefix = get_api_version();
 
     let cors = CorsLayer::new()
@@ -287,6 +307,7 @@ pub mod tests {
         let postgres = setup.postgres.clone();
         let app_env = setup.app_env.clone();
         let redis = setup.redis.clone();
+
         let handle = tokio::spawn(async {
             serve(app_env, postgres, redis).await.unwrap();
         });
