@@ -7,23 +7,26 @@ use std::{fmt, num::ParseIntError};
 use thiserror::Error;
 use tracing::error;
 
+use crate::S;
+
 use super::response::ResponseJson;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnknownAC {
     Aircraft,
     Callsign,
     Airline,
+    Airport(String),
 }
 
 impl fmt::Display for UnknownAC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let disp = match self {
-            Self::Aircraft => "aircraft",
-            Self::Airline => "airline",
-            Self::Callsign => "callsign",
-        };
-        write!(f, "{disp}")
+        match self {
+            Self::Aircraft => write!(f, "aircraft"),
+            Self::Airline => write!(f, "airline"),
+            Self::Callsign => write!(f, "callsign"),
+            Self::Airport(icao) => write!(f, "airport: {icao}"),
+        }
     }
 }
 
@@ -33,8 +36,12 @@ pub enum AppError {
     AircraftSearch(String),
     #[error("invalid airline:")]
     Airline(String),
+    #[error("invalid authorization")]
+    Authorization,
     #[error("Axum")]
     AxumExtension(#[from] axum::extract::rejection::ExtensionRejection),
+    #[error("invalid body")]
+    Body(String),
     #[error("invalid callsign:")]
     Callsign(String),
     #[error("internal error:")]
@@ -87,11 +94,16 @@ impl IntoResponse for AppError {
                 error!("{e:?}");
                 internal!(prefix)
             }
+            Self::Authorization => (
+                StatusCode::UNAUTHORIZED,
+                ResponseJson::new(S!("Invalid Authorization")),
+            ),
             Self::Callsign(err)
             | Self::AircraftSearch(err)
             | Self::Airline(err)
             | Self::ModeS(err)
             | Self::NNumber(err)
+            | Self::Body(err)
             | Self::Registration(err) => (
                 StatusCode::BAD_REQUEST,
                 ResponseJson::new(format!("{prefix} {err}")),

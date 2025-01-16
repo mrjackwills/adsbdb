@@ -4,6 +4,7 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 mod api;
+mod argon;
 mod db_postgres;
 mod db_redis;
 mod n_number;

@@ -1,18 +1,23 @@
 use std::{collections::HashMap, env};
 use thiserror::Error;
 
+use crate::argon::ArgonHash;
+
 type EnvHashMap = HashMap<String, String>;
 
 #[derive(Debug, Error)]
 enum EnvError {
     #[error("missing env: '{0}'")]
     NotFound(String),
+    #[error("'{0}' - cannot parse'")]
+    Parse(String),
 }
 
 #[derive(Debug, Clone)]
 pub struct AppEnv {
     pub allow_scrape_flightroute: Option<()>,
     pub allow_scrape_photo: Option<()>,
+    pub allow_update: Option<()>,
     pub api_host: String,
     pub api_port: u16,
     pub location_logs: String,
@@ -22,6 +27,7 @@ pub struct AppEnv {
     pub pg_pass: String,
     pub pg_port: u16,
     pub pg_user: String,
+    pub argon_hash: ArgonHash,
     pub redis_database: u16,
     pub redis_host: String,
     pub redis_password: String,
@@ -34,7 +40,7 @@ pub struct AppEnv {
 impl AppEnv {
     /// Parse "true" or "false" to bool, else false
     fn parse_boolean(key: &str, map: &EnvHashMap) -> bool {
-        map.get(key).map_or(false, |value| value == "true")
+        map.get(key).is_some_and(|value| value == "true")
     }
 
     /// Parse debug and/or trace into tracing level
@@ -64,44 +70,39 @@ impl AppEnv {
         )
     }
 
-    fn parse_allow_scrape(key: &str, map: &EnvHashMap) -> Result<Option<()>, EnvError> {
-        map.get(key).map_or_else(
-            || Err(EnvError::NotFound(key.into())),
-            |value| {
-                if value.to_uppercase() == "TRUE" {
-                    Ok(Some(()))
-                } else {
-                    Ok(None)
-                }
-            },
-        )
+    fn parse_bool_to_option(key: &str, map: &EnvHashMap) -> Option<()> {
+        Self::parse_boolean(key, map).then_some(())
     }
 
     /// Load, and parse .env file, return AppEnv
     fn generate() -> Result<Self, EnvError> {
-        let env_map = env::vars()
+        let map = env::vars()
             .map(|i| (i.0, i.1))
             .collect::<HashMap<String, String>>();
 
         Ok(Self {
-            api_host: Self::parse_string("API_HOST", &env_map)?,
-            api_port: Self::parse_number("API_PORT", &env_map)?,
-            location_logs: Self::parse_string("LOCATION_LOGS", &env_map)?,
-            log_level: Self::parse_log(&env_map),
-            pg_database: Self::parse_string("PG_DATABASE", &env_map)?,
-            pg_host: Self::parse_string("PG_HOST", &env_map)?,
-            pg_pass: Self::parse_string("PG_PASS", &env_map)?,
-            pg_port: Self::parse_number("PG_PORT", &env_map)?,
-            pg_user: Self::parse_string("PG_USER", &env_map)?,
-            redis_database: Self::parse_number("REDIS_DATABASE", &env_map)?,
-            redis_host: Self::parse_string("REDIS_HOST", &env_map)?,
-            redis_password: Self::parse_string("REDIS_PASSWORD", &env_map)?,
-            redis_port: Self::parse_number("REDIS_PORT", &env_map)?,
-            allow_scrape_flightroute: Self::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &env_map)?,
-            allow_scrape_photo: Self::parse_allow_scrape("SCRAPE_PHOTO", &env_map)?,
-            url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &env_map)?,
-            url_photo_prefix: Self::parse_string("URL_PHOTO_PREFIX", &env_map)?,
-            url_callsign: Self::parse_string("URL_CALLSIGN", &env_map)?,
+            allow_scrape_flightroute: Self::parse_bool_to_option("SCRAPE_FLIGHTROUTE", &map),
+            allow_scrape_photo: Self::parse_bool_to_option("SCRAPE_PHOTO", &map),
+            allow_update: Self::parse_bool_to_option("UPDATER", &map),
+            api_host: Self::parse_string("API_HOST", &map)?,
+            api_port: Self::parse_number("API_PORT", &map)?,
+            argon_hash: ArgonHash::try_from(Self::parse_string("ARGON_HASH", &map)?)
+                .map_err(EnvError::Parse)?,
+
+            location_logs: Self::parse_string("LOCATION_LOGS", &map)?,
+            log_level: Self::parse_log(&map),
+            pg_database: Self::parse_string("PG_DATABASE", &map)?,
+            pg_host: Self::parse_string("PG_HOST", &map)?,
+            pg_pass: Self::parse_string("PG_PASS", &map)?,
+            pg_port: Self::parse_number("PG_PORT", &map)?,
+            pg_user: Self::parse_string("PG_USER", &map)?,
+            redis_database: Self::parse_number("REDIS_DATABASE", &map)?,
+            redis_host: Self::parse_string("REDIS_HOST", &map)?,
+            redis_password: Self::parse_string("REDIS_PASSWORD", &map)?,
+            redis_port: Self::parse_number("REDIS_PORT", &map)?,
+            url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &map)?,
+            url_callsign: Self::parse_string("URL_CALLSIGN", &map)?,
+            url_photo_prefix: Self::parse_string("URL_PHOTO_PREFIX", &map)?,
         })
     }
 
@@ -172,38 +173,51 @@ mod tests {
         let mut map = HashMap::new();
         map.insert(S!("SCRAPE_PHOTO"), S!("true"));
         map.insert(S!("SCRAPE_FLIGHTROUTE"), S!("true"));
+        map.insert(S!("UPDATER"), S!("true"));
 
-        let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
-        let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
+        let result01 = AppEnv::parse_bool_to_option("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_bool_to_option("SCRAPE_FLIGHTROUTE", &map);
+        let result03 = AppEnv::parse_bool_to_option("UPDATER", &map);
 
-        assert!(result01.is_ok());
-        assert!(result01.unwrap().is_some());
-        assert!(result02.is_ok());
-        assert!(result02.unwrap().is_some());
+        assert!(result01.is_some());
+        assert!(result02.is_some());
+        assert!(result03.is_some());
 
         let mut map = HashMap::new();
         map.insert(S!("SCRAPE_PHOTO"), S!("false"));
         map.insert(S!("SCRAPE_FLIGHTROUTE"), S!("false"));
+        map.insert(S!("UPDATER"), S!("false"));
 
-        let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
-        let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
+        let result01 = AppEnv::parse_bool_to_option("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_bool_to_option("SCRAPE_FLIGHTROUTE", &map);
+        let result03 = AppEnv::parse_bool_to_option("UPDATER", &map);
 
-        assert!(result01.is_ok());
-        assert!(result01.unwrap().is_none());
-        assert!(result02.is_ok());
-        assert!(result02.unwrap().is_none());
+        assert!(result01.is_none());
+        assert!(result02.is_none());
+        assert!(result03.is_none());
 
         let mut map = HashMap::new();
         map.insert(S!("SCRAPE_PHOTO"), S!("tru"));
         map.insert(S!("SCRAPE_FLIGHTROUTE"), S!("tre"));
+        map.insert(S!("UPDATER"), S!("reu"));
 
-        let result01 = AppEnv::parse_allow_scrape("SCRAPE_PHOTO", &map);
-        let result02 = AppEnv::parse_allow_scrape("SCRAPE_FLIGHTROUTE", &map);
+        let result01 = AppEnv::parse_bool_to_option("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_bool_to_option("SCRAPE_FLIGHTROUTE", &map);
+        let result03 = AppEnv::parse_bool_to_option("UPDATER", &map);
 
-        assert!(result01.is_ok());
-        assert!(result01.unwrap().is_none());
-        assert!(result02.is_ok());
-        assert!(result02.unwrap().is_none());
+        assert!(result01.is_none());
+        assert!(result02.is_none());
+        assert!(result03.is_none());
+
+        let map = HashMap::new();
+
+        let result01 = AppEnv::parse_bool_to_option("SCRAPE_PHOTO", &map);
+        let result02 = AppEnv::parse_bool_to_option("SCRAPE_FLIGHTROUTE", &map);
+        let result03 = AppEnv::parse_bool_to_option("UPDATER", &map);
+
+        assert!(result01.is_none());
+        assert!(result02.is_none());
+        assert!(result03.is_none());
     }
 
     #[test]
@@ -306,6 +320,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             EnvError::NotFound(value) => assert_eq!(value, "U16_TEST"),
+            EnvError::Parse(_) => unreachable!(),
         }
     }
 }

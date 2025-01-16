@@ -25,11 +25,13 @@ module_name_repetitions = "allow"
 doc_markdown = "allow"
 
 [dependencies]
-axum = "0.8"
+argon2 ="0.5"
+axum = {version = "0.8", features=["macros"]}
 dotenvy = "0.15"
 fred = { version = "10.0" }
 http-body = "1.0"
 mimalloc = "0.1"
+rand = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = [
 	"brotli",
 	"cookies",
@@ -53,6 +55,10 @@ tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
+
+
+[dev-dependencies]
+regex = "1.11"
 
 [profile.release]
 lto = true
