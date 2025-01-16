@@ -252,7 +252,6 @@ When `env.allow_update` and `env.argon_hash` are correctly set, and the POST req
 
 
 ```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S]```
-Required body:
 
 ```
 	{
@@ -269,12 +268,11 @@ Required body:
 		"url_photo_thumbnail": string || null
 	}
 ```
-Warning: `mode_s`, `url_photo`, and `url_photo_thumbnail` cannot be modified from their current state.
+Warning: `mode_s`, `url_photo`, and `url_photo_thumbnail` cannot be modified.
 
 ---
 
 ```https://api.adsbdb.com/v[semver.major]/callsign/[CALLSIGN]```
-Required body:
 
 ```
 	{
