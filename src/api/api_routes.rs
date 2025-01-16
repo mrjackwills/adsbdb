@@ -649,6 +649,7 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
+        // Refactor me, put in CONST
 
         let flightroute = ResponseFlightRoute {
             callsign: callsign.to_owned(),
@@ -703,7 +704,7 @@ mod tests {
         let response = callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
-        let response = response.unwrap();
+        let response: (StatusCode, axum::Json<ResponseJson<AircraftAndRoute>>) = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
 
         let flightroute = ResponseFlightRoute {

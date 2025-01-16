@@ -513,8 +513,8 @@ mod tests {
         let expected = ScrapedFlightroute {
             callsign_icao: Callsign::Icao((S!("ANA"), S!("460"))),
             callsign_iata: Callsign::Iata((S!("NH"), S!("460"))),
-            origin: TEST_ORIGIN.to_owned(),
-            destination: TEST_DESTINATION.to_owned(),
+            origin: S!(TEST_ORIGIN),
+            destination: S!(TEST_DESTINATION),
         };
 
         assert!(result.is_some());

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE flightroute SET airport_origin_id = $1, airport_destination_id = $2 WHERE flightroute_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2d5d5cc257c494ae63bb16a52a922099390d55ee370eb3a2b27caa56e9182f4"
+}

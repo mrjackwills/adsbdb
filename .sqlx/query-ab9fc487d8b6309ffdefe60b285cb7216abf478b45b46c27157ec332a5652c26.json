@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT aircraft_icao_type_id AS id FROM aircraft_icao_type WHERE icao_type = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ab9fc487d8b6309ffdefe60b285cb7216abf478b45b46c27157ec332a5652c26"
+}

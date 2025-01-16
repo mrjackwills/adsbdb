@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nDELETE FROM aircraft_icao_type\nWHERE aircraft_icao_type_id IN (\n    SELECT ait.aircraft_icao_type_id\n    FROM aircraft_icao_type ait\n    LEFT JOIN aircraft a ON ait.aircraft_icao_type_id = a.aircraft_icao_type_id\n    WHERE a.aircraft_icao_type_id IS NULL\n)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "8494e7a1de0e2342da389d32d86393836a446e74eaf75d7ff93aa17414d578e5"
+}

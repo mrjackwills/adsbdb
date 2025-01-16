@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nDELETE FROM aircraft_registered_owner\nWHERE aircraft_registered_owner_id IN (\n    SELECT aro.aircraft_registered_owner_id\n    FROM aircraft_registered_owner aro\n    LEFT JOIN aircraft a ON aro.aircraft_registered_owner_id = a.aircraft_registered_owner_id\n    WHERE a.aircraft_registered_owner_id IS NULL\n)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "d39de818e11e11c24b61b86a81b1c5fee5907fbd4ac8c6778eb33033abe6ab0e"
+}

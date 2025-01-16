@@ -407,6 +407,20 @@ VALUES
         }
         Ok(Self::get(db, &scraped_flightroute.callsign_icao).await)
     }
+
+    pub async fn update(
+        &self,
+        postgres: &PgPool,
+        origin: ModelAirport,
+        destination: ModelAirport,
+    ) -> Result<(), AppError> {
+        sqlx::query!("UPDATE flightroute SET airport_origin_id = $1, airport_destination_id = $2 WHERE flightroute_id = $3",
+		origin.airport_id, destination.airport_id, self.flightroute_id)
+		.execute(postgres)
+		.await?;
+
+        Ok(())
+    }
 }
 
 /// Run tests with

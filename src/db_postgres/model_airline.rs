@@ -117,6 +117,7 @@ ORDER BY
         }
     }
 
+    /// Find airline by either iata or icao code
     pub async fn get_all_by_airline_code(
         db: &PgPool,
         airline_code: &AirlineCode,

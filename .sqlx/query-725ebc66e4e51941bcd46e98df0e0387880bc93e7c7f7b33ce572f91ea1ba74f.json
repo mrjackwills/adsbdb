@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nUPDATE \n    aircraft\nSET\n    aircraft_type_id = $1,\n    aircraft_icao_type_id = $2,\n    aircraft_manufacturer_id = $3,\n    aircraft_registration_country_prefix_id = $4,\n    aircraft_registration_id = $5,\n    country_id = $6,\n    aircraft_operator_flag_code_id = $7,\n    aircraft_registered_owner_id = $8\nWHERE\n    aircraft_id = $9",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "725ebc66e4e51941bcd46e98df0e0387880bc93e7c7f7b33ce572f91ea1ba74f"
+}

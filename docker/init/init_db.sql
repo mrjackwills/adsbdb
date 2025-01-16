@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS aircraft_registration_country_prefix (
 	registration_country_prefix TEXT UNIQUE NOT NULL
 );
 
+
 GRANT ALL ON aircraft_registration_country_prefix TO adsbdb;
 
 GRANT USAGE, SELECT ON SEQUENCE aircraft_registration_country_aircraft_registration_country_seq TO adsbdb;
@@ -625,5 +626,3 @@ GRANT USAGE, SELECT ON SEQUENCE flightroute_callsign_flightroute_callsign_id_seq
 -- end; $$;
 -- DROP TABLE temp_flightroute_callsign_data;
 -- echo "Insert complete" \ echo "Insert complete"
-
--- docker rm -f $(docker ps -aq);  docker image prune -a; rm -rf /ramdrive/adsbdb/pg_data/*

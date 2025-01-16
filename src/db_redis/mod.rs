@@ -39,10 +39,10 @@ macro_rules! redis_hash_to_struct {
 }
 
 /// Insert an Option<model> into cache, using redis hashset
-pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
+pub async fn insert_cache<T: Serialize + Send + Sync>(
     redis: &Pool,
     to_insert: Option<&T>,
-    key: &RedisKey<'a>,
+    key: &RedisKey<'_>,
 ) -> Result<(), AppError> {
     let key = key.to_string();
     let serialized = to_insert
@@ -55,9 +55,9 @@ pub async fn insert_cache<'a, T: Serialize + Send + Sync>(
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
-pub async fn get_cache<'a, T: DeserializeOwned + Send + FromValue>(
+pub async fn get_cache<T: DeserializeOwned + Send + FromValue>(
     redis: &Pool,
-    key: &RedisKey<'a>,
+    key: &RedisKey<'_>,
 ) -> Result<Option<Option<T>>, AppError> {
     let key = key.to_string();
     if let Some(value) = redis
