@@ -88,7 +88,6 @@ impl AppEnv {
             api_port: Self::parse_number("API_PORT", &map)?,
             argon_hash: ArgonHash::try_from(Self::parse_string("ARGON_HASH", &map)?)
                 .map_err(EnvError::Parse)?,
-
             location_logs: Self::parse_string("LOCATION_LOGS", &map)?,
             log_level: Self::parse_log(&map),
             pg_database: Self::parse_string("PG_DATABASE", &map)?,

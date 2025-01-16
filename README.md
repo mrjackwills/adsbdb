@@ -37,7 +37,7 @@
 <hr>
 
 
-## Routes
+## GET Routes
 
 ```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S || REGISTRATION]```
 ```json
@@ -245,6 +245,45 @@ Convert from N-Number string to Mode_S string
 { "response": string }
 
 ```
+
+## POST Routes
+
+When `env.allow_update` and `env.argon_hash` are correctly set, and the POST request contains a valid `Authorization` header, Aircraft and Callsign can be modified.
+
+
+```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S]```
+Required body:
+
+```
+	{
+		"type": string,
+		"icao_type": string,
+		"manufacturer": string,
+		"mode_s": string,
+		"registration": string,
+		"registered_owner_country_iso_name": string,
+		"registered_owner_country_name": string,
+		"registered_owner_operator_flag_code": string || null,
+		"registered_owner": string,
+		"url_photo": string || null,
+		"url_photo_thumbnail": string || null
+	}
+```
+Warning: `mode_s`, `url_photo`, and `url_photo_thumbnail` cannot be modified from their current state.
+
+---
+
+```https://api.adsbdb.com/v[semver.major]/callsign/[CALLSIGN]```
+Required body:
+
+```
+	{
+		"origin": string,
+		"destination": string
+	}
+```
+Warning: Both `origin` and `destination` need to be valid ICAO airport codes.
+
 ---
 
 ## Download

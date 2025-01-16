@@ -87,7 +87,7 @@
 		Calculated over a 60 second period
 		</p>
 		<hr>
-		<h4>Routes & Responses</h4>
+		<h4>GET Routes & Responses</h4>
 		<strong><a href="#href_aircraft">/aircraft</a></strong>
 		<br>
 		<strong><a href="#href_callsign">/callsign</a></strong>
@@ -101,8 +101,6 @@
 		<strong><a href="#href_online">/online</a></strong>
 
 		<hr>
-		
-
 		<code id="href_aircraft">https://api.adsbdb.com/v0/aircraft/[MODE_S || REGISTRATION]</code>
 		<br>
 		<br>
@@ -422,6 +420,39 @@
 				</tr>
 			</tbody>
 		</table>
+		<hr>
+		<h4>POST Routes & Body</h4>
+		<strong><a href="#href_post_aircraft">/aircraft</a></strong>
+		<br>
+		<strong><a href="#href_post_callsign">/callsign</a></strong>
+		<hr>
+		Authorization header required
+		<hr>
+		<code id="href_post_aircraft">https://api.adsbdb.com/v0/aircraft/[MODE_S]</code>
+		<br>
+		<pre><code>{
+	"type": string,
+	"icao_type": string,
+	"manufacturer": string,
+	"mode_s": string,
+	"registration": string,
+	"registered_owner_country_iso_name": string,
+	"registered_owner_country_name": string,
+	"registered_owner_operator_flag_code": string || null,
+	"registered_owner": string,
+	"url_photo": string || null,
+	"url_photo_thumbnail": string || null
+}</code></pre>
+Warning: "mode_s", "url_photo", and "url_photo_thumbnail" cannot be modified.
+		<hr>
+		<code id="href_post_callsign">https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
+		<br>
+		<pre><code>{ 
+	"origin": string,
+	"destination": string
+}</code></pre>
+Warning: Both "origin" and "destination" need to be valid ICAO airport codes.
+
 		<hr>
 		<a class="masto" rel="me noopener" href="https://hachyderm.io/@adsbdb" target="_blank">@adsbdb Mastodon</a>
 	</main>

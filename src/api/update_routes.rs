@@ -196,7 +196,7 @@ pub async fn callsign_post(
     Ok(StatusCode::OK)
 }
 
-// At the moment this is only for mode_s, where the aicraft GET endpoint can search by registration as well
+// At the moment this is only for mode_s, where the aircraft GET endpoint can search by registration as well
 pub async fn aircraft_post(
     State(state): State<ApplicationState>,
     mode_s: ModeS,
