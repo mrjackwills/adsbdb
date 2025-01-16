@@ -11,6 +11,9 @@
 With the correct Authorization header, and when the features is enabled via environmental variables, the `/aircraft` and `/callsign` routes can accept
 a POST request which will update their respective entries. 
 
+### Fixes
++ Increase api Docker memory limit, [e36915ecf467db1d972d7f98a0875e595ae615c9]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.6'>v0.3.6</a>
 ### 2024-12-03
 
