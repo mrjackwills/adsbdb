@@ -1,4 +1,4 @@
-FROM redis:alpine3.20
+FROM redis:alpine3.21
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \

@@ -76,7 +76,7 @@ services:
     container_name: adsbdb_postgres_backup
     build:
       context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/dev.postgres_backup.Dockerfile
+      dockerfile: /workspaces/adsbdb/docker/dockerfile/postgres_backup.Dockerfile
     env_file: /workspaces/adsbdb/docker/env/.postgres_backup.env
     cap_drop:
       - all
