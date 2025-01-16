@@ -1,18 +1,21 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.4.0'>v0.4.0</a>
+### 2025-01-16
+
 ### Chores
-+ Docker container dependencies updated, [a49a02bd2761445c4faa053911961b9547a6358c]
-+ dependencies updated, [2faab418ccc1fa2e931115b6379414f1650b10c2], [05320923e115eecfba971f34d065129e4d1d4abb]
++ Docker container dependencies updated, [a49a02bd](https://github.com/mrjackwills/adsbdb/commit/a49a02bd2761445c4faa053911961b9547a6358c)
++ dependencies updated, [2faab418](https://github.com/mrjackwills/adsbdb/commit/2faab418ccc1fa2e931115b6379414f1650b10c2), [05320923](https://github.com/mrjackwills/adsbdb/commit/05320923e115eecfba971f34d065129e4d1d4abb)
 
 ### Docs
-+ update README.md and site, [5ac06dd1bf9f7d65ca43f85e066196753748bd5a], [fc35a0fb5edc835626be0b9b0cea249dc53e0232]
++ update README.md and site, [5ac06dd1](https://github.com/mrjackwills/adsbdb/commit/5ac06dd1bf9f7d65ca43f85e066196753748bd5a), [fc35a0fb](https://github.com/mrjackwills/adsbdb/commit/fc35a0fb5edc835626be0b9b0cea249dc53e0232)
 
 ### Features
-+ Update POST endpoints, [646e42c23d7ae9f8c72402f53c5be8ba3e000e60]
++ Update POST endpoints, [646e42c2](https://github.com/mrjackwills/adsbdb/commit/646e42c23d7ae9f8c72402f53c5be8ba3e000e60)
 
 With the correct Authorization header, and when the features is enabled via environmental variables, the `/aircraft` and `/callsign` routes can accept
 a POST request which will update their respective entries. 
 
 ### Fixes
-+ Increase api Docker memory limit, [e36915ecf467db1d972d7f98a0875e595ae615c9]
++ Increase api Docker memory limit, [e36915ec](https://github.com/mrjackwills/adsbdb/commit/e36915ecf467db1d972d7f98a0875e595ae615c9)
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.3.6'>v0.3.6</a>
 ### 2024-12-03

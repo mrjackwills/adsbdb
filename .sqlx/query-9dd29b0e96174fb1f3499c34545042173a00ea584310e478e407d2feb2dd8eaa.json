@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO aircraft_icao_type(icao_type) VALUES($1) ON CONFLICT(icao_type) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9dd29b0e96174fb1f3499c34545042173a00ea584310e478e407d2feb2dd8eaa"
+}

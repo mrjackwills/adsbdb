@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO aircraft_registered_owner(registered_owner) VALUES($1) ON CONFLICT(registered_owner) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19181dafc9762138b102a9fc583ed5812e455ac00dea145476f54ac5f228e675"
+}
