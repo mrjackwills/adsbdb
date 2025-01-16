@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT aircraft_registered_owner_id AS id FROM aircraft_registered_owner WHERE registered_owner = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3e1ddeb678f15c670dfa052f593d9aa1dbac9f06da80fff243d501929cfb77bd"
+}

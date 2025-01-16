@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO aircraft_operator_flag_code(operator_flag_code) VALUES($1) ON CONFLICT(operator_flag_code) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cc6e5f6d2dea5dfaf16445570edb00f7e7c38d1907860c9acccb03dc7c3cb8f3"
+}
