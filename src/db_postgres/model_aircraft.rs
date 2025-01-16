@@ -372,15 +372,20 @@ ORDER BY
     .id;
 
         // Registered Owner Flag Code
-        sqlx::query!("INSERT INTO aircraft_operator_flag_code(operator_flag_code) VALUES($1) ON CONFLICT(operator_flag_code) DO NOTHING", input.registered_owner_operator_flag_code).execute(&mut **transaction).await?;
-        let aircraft_operator_flag_code_id = sqlx::query_as!(
-        ID::<AircraftOperatorFlagCode>,
-        "SELECT aircraft_operator_flag_code_id AS id FROM aircraft_operator_flag_code WHERE operator_flag_code = $1",
-        input.registered_owner_operator_flag_code
-    )
-    .fetch_one(&mut **transaction)
-    .await?
-    .id;
+        let aircraft_operator_flag_code_id = if input.registered_owner_operator_flag_code.is_some()
+        {
+            sqlx::query!("INSERT INTO aircraft_operator_flag_code(operator_flag_code) VALUES($1) ON CONFLICT(operator_flag_code) DO NOTHING", input.registered_owner_operator_flag_code).execute(&mut **transaction).await?;
+            Some(sqlx::query_as!(
+            ID::<AircraftOperatorFlagCode>,
+            "SELECT aircraft_operator_flag_code_id AS id FROM aircraft_operator_flag_code WHERE operator_flag_code = $1",
+            input.registered_owner_operator_flag_code
+        )
+        .fetch_one(&mut **transaction)
+        .await?
+        .id)
+        } else {
+            None
+        };
 
         sqlx::query!(
             "
@@ -403,7 +408,7 @@ WHERE
             country_prefix.aircraft_registration_country_prefix_id,
             aircraft_registration_id.0,
             country_id.id.0,
-            aircraft_operator_flag_code_id.0,
+            aircraft_operator_flag_code_id.map(|i| i.0),
             aircraft_registered_owner_id.0,
             self.aircraft_id,
         )
