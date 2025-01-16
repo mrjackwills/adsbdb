@@ -116,7 +116,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 256M
     healthcheck:
       test: ["CMD", "/healthcheck/health_api.sh"]
       interval: 30s
