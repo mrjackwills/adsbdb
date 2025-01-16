@@ -314,21 +314,24 @@ pub mod tests {
         )
     }
 
+    /// Start the server, if allow_update is some, then set the environmental variable to allow POST update requests
     async fn start_server(allow_update: Option<()>) -> TestSetup {
         let setup = test_setup().await;
-
-        let postgres = setup.postgres.clone();
         let mut app_env = setup.app_env.clone();
         app_env.allow_update = allow_update;
+        let spawn_env = app_env.clone();
+
+        let postgres = setup.postgres.clone();
+
         let redis = setup.redis.clone();
-        let handle = tokio::spawn(async {
-            serve(app_env, postgres, redis).await.unwrap();
+        let handle = tokio::spawn(async move {
+            serve(spawn_env, postgres, redis).await.unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
         sleep!(1);
         TestSetup {
             _handle: Some(handle),
-            app_env: setup.app_env,
+            app_env,
             postgres: setup.postgres,
             redis: setup.redis,
         }
@@ -685,6 +688,32 @@ pub mod tests {
             resp.json::<TestResponse>().await.unwrap().response,
             "invalid body unknown registration prefix"
         );
+    }
+
+    #[tokio::test]
+    /// Valid request & body, but env.update is None, 405 response
+    async fn http_mod_post_aircraft_env_not_set() {
+        start_server(None).await;
+        let client = reqwest::Client::new();
+
+        let mut body = gen_aircraft();
+        body.aircraft_type = S!("XXX");
+        body.icao_type = S!("XXX");
+        body.manufacturer = S!("XXX");
+        body.registered_owner = S!("XXX");
+        body.registered_owner_country_iso_name = S!("JP");
+        body.registered_owner_country_name = S!("Japan");
+        body.registered_owner_operator_flag_code = Some(S!("XXX"));
+        body.registration = S!("JAXXX");
+
+        let resp = client
+            .post(aircraft_url())
+            .header("authorization", "password123")
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[tokio::test]
@@ -1083,6 +1112,25 @@ pub mod tests {
             resp.json::<TestResponse>().await.unwrap().response,
             "invalid body no change"
         );
+    }
+
+    #[tokio::test]
+    /// Valid request & body, but env.update is None, 405 response
+    async fn http_mod_post_icao_callsign_env_not_set() {
+        start_server(None).await;
+        let client = reqwest::Client::new();
+
+        let resp = client
+            .post(callsign_url())
+            .header("authorization", "password123")
+            .json(&HashMap::from([
+                ("origin", "EDDF"),
+                ("destination", "EIDW"),
+            ]))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[tokio::test]
