@@ -1,3 +1,6 @@
+### Docs
++ readme & site updated, [ef827790c9885258edb89e060f1ede6b634b191b]
+
 ### Fixes
 + change update routes from POST to PATCH, [52b7c9d36c3e6621a81dfd00eb4102afa2457b7f]
 + aircraft update `Registered Owner Flag Code` allow null, [653a1d78e134a0d3c7e9ff693bd3c91eded35478]
