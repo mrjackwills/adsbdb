@@ -1,4 +1,7 @@
-### Docs
+### Chores
++ create_release v0.6.2, [bb95aa414df9630fe52578fbd86554d4e6476094]
+ 
+ ### Docs
 + readme & site updated, [ef827790c9885258edb89e060f1ede6b634b191b]
 
 ### Fixes
