@@ -1,3 +1,10 @@
+### Fixes
++ change update routes from POST to PATCH, [52b7c9d36c3e6621a81dfd00eb4102afa2457b7f]
++ aircraft update `Registered Owner Flag Code` allow null, [653a1d78e134a0d3c7e9ff693bd3c91eded35478]
+
+### Refactors
++ combine allow_update and argon_hash environmental variables, [8c226751f2cdb9f404764c2ed9a8a4bbceddf8b3]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.4.0'>v0.4.0</a>
 ### 2025-01-16
 
