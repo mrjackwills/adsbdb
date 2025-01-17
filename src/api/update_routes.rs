@@ -154,7 +154,7 @@ fn check_aircraft_body_length(body: &ResponseAircraft) -> Result<(), ()> {
 }
 
 /// Return a flightroute detail from a callsign input
-pub async fn callsign_post(
+pub async fn callsign_patch(
     State(state): State<ApplicationState>,
     callsign: Callsign,
     IncomingJson(body): IncomingJson<UpdatedCallsign>,
@@ -197,7 +197,7 @@ pub async fn callsign_post(
 }
 
 // At the moment this is only for mode_s, where the aircraft GET endpoint can search by registration as well
-pub async fn aircraft_post(
+pub async fn aircraft_patch(
     State(state): State<ApplicationState>,
     mode_s: ModeS,
     IncomingJson(body): IncomingJson<ResponseAircraft>,
@@ -314,11 +314,14 @@ pub mod tests {
         )
     }
 
-    /// Start the server, if allow_update is some, then set the environmental variable to allow POST update requests
+    /// Start the server, if allow_update is some, then set the environmental variable to allow PATCH update requests
     async fn start_server(allow_update: Option<()>) -> TestSetup {
         let setup = test_setup().await;
         let mut app_env = setup.app_env.clone();
-        app_env.allow_update = allow_update;
+
+        if allow_update.is_none() {
+            app_env.allow_update = None;
+        }
         let spawn_env = app_env.clone();
 
         let postgres = setup.postgres.clone();
@@ -371,7 +374,7 @@ pub mod tests {
     async fn reset_aircraft(client: &Client) {
         let aircraft = gen_aircraft();
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&aircraft)
             .send()
@@ -382,29 +385,29 @@ pub mod tests {
 
     #[tokio::test]
     /// env.update is None, 405 response
-    async fn http_mod_post_aircraft_no_update() {
+    async fn http_mod_patch_aircraft_no_update() {
         start_server(None).await;
         let client = reqwest::Client::new();
-        let resp = client.post(aircraft_url()).send().await.unwrap();
+        let resp = client.patch(aircraft_url()).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[tokio::test]
     /// No auth header, return 401
-    async fn http_mod_post_aircraft_no_header() {
+    async fn http_mod_patch_aircraft_no_header() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
-        let resp = client.post(aircraft_url()).send().await.unwrap();
+        let resp = client.patch(aircraft_url()).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     /// invalid auth header, return 401
-    async fn http_mod_post_aircraft_invalid_header() {
+    async fn http_mod_patch_aircraft_invalid_header() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "invalid_header")
             .send()
             .await
@@ -414,11 +417,11 @@ pub mod tests {
 
     #[tokio::test]
     /// No body, return 401
-    async fn http_mod_post_aircraft_no_body() {
+    async fn http_mod_patch_aircraft_no_body() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .send()
             .await
@@ -428,11 +431,11 @@ pub mod tests {
 
     #[tokio::test]
     /// Unknown aircraft, return 404
-    async fn http_mod_post_aircraft_unknown() {
+    async fn http_mod_patch_aircraft_unknown() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(format!(
+            .patch(format!(
                 "http://127.0.0.1:8282{}/aircraft/101010",
                 get_api_version(),
             ))
@@ -450,11 +453,11 @@ pub mod tests {
 
     #[tokio::test]
     /// Invalid body, return 401
-    async fn http_mod_post_aircraft_invalid_body() {
+    async fn http_mod_patch_aircraft_invalid_body() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&HashMap::from([("thing", "other")]))
             .send()
@@ -465,11 +468,11 @@ pub mod tests {
 
     #[tokio::test]
     /// No change to data, return 400
-    async fn http_mod_post_aircraft_no_change() {
+    async fn http_mod_patch_aircraft_no_change() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&gen_aircraft())
             .send()
@@ -484,7 +487,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Changes to either photo url's or mode_s will result in a 400 error
-    async fn http_mod_post_aircraft_invalid_body_url_mode_s() {
+    async fn http_mod_patch_aircraft_invalid_body_url_mode_s() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -492,7 +495,7 @@ pub mod tests {
         let mut body = gen_aircraft();
         body.mode_s = S!("AAAAAA");
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -508,7 +511,7 @@ pub mod tests {
         let mut body = gen_aircraft();
         body.url_photo = Some(S!("/any/url/here"));
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -523,7 +526,7 @@ pub mod tests {
         let mut body = gen_aircraft();
         body.url_photo = None;
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -539,7 +542,7 @@ pub mod tests {
         let mut body = gen_aircraft();
         body.url_photo_thumbnail = Some(S!("/any/url/here"));
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -554,7 +557,7 @@ pub mod tests {
         let mut body = gen_aircraft();
         body.url_photo_thumbnail = None;
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -569,7 +572,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Unknown country returns a 400 error
-    async fn http_mod_post_aircraft_invalid_body_country() {
+    async fn http_mod_patch_aircraft_invalid_body_country() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -577,7 +580,7 @@ pub mod tests {
         body.registered_owner_country_name = S!("Unknown");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -593,7 +596,7 @@ pub mod tests {
         body.registered_owner_country_iso_name = S!("XX");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -607,13 +610,13 @@ pub mod tests {
     }
     #[tokio::test]
     /// New values rejected if too long
-    async fn http_mod_post_aircraft_invalid_lengths() {
+    async fn http_mod_patch_aircraft_invalid_lengths() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
 
         async fn test(client: &Client, body: ResponseAircraft) {
             let resp = client
-                .post(aircraft_url())
+                .patch(aircraft_url())
                 .header("authorization", "password123")
                 .json(&body)
                 .send()
@@ -653,7 +656,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Unknown registration prefix
-    async fn http_mod_post_aircraft_invalid_registration() {
+    async fn http_mod_patch_aircraft_invalid_registration() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -661,7 +664,7 @@ pub mod tests {
         body.registration = S!("XXXXXXX");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -677,7 +680,7 @@ pub mod tests {
         body.registration = S!("G1");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -692,7 +695,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Valid request & body, but env.update is None, 405 response
-    async fn http_mod_post_aircraft_env_not_set() {
+    async fn http_mod_patch_aircraft_env_not_set() {
         start_server(None).await;
         let client = reqwest::Client::new();
 
@@ -707,7 +710,7 @@ pub mod tests {
         body.registration = S!("JAXXX");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -717,8 +720,58 @@ pub mod tests {
     }
 
     #[tokio::test]
+    /// All aircraft details updated, when flag_code is null, cache cleared
+    async fn http_mod_patch_aircraft_null_flag() {
+        start_server(Some(())).await;
+        let client = reqwest::Client::new();
+
+        let mut body = gen_aircraft();
+        body.aircraft_type = S!("XXX");
+        body.icao_type = S!("XXX");
+        body.manufacturer = S!("XXX");
+        body.registered_owner = S!("XXX");
+        body.registered_owner_country_iso_name = S!("JP");
+        body.registered_owner_country_name = S!("Japan");
+        body.registered_owner_operator_flag_code = None;
+        body.registration = S!("JAXXX");
+
+        let resp = client
+            .patch(aircraft_url())
+            .header("authorization", "password123")
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let resp = client.get(aircraft_url()).send().await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<TestResponse>().await.unwrap();
+
+        assert_eq!(result.response["aircraft"]["type"], "XXX");
+        assert_eq!(result.response["aircraft"]["icao_type"], "XXX");
+        assert_eq!(result.response["aircraft"]["manufacturer"], "XXX");
+        assert_eq!(result.response["aircraft"]["registered_owner"], "XXX");
+        assert_eq!(
+            result.response["aircraft"]["registered_owner_country_iso_name"],
+            "JP"
+        );
+        assert_eq!(
+            result.response["aircraft"]["registered_owner_country_name"],
+            "Japan"
+        );
+        assert_eq!(
+            result.response["aircraft"]["registered_owner_operator_flag_code"],
+            Value::Null
+        );
+        assert_eq!(result.response["aircraft"]["registration"], "JAXXX");
+
+        reset_aircraft(&client).await;
+    }
+
+    #[tokio::test]
     /// All aircraft details updated, cache cleared
-    async fn http_mod_post_aircraft_ok() {
+    async fn http_mod_patch_aircraft_ok() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -733,7 +786,7 @@ pub mod tests {
         body.registration = S!("JAXXX");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -768,7 +821,7 @@ pub mod tests {
 
     #[tokio::test]
     /// All aircraft details updated, cache cleared, when using a country that has multiple registration prefixes
-    async fn http_mod_post_aircraft_ok_ireland() {
+    async fn http_mod_patch_aircraft_ok_ireland() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -783,7 +836,7 @@ pub mod tests {
         body.registration = S!("EJXXX");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -826,7 +879,7 @@ pub mod tests {
         body.registration = S!("EIXXX");
 
         let resp = client
-            .post(aircraft_url())
+            .patch(aircraft_url())
             .header("authorization", "password123")
             .json(&body)
             .send()
@@ -950,7 +1003,7 @@ pub mod tests {
     /// Reset callsign back to original
     async fn reset_callsign(client: &Client) {
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "EGLC"),
@@ -964,29 +1017,29 @@ pub mod tests {
 
     #[tokio::test]
     /// env.update is None, 405 response
-    async fn http_mod_post_icao_callsign_no_update() {
+    async fn http_mod_patch_icao_callsign_no_update() {
         start_server(None).await;
         let client = reqwest::Client::new();
-        let resp = client.post(callsign_url()).send().await.unwrap();
+        let resp = client.patch(callsign_url()).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[tokio::test]
     /// No auth header, return 401
-    async fn http_mod_post_icao_callsign_no_header() {
+    async fn http_mod_patch_icao_callsign_no_header() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
-        let resp = client.post(callsign_url()).send().await.unwrap();
+        let resp = client.patch(callsign_url()).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     /// Invalid auth header, return 401
-    async fn http_mod_post_icao_callsign_invalid_header() {
+    async fn http_mod_patch_icao_callsign_invalid_header() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "invalid_header")
             .send()
             .await
@@ -996,11 +1049,11 @@ pub mod tests {
 
     #[tokio::test]
     /// No body, return 401
-    async fn http_mod_post_icao_callsign_no_body() {
+    async fn http_mod_patch_icao_callsign_no_body() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .send()
             .await
@@ -1010,11 +1063,11 @@ pub mod tests {
 
     #[tokio::test]
     /// Invalid body, return 401
-    async fn http_mod_post_icao_callsign_invalid_body() {
+    async fn http_mod_patch_icao_callsign_invalid_body() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([("thing", "other")]))
             .send()
@@ -1025,11 +1078,11 @@ pub mod tests {
 
     #[tokio::test]
     /// Unknown callsign, return 404
-    async fn http_mod_post_icao_callsign_unknown() {
+    async fn http_mod_patch_icao_callsign_unknown() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(format!(
+            .patch(format!(
                 "http://127.0.0.1:8282{}/callsign/ZZ0909",
                 get_api_version(),
             ))
@@ -1050,11 +1103,11 @@ pub mod tests {
 
     #[tokio::test]
     /// Invalid origin, return 404
-    async fn http_mod_post_icao_callsign_invalid_body_origin() {
+    async fn http_mod_patch_icao_callsign_invalid_body_origin() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "DHAM"),
@@ -1072,11 +1125,11 @@ pub mod tests {
 
     #[tokio::test]
     /// Invalid destination, return 404
-    async fn http_mod_post_icao_callsign_invalid_body_destination() {
+    async fn http_mod_patch_icao_callsign_invalid_body_destination() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "EHAM"),
@@ -1094,11 +1147,11 @@ pub mod tests {
 
     #[tokio::test]
     /// No change in origin & destination, return 401
-    async fn http_mod_post_icao_callsign_invalid_body_no_change() {
+    async fn http_mod_patch_icao_callsign_invalid_body_no_change() {
         start_server(Some(())).await;
         let client = reqwest::Client::new();
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "EGLC"),
@@ -1116,12 +1169,12 @@ pub mod tests {
 
     #[tokio::test]
     /// Valid request & body, but env.update is None, 405 response
-    async fn http_mod_post_icao_callsign_env_not_set() {
+    async fn http_mod_patch_icao_callsign_env_not_set() {
         start_server(None).await;
         let client = reqwest::Client::new();
 
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "EDDF"),
@@ -1135,7 +1188,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Valid flightroute origin change, cache removed
-    async fn http_mod_post_icao_callsign_update_origin() {
+    async fn http_mod_patch_icao_callsign_update_origin() {
         let setup = start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -1151,7 +1204,7 @@ pub mod tests {
         assert!(original_cache_icao.is_some());
 
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "EDDF"),
@@ -1187,7 +1240,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Valid flightroute destination change, cache removed
-    async fn http_mod_post_icao_callsign_update_destination() {
+    async fn http_mod_patch_icao_callsign_update_destination() {
         let setup = start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -1203,7 +1256,7 @@ pub mod tests {
         assert!(original_cache_icao.is_some());
 
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "EGLC"),
@@ -1239,7 +1292,7 @@ pub mod tests {
 
     #[tokio::test]
     /// Valid flightroute origin & destination change, cache removed
-    async fn http_mod_post_icao_callsign_update_origin_and_destination() {
+    async fn http_mod_patch_icao_callsign_update_origin_and_destination() {
         let setup = start_server(Some(())).await;
         let client = reqwest::Client::new();
 
@@ -1255,7 +1308,7 @@ pub mod tests {
         assert!(original_cache_icao.is_some());
 
         let resp = client
-            .post(callsign_url())
+            .patch(callsign_url())
             .header("authorization", "password123")
             .json(&HashMap::from([
                 ("origin", "KIND"),

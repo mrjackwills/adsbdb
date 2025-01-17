@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
-    routing::{get, post},
+    routing::{get, patch},
     Router,
 };
 use std::{
@@ -170,27 +170,30 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
         .route(&Routes::ModeS.addr(), get(api_routes::mode_s_get));
 
     // If .env flag is set, enable update routes
-    if app_env.allow_update.is_some() {
+
+    let mut allowed_methods = vec![axum::http::Method::GET];
+    if let Some(hash) = &app_env.allow_update {
         api_routes = api_routes
             .route(
                 &Routes::Callsign.addr(),
-                post(update_routes::callsign_post).layer(middleware::from_fn_with_state(
-                    app_env.argon_hash.clone(),
+                patch(update_routes::callsign_patch).layer(middleware::from_fn_with_state(
+                    hash.clone(),
                     update_routes::auth_header,
                 )),
             )
             .route(
                 &Routes::Aircraft.addr(),
-                post(update_routes::aircraft_post).layer(middleware::from_fn_with_state(
-                    app_env.argon_hash.clone(),
+                patch(update_routes::aircraft_patch).layer(middleware::from_fn_with_state(
+                    hash.clone(),
                     update_routes::auth_header,
                 )),
             );
-    }
+        allowed_methods.push(axum::http::Method::PATCH);
+    };
     let prefix = get_api_version();
 
     let cors = CorsLayer::new()
-        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_methods(allowed_methods)
         .allow_origin(Any);
 
     let app = Router::new()
