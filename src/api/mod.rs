@@ -213,6 +213,12 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
     let addr = get_addr(&app_env)?;
     info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     info!("starting server @ {addr}{prefix}");
+    info!(
+        "scrape_flightroute: {}, scrape_flightroute: {}",
+        app_env.allow_scrape_flightroute.is_some(),
+        app_env.allow_scrape_photo.is_some()
+    );
+    info!("updater: {}", app_env.allow_update.is_some(),);
 
     match axum::serve(
         tokio::net::TcpListener::bind(&addr).await?,

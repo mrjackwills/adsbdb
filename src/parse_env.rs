@@ -9,15 +9,15 @@ type EnvHashMap = HashMap<String, String>;
 enum EnvError {
     #[error("missing env: '{0}'")]
     NotFound(String),
-    #[error("'{0}' - cannot parse'")]
-    Parse(String),
+    // #[error("'{0}' - cannot parse'")]
+    // Parse(String),
 }
 
 #[derive(Debug, Clone)]
 pub struct AppEnv {
     pub allow_scrape_flightroute: Option<()>,
     pub allow_scrape_photo: Option<()>,
-    pub allow_update: Option<()>,
+    pub allow_update: Option<ArgonHash>,
     pub api_host: String,
     pub api_port: u16,
     pub location_logs: String,
@@ -27,7 +27,6 @@ pub struct AppEnv {
     pub pg_pass: String,
     pub pg_port: u16,
     pub pg_user: String,
-    pub argon_hash: ArgonHash,
     pub redis_database: u16,
     pub redis_host: String,
     pub redis_password: String,
@@ -79,15 +78,13 @@ impl AppEnv {
         let map = env::vars()
             .map(|i| (i.0, i.1))
             .collect::<HashMap<String, String>>();
-
         Ok(Self {
             allow_scrape_flightroute: Self::parse_bool_to_option("SCRAPE_FLIGHTROUTE", &map),
             allow_scrape_photo: Self::parse_bool_to_option("SCRAPE_PHOTO", &map),
-            allow_update: Self::parse_bool_to_option("UPDATER", &map),
+            allow_update: Self::parse_string("UPDATE_ARGON_HASH", &map)
+                .map_or(None, |i| ArgonHash::try_from(i).ok()),
             api_host: Self::parse_string("API_HOST", &map)?,
             api_port: Self::parse_number("API_PORT", &map)?,
-            argon_hash: ArgonHash::try_from(Self::parse_string("ARGON_HASH", &map)?)
-                .map_err(EnvError::Parse)?,
             location_logs: Self::parse_string("LOCATION_LOGS", &map)?,
             log_level: Self::parse_log(&map),
             pg_database: Self::parse_string("PG_DATABASE", &map)?,
@@ -319,7 +316,6 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             EnvError::NotFound(value) => assert_eq!(value, "U16_TEST"),
-            EnvError::Parse(_) => unreachable!(),
         }
     }
 }
