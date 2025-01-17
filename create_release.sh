@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# rust create_release v0.6.1
-# 2024-10-22
+# rust create_release v0.6.2
+# 2025-01-17
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -194,7 +194,8 @@ check_tag() {
 			break
 			;;
 		*)
-			error_close "invalid option $REPLY"
+			echo -e "\n\"${REPLY}\" ${RED}- invalid option. Please select 1, 2, or 3.${RESET}"
+			continue
 			;;
 		esac
 	done
@@ -327,7 +328,7 @@ release_flow() {
 	get_git_remote_url
 
 	sqlx_prepare
-	
+
 	cargo_test
 	cargo_build_all
 

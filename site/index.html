@@ -87,7 +87,7 @@
 		Calculated over a 60 second period
 		</p>
 		<hr>
-		<h4>GET Routes & Responses</h4>
+		<h4>GET Routes + Response</h4>
 		<strong><a href="#href_aircraft">/aircraft</a></strong>
 		<br>
 		<strong><a href="#href_callsign">/callsign</a></strong>
@@ -421,14 +421,14 @@
 			</tbody>
 		</table>
 		<hr>
-		<h4>POST Routes & Body</h4>
-		<strong><a href="#href_post_aircraft">/aircraft</a></strong>
+		<h4>PATCH Routes + Body</h4>
+		<strong><a href="#href_patch_aircraft">/aircraft</a></strong>
 		<br>
-		<strong><a href="#href_post_callsign">/callsign</a></strong>
+		<strong><a href="#href_patch_callsign">/callsign</a></strong>
 		<hr>
 		Authorization header required
 		<hr>
-		<code id="href_post_aircraft">https://api.adsbdb.com/v0/aircraft/[MODE_S]</code>
+		<code id="href_patch_aircraft">https://api.adsbdb.com/v0/aircraft/[MODE_S]</code>
 		<br>
 		<pre><code>{
 	"type": string,
@@ -445,7 +445,7 @@
 }</code></pre>
 Warning: "mode_s", "url_photo", and "url_photo_thumbnail" cannot be modified.
 		<hr>
-		<code id="href_post_callsign">https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
+		<code id="href_patch_callsign">https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
 		<br>
 		<pre><code>{ 
 	"origin": string,
