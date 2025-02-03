@@ -248,7 +248,7 @@ Convert from N-Number string to Mode_S string
 
 ## PATCH Routes
 
-When `env.allow_update` and `env.argon_hash` are correctly set, and the PATCH request contains a valid `Authorization` header, Aircraft and Callsign can be modified.
+When `env.allow_update` is correctly set, and the PATCH request contains a valid `Authorization` header, Aircraft and Callsign can be modified.
 
 
 ```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S]```
