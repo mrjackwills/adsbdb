@@ -214,7 +214,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
     info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     info!("starting server @ {addr}{prefix}");
     info!(
-        "scrape_flightroute: {}, scrape_flightroute: {}",
+        "scrape_flightroute: {}, scrape_photo: {}",
         app_env.allow_scrape_flightroute.is_some(),
         app_env.allow_scrape_photo.is_some()
     );
