@@ -4,8 +4,8 @@ use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 use tokio::sync::{
-    broadcast::{Receiver, Sender},
     Mutex,
+    broadcast::{Receiver, Sender},
 };
 
 use crate::{
@@ -370,10 +370,10 @@ impl Scraper {
 mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, Registration, Validate};
-    use crate::{db_postgres, db_redis, sleep, S};
+    use crate::{S, db_postgres, db_redis, sleep};
     use fred::interfaces::ClientLike;
-    use serde::de::value::{Error as ValueError, StringDeserializer};
     use serde::de::IntoDeserializer;
+    use serde::de::value::{Error as ValueError, StringDeserializer};
 
     const TEST_CALLSIGN: &str = "ANA460";
     const TEST_ORIGIN: &str = "ROAH";

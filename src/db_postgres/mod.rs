@@ -1,4 +1,4 @@
-use sqlx::{postgres::PgPoolOptions, ConnectOptions, PgPool};
+use sqlx::{ConnectOptions, PgPool, postgres::PgPoolOptions};
 
 mod model_aircraft;
 mod model_airline;

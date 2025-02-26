@@ -281,23 +281,24 @@ WHERE
                 .await
                 .unwrap_or(None),
             Callsign::Iata(x) | Callsign::Icao(x) => {
-                if let Ok(flightroute) = sqlx::query_as::<_, Self>(&query)
+                match sqlx::query_as::<_, Self>(&query)
                     .bind(&x.0)
                     .bind(&x.1)
                     .fetch_optional(db)
                     .await
                 {
-                    if let Some(flightroute) = flightroute {
-                        Some(flightroute)
-                    } else {
-                        sqlx::query_as::<_, Self>(&Self::get_query_callsign())
-                            .bind(format!("{}{}", x.0, x.1))
-                            .fetch_optional(db)
-                            .await
-                            .unwrap_or(None)
+                    Ok(flightroute) => {
+                        if let Some(flightroute) = flightroute {
+                            Some(flightroute)
+                        } else {
+                            sqlx::query_as::<_, Self>(&Self::get_query_callsign())
+                                .bind(format!("{}{}", x.0, x.1))
+                                .fetch_optional(db)
+                                .await
+                                .unwrap_or(None)
+                        }
                     }
-                } else {
-                    None
+                    _ => None,
                 }
             }
         }
@@ -429,7 +430,7 @@ VALUES
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crate::{db_postgres, parse_env::AppEnv, S};
+    use crate::{S, db_postgres, parse_env::AppEnv};
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();

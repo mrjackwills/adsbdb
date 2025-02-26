@@ -10,14 +10,12 @@ use super::response::{
     AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseAirline, ResponseFlightRoute,
     ResponseJson,
 };
-use super::{app_error::UnknownAC, AppError, ApplicationState};
+use super::{AppError, ApplicationState, app_error::UnknownAC};
 use crate::{
-    db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
-    db_redis::{get_cache, insert_cache, RedisKey},
-};
-use crate::{
-    n_number::{mode_s_to_n_number, n_number_to_mode_s},
     S,
+    db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
+    db_redis::{RedisKey, get_cache, insert_cache},
+    n_number::{mode_s_to_n_number, n_number_to_mode_s},
 };
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
@@ -231,16 +229,16 @@ mod tests {
     use fred::interfaces::KeysInterface;
     use tokio::sync::Mutex;
 
+    use crate::S;
+    use crate::api::Registration;
     use crate::api::input::Validate;
     use crate::api::response::Airline;
     use crate::api::response::Airport;
-    use crate::api::Registration;
     use crate::db_postgres;
     use crate::db_redis;
     use crate::parse_env;
     use crate::scraper::ScraperThreadMap;
     use crate::sleep;
-    use crate::S;
 
     const CALLSIGN: &str = "ANA460";
 

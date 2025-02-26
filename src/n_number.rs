@@ -8,8 +8,8 @@
 use std::{fmt, sync::LazyLock};
 
 use crate::{
-    api::{AppError, ModeS, NNumber, Validate},
     S,
+    api::{AppError, ModeS, NNumber, Validate},
 };
 
 const ICAO_SIZE: usize = 6;
