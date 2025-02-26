@@ -1,7 +1,7 @@
 use crate::{
+    S,
     api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
     parse_env::AppEnv,
-    S,
 };
 use fred::{
     clients::Pool,
@@ -9,7 +9,7 @@ use fred::{
     prelude::ReconnectPolicy,
     types::FromValue,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashMap, fmt, net::IpAddr};
 pub mod ratelimit;
 

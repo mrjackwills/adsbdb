@@ -3,8 +3,8 @@ use std::fmt;
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
-    n_number::{n_number_to_mode_s, ALLCHARS},
     S,
+    n_number::{ALLCHARS, n_number_to_mode_s},
 };
 
 use super::AppError;

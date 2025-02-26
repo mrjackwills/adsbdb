@@ -1,7 +1,7 @@
 use axum::{
     extract::{
-        rejection::{JsonDataError, JsonRejection},
         FromRequest, State,
+        rejection::{JsonDataError, JsonRejection},
     },
     http::{HeaderMap, Request},
     middleware::Next,
@@ -14,13 +14,13 @@ use serde::Deserialize;
 use std::error::Error;
 
 use crate::{
+    S,
     api::UnknownAC,
     argon::ArgonHash,
     db_postgres::{ModelAircraft, ModelAirport, ModelFlightroute},
-    S,
 };
 
-use super::{response::ResponseAircraft, AppError, ApplicationState, Callsign, ModeS};
+use super::{AppError, ApplicationState, Callsign, ModeS, response::ResponseAircraft};
 
 /// Verify the Authorization header against the app_env.argon_hash
 pub async fn auth_header(
@@ -257,6 +257,7 @@ pub mod tests {
 
     use super::*;
 
+    use crate::S;
     use crate::api::get_api_version;
     use crate::api::serve;
     use crate::db_postgres;
@@ -264,7 +265,6 @@ pub mod tests {
     use crate::parse_env;
     use crate::parse_env::AppEnv;
     use crate::sleep;
-    use crate::S;
 
     use fred::{
         interfaces::ClientLike,

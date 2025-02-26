@@ -3,12 +3,12 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
+    Router,
     extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, State},
     http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
     routing::{get, patch},
-    Router,
 };
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -26,10 +26,10 @@ mod response;
 mod update_routes;
 
 use crate::{
+    S,
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
     scraper::{Scraper, ScraperThreadMap},
-    S,
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};

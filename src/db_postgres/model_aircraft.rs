@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use crate::{
+    S,
     api::{AircraftSearch, AppError, ResponseAircraft},
     redis_hash_to_struct,
     scraper::PhotoData,
-    S,
 };
 
 /// Generic PostgreSQL ID
@@ -519,8 +519,8 @@ WHERE aircraft_registered_owner_id IN (
 mod tests {
     use super::*;
     use crate::{
-        api::{tests::test_setup, ModeS, Registration, Validate},
         S,
+        api::{ModeS, Registration, Validate, tests::test_setup},
     };
 
     #[tokio::test]
