@@ -1,3 +1,24 @@
+### Chores
++ dependencies updated, [8ac971c1a1fa3bd647c72a776e4aa85c9fd59523]
++ dockerfile dependency fix, [05a1978abaca35158077cb3a279a97959d5f5cdb]
++ Rust 1.86.0 linting, [5ade07ad47d0a1acd96b9feed9f2c3e7dc37955b]
++ .devcontainer updated, [89878dd7a89ea14bc953e7763c2c4e28280ad171]
+
+### Docs
++ README.md updated, [bb625d5680f31ff07bc539980c4d5dc36a96e421]
+
+### Features
++ create_release.sh build containers, [7e2f6c05853079411ef4a3e030bf1146b1c3a6a1]
++ Rust 2024 edition, [d3d4809abee579da4f07b733d6450513f5396e11]
+
+### Fixes
++ startup information typo, [2cb5f3b66c27380cc905f42a1bf3fb597808d0c7]
+
+### Refactors
++ postgres migrations, [257c07686ea055608af83a720f5b743538f65807]
++ extract flightroute, [be9b4bf0a5ff761d14238d619be2df2bd3ee2804]
+
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.4.1'>v0.4.1</a>
 ### 2025-01-17
 
