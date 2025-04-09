@@ -189,7 +189,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
                 )),
             );
         allowed_methods.push(axum::http::Method::PATCH);
-    };
+    }
     let prefix = get_api_version();
 
     let cors = CorsLayer::new()
