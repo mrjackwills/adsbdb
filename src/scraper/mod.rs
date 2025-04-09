@@ -23,7 +23,6 @@ use tracing::error;
 use crate::sleep;
 
 const SCRAPE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-const ICAO: &str = "\"icao\":";
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct PhotoData {
@@ -141,18 +140,8 @@ impl Scraper {
             .await?)
     }
 
-    /// Check that a given airport ICAO is valid, and return as uppercase
-    fn validate_airport(input: &str) -> Option<String> {
-        if (3..=4).contains(&input.chars().count())
-            && input.chars().all(|i| i.is_ascii_alphabetic())
-        {
-            Some(input.to_uppercase())
-        } else {
-            None
-        }
-    }
-
     /// Try to extract the ICAO callsign, IATA callsign, and ICAO origin/destination airports
+    /// Return None is origin and destination are the same
     fn extract_flightroute(html: &str) -> Option<ScrapedFlightroute> {
         let title_callsigns = html
             .split_once("<title>")
@@ -179,16 +168,15 @@ impl Scraper {
                 _ => None,
             });
 
-        let output = html
-            .match_indices(ICAO)
-            .filter_map(|i| {
-                let icao_code = &html.split_at(i.0 + 8).1.chars().take(4).collect::<String>();
-                Self::validate_airport(icao_code)
-            })
-            .collect::<Vec<_>>();
+        let origin = html
+            .split_once(r".setTargeting('origin', '")
+            .and_then(|i| i.1.split_once('\''))
+            .map(|i| i.0.to_owned());
 
-        let origin = output.first().map(std::borrow::ToOwned::to_owned);
-        let destination = output.get(1).map(std::borrow::ToOwned::to_owned);
+        let destination = html
+            .split_once(r".setTargeting('destination', '")
+            .and_then(|i| i.1.split_once('\''))
+            .map(|i| i.0.to_owned());
 
         if let (Some(callsign_icao), Some(callsign_iata), Some(origin), Some(destination)) =
             (icao_callsign, iata_callsign, origin, destination)
@@ -321,6 +309,7 @@ impl Scraper {
 
     /// Scrape third party site for a flightroute, and try to insert into db
     /// Inserts the callsign into a shared HashMap, so that if there are multiple requests for the same callsign, it'll only scrape once
+    /// Will only insert a flightroute if the origin and destination are different locations
     /// Could also place the scrape into it's own tokio thread, but probably not worth it
     pub async fn scrape_flightroute(
         &self,
@@ -343,14 +332,22 @@ impl Scraper {
                     tokio::time::timeout(SCRAPE_TIMEOUT, self.request_callsign(callsign)).await
                 {
                     if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
-                        match ModelFlightroute::insert_scraped_flightroute(
-                            postgres,
-                            &scraped_flightroute,
-                        )
-                        .await
-                        {
-                            Ok(flightroute) => output = flightroute,
-                            Err(e) => tracing::error!("{}", e),
+                        if scraped_flightroute.origin == scraped_flightroute.destination {
+                            tracing::error!(
+                                "airport match, callsign: {callsign}, origin: {o}, destination: {d}",
+                                o = scraped_flightroute.origin,
+                                d = scraped_flightroute.destination
+                            );
+                        } else {
+                            match ModelFlightroute::insert_scraped_flightroute(
+                                postgres,
+                                &scraped_flightroute,
+                            )
+                            .await
+                            {
+                                Ok(flightroute) => output = flightroute,
+                                Err(e) => tracing::error!("{}", e),
+                            }
                         }
                     }
                 }
@@ -447,34 +444,6 @@ mod tests {
             format!("{prefix}{suffix}").into_deserializer();
         let result = deserialize_url(deserializer);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn scraper_validate_icao_codes() {
-        // Too long
-        let valid = S!("AaBb12");
-        let result = Scraper::validate_airport(&valid);
-        assert!(result.is_none());
-
-        // Too short
-        let valid = S!("aa");
-        let result = Scraper::validate_airport(&valid);
-        assert!(result.is_none());
-
-        // Invalid char short
-        let valid = S!("AAA*");
-        let result = Scraper::validate_airport(&valid);
-        assert!(result.is_none());
-
-        // Valid against known ORIGIN
-        let result = Scraper::validate_airport("roah");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), TEST_ORIGIN);
-
-        // Valid against known DESTINATION
-        let result = Scraper::validate_airport("rjtt");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), TEST_DESTINATION);
     }
 
     #[test]
