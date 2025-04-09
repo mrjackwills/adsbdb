@@ -133,13 +133,13 @@ SELECT
     END AS url_photo_thumbnail
 FROM
     aircraft aa
-    LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-    LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
-    LEFT JOIN country co USING(country_id)
-    LEFT JOIN aircraft_type at USING(aircraft_type_id)
-    LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
-    LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
-    LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+    JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+    JOIN country co USING(country_id)
+    JOIN aircraft_registration ar USING(aircraft_registration_id)
+    JOIN aircraft_type at USING(aircraft_type_id)
+    JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+    JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+    JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
     LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
     LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
@@ -181,13 +181,13 @@ SELECT
     END AS url_photo_thumbnail
 FROM
     aircraft aa
-    LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-    LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
-    LEFT JOIN country co USING(country_id)
-    LEFT JOIN aircraft_type at USING(aircraft_type_id)
-    LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
-    LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
-    LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+    JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+	JOIN country co USING(country_id)
+    JOIN aircraft_registration ar USING(aircraft_registration_id)
+    JOIN aircraft_type at USING(aircraft_type_id)
+    JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+    JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+    JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
     LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
     LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE

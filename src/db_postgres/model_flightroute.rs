@@ -430,7 +430,7 @@ VALUES
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crate::{S, db_postgres, parse_env::AppEnv};
+    use crate::{S, api::Validate, db_postgres, parse_env::AppEnv};
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -519,5 +519,153 @@ mod tests {
 
         assert_eq!(result, expected);
         remove_flightroute(&setup.1, &scraped_flightroute).await;
+    }
+
+    const ICAO_CALLSIGNS: [(&str, &str); 122] = [
+        ("AAL177", "AA177"),
+        ("AAL2251", "AA2251"),
+        ("AAL2781", "AA2781"),
+        ("ACA1330", "AC1330"),
+        ("ACA430", "AC430"),
+        ("AFR90", "AF90"),
+        ("AMC306", "KM306"),
+        ("AMU882", "NX882"),
+        ("ANE8435", "YW8435"),
+        ("ANZ65", "NZ65"),
+        ("ATN4312", "8C4312"),
+        ("BAW382", "BA382"),
+        ("BAW84PX", "BA84PX"),
+        ("CAY608", "KX608"),
+        ("CFG1TL", "DE1TL"),
+        ("CPA238", "CX238"),
+        ("CSN3378", "CZ3378"),
+        ("CYP467", "CY467"),
+        ("DAL1516", "DL1516"),
+        ("DAL642", "DL642"),
+        ("DAL9925", "DL9925"),
+        ("DHK38", "D038"),
+        ("EDV4789", "9E4789"),
+        ("EDV4862", "9E4862"),
+        ("EDW78", "WK78"),
+        ("EIN1C6", "EI1C6"),
+        ("ELY16", "LY16"),
+        ("ELY25", "LY25"),
+        ("EVA6606", "BR6606"),
+        ("EWG465", "EW465"),
+        ("EXS47SR", "LS47SR"),
+        ("EXS878", "LS878"),
+        ("EZS2186", "DS2186"),
+        ("EZY2146", "U22146"),
+        ("EZY2582", "U22582"),
+        ("EZY278Z", "U2278Z"),
+        ("EZY34TZ", "U234TZ"),
+        ("EZY47UG", "U247UG"),
+        ("FFT1093", "F91093"),
+        ("FFT329", "F9329"),
+        ("FFT8511", "F98511"),
+        ("FIN7052", "AY7052"),
+        ("IBE841", "IB841"),
+        ("ISR49", "6H49"),
+        ("JAF21", "JF21"),
+        ("JBU2003", "B62003"),
+        ("JST712", "JQ712"),
+        ("JZA595", "QK595"),
+        ("KLM168", "KL168"),
+        ("MXY139", "MX139"),
+        ("NKS1617", "NK1617"),
+        ("OHY6645", "8Q6645"),
+        ("OMA101", "WY101"),
+        ("PAC97", "PO97"),
+        ("PIA790", "PK790"),
+        ("QFA578", "QF578"),
+        ("RCH230", "MC230"),
+        ("RXA4519", "ZL4519"),
+        ("RYR2AN", "FR2AN"),
+        ("RYR308D", "FR308D"),
+        ("RYR4YX", "FR4YX"),
+        ("RYR6TA", "FR6TA"),
+        ("RYR91MQ", "FR91MQ"),
+        ("RYR98BK", "FR98BK"),
+        ("SAS2002", "SK2002"),
+        ("SAS2168", "SK2168"),
+        ("SKW2900", "OO2900"),
+        ("SKW4125", "OO4125"),
+        ("SKW4742", "OO4742"),
+        ("SVA2400", "SV2400"),
+        ("SWA1082", "WN1082"),
+        ("SWA9032", "WN9032"),
+        ("SWA970", "WN970"),
+        ("TAI567", "TA567"),
+        ("TAP72", "TP72"),
+        ("TAP948N", "TP948N"),
+        ("TAY59P", "3V59P"),
+        ("THY3467", "TK3467"),
+        ("TOM188", "BY188"),
+        ("TOM4541", "BY4541"),
+        ("UAE7DK", "EK7DK"),
+        ("UAE978", "EK978"),
+        ("UAL904", "UA904"),
+        ("VLG3323", "VY3323"),
+        ("VLG9GN", "VY9GN"),
+        ("WZZ5323", "W65323"),
+        ("AAR522", "OZ522"),
+        ("AFR6730", "AF6730"),
+        ("AFR73PV", "AF73PV"),
+        ("BAW199", "BA199"),
+        ("BAW33", "BA33"),
+        ("BAW73V", "BA73V"),
+        ("BCS2885", "QY2885"),
+        ("CES552", "MU552"),
+        ("CSN674", "CZ674"),
+        ("ELY314", "LY314"),
+        ("EZY98PG", "U298PG"),
+        ("OMA102", "WY102"),
+        ("RYR21VT", "FR21VT"),
+        ("RYR26", "FR26"),
+        ("RYR5KJ", "FR5KJ"),
+        ("RYR86RP", "FR86RP"),
+        ("RYR8LE", "FR8LE"),
+        ("WZZ48HY", "W648HY"),
+        ("EWG21CF", "EW21CF"),
+        ("RYR42GA", "FR42GA"),
+        ("QTR29A", "QR29A"),
+        ("SKW3669", "OO3669"),
+        ("RYR3SN", "FR3SN"),
+        ("TVF79RR", "TO79RR"),
+        ("FFT4762", "F94762"),
+        ("PGT1158", "H91158"),
+        ("KLM47U", "KL47U"),
+        ("AUA73", "OS73"),
+        ("HVN595", "VN595"),
+        ("DAL1734", "DL1734"),
+        ("SAS41C", "SK41C"),
+        ("CSN658", "CZ658"),
+        ("DAL445", "DL445"),
+        ("THY8FH", "TK8FH"),
+        ("SAS2305", "SK2305"),
+        ("AFR96QH", "AF96QH"),
+    ];
+
+    #[tokio::test]
+    /// Just check that a sample of flightroutes can be found, with both the ICAO and IATA callsign
+    async fn flightroute_get() {
+        let setup = setup().await;
+
+        for callsign in ICAO_CALLSIGNS {
+            let flightroute_icao =
+                ModelFlightroute::get(&setup.1, &Callsign::validate(callsign.0).unwrap()).await;
+            let flightroute_iata =
+                ModelFlightroute::get(&setup.1, &Callsign::validate(callsign.1).unwrap()).await;
+            assert!(flightroute_icao.is_some());
+            assert!(flightroute_iata.is_some());
+
+            let mut flightroute_icao = flightroute_icao.unwrap();
+            let mut flightroute_iata = flightroute_iata.unwrap();
+
+            // Need to ignore the callsign, else they won't match
+            flightroute_icao.callsign = S!("ignore");
+            flightroute_iata.callsign = S!("ignore");
+            assert_eq!(flightroute_icao, flightroute_iata);
+        }
     }
 }

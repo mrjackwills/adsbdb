@@ -38,7 +38,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-    LEFT JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
 WHERE
     icao_prefix = $1",
                 x.0
@@ -67,7 +67,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-    LEFT JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
 WHERE
     iata_prefix = $1
 ORDER BY
@@ -101,7 +101,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-    LEFT JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
 WHERE
     icao_prefix = $1
 ORDER BY

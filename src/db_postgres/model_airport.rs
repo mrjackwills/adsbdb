@@ -21,7 +21,7 @@ SELECT
     airport_id
 FROM
     airport
-    LEFT JOIN airport_icao_code ar USING (airport_icao_code_id)
+    JOIN airport_icao_code ar USING (airport_icao_code_id)
 WHERE
     ar.icao_code = UPPER($1)",
             airport_icao
