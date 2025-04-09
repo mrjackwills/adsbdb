@@ -28,7 +28,7 @@ doc_markdown = "allow"
 argon2 ="0.5"
 axum = {version = "0.8", features=["macros"]}
 dotenvy = "0.15"
-fred = { version = "10.0" }
+fred = { version = "10.1" }
 http-body = "1.0"
 mimalloc = "0.1"
 rand = { version = "0.8" }
@@ -49,7 +49,7 @@ sqlx = { version = "0.8", features = [
 	"time",
 ] }
 thiserror = "2.0"
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.44", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1"
