@@ -196,13 +196,28 @@ pub async fn callsign_patch(
     Ok(StatusCode::OK)
 }
 
+/// Check if a known aircraft, and a updated body, match
+/// Returns true if they are equal
+fn model_body_equal(c: &ModelAircraft, b: &ResponseAircraft) -> bool {
+    b.aircraft_type == c.aircraft_type
+        && b.icao_type == c.icao_type
+        && b.manufacturer == c.manufacturer
+        && b.mode_s == c.mode_s.to_string().as_str()
+        && b.registration == c.registration.to_string().as_str()
+        && b.registered_owner_country_iso_name == c.registered_owner_country_iso_name
+        && b.registered_owner_country_name == c.registered_owner_country_name
+        && b.registered_owner_operator_flag_code == c.registered_owner_operator_flag_code
+        && b.registered_owner == c.registered_owner
+        && b.url_photo == c.url_photo
+        && b.url_photo_thumbnail == c.url_photo_thumbnail
+}
 // At the moment this is only for mode_s, where the aircraft GET endpoint can search by registration as well
 pub async fn aircraft_patch(
     State(state): State<ApplicationState>,
     mode_s: ModeS,
     IncomingJson(body): IncomingJson<ResponseAircraft>,
 ) -> Result<StatusCode, AppError> {
-    let Some(known) = ModelAircraft::get(
+    let Some(current_aircraft) = ModelAircraft::get(
         &state.postgres,
         &super::AircraftSearch::ModeS(mode_s),
         &state.url_prefix,
@@ -219,28 +234,28 @@ pub async fn aircraft_patch(
     }
 
     // This isn't elegant, but just check if thers any difference between the current aircraft in DB, and the new aircraft in the body
-    if ResponseAircraft::from(known.clone()) == body {
+    if model_body_equal(&current_aircraft, &body) {
         return Err(AppError::Body(S!("no change")));
     }
 
     // At the moment, don't allow update if the photo_url's or mode_s has been changed
-    if known.url_photo != body.url_photo
-        || known.url_photo_thumbnail != body.url_photo_thumbnail
-        || known.mode_s != body.mode_s
+    if current_aircraft.url_photo != body.url_photo
+        || current_aircraft.url_photo_thumbnail != body.url_photo_thumbnail
+        || current_aircraft.mode_s.to_string() != body.mode_s
     {
         return Err(AppError::Body(S!("immutable value changed")));
     }
 
-    known.update(state.postgres, &body).await?;
+    current_aircraft.update(state.postgres, &body).await?;
 
     // Delete cache
     state
         .redis
-        .del::<(), String>(format!("mode_s::{}", known.mode_s))
+        .del::<(), String>(format!("mode_s::{}", current_aircraft.mode_s))
         .await?;
     state
         .redis
-        .del::<(), String>(format!("registration::{}", known.registration))
+        .del::<(), String>(format!("registration::{}", current_aircraft.registration))
         .await?;
     state
         .redis

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nUPDATE\n    aircraft\nSET\n    aircraft_photo_id = $1\nWHERE\n    aircraft_id = (\n        SELECT a.aircraft_id\n        FROM aircraft a\n        JOIN aircraft_mode_s ams USING (aircraft_mode_s_id)\n        WHERE ams.mode_s = $2\n        LIMIT 1\n    );",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8c162395b0b2d82b62f2d309746d2241b7e6569e35b06c892480cf2b779254cd"
+}

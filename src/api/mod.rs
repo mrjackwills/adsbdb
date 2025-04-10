@@ -12,10 +12,9 @@ use axum::{
 };
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
-    sync::Arc,
     time::Instant,
 };
-use tokio::{signal, sync::Mutex};
+use tokio::signal;
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -29,7 +28,10 @@ use crate::{
     S,
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
-    scraper::{Scraper, ScraperThreadMap},
+    scraper::{
+        Scraper,
+        ScraperMsg, // new_s::{Sc, ScraperMsg},
+    },
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
@@ -42,9 +44,10 @@ const X_FORWARDED_FOR: &str = "x-forwarded-for";
 pub struct ApplicationState {
     postgres: PgPool,
     redis: Pool,
-    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
-    scraper: Scraper,
+    // scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+    // scraper: Scraper,
     uptime: Instant,
+    s_t: tokio::sync::mpsc::Sender<ScraperMsg>,
     url_prefix: String,
 }
 
@@ -53,15 +56,17 @@ impl ApplicationState {
         app_env: &AppEnv,
         postgres: PgPool,
         redis: Pool,
-        scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+        // scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+        s_t: tokio::sync::mpsc::Sender<ScraperMsg>,
     ) -> Self {
         Self {
             postgres,
             redis,
-            scraper_threads,
-            scraper: Scraper::new(app_env),
+            // scraper_threads,
+            // scraper: Scraper::new(app_env),
             uptime: Instant::now(),
             url_prefix: app_env.url_photo_prefix.clone(),
+            s_t,
         }
     }
 }
@@ -157,11 +162,9 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 
 /// Serve the app!
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
+    let scraper_tx = Scraper::start(&app_env, &postgres);
 
-	// spawn on on thread, then just send a message to it, maybe look at tokio oneshot to be returned etc?
-    // TODO change this to RX/TX instead of Arc<Mutex>
-    let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
+    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx);
 
     let mut api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))

@@ -1,28 +1,27 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 use tokio::sync::{
-    Mutex,
-    broadcast::{Receiver, Sender},
-};
-
-use crate::{
-    api::{AppError, Callsign, Validate},
-    db_postgres::{ModelAircraft, ModelFlightroute},
-    parse_env::AppEnv,
+    broadcast::Sender as BSender,
+    mpsc::{Receiver, Sender},
+    oneshot,
 };
 
 #[cfg(not(test))]
 use crate::api::UnknownAC;
-#[cfg(not(test))]
-use tracing::error;
+
+use crate::{
+    api::{AppError, Callsign, ModeS, Validate},
+    db_postgres::{ModelAircraft, ModelFlightroute},
+    parse_env::AppEnv,
+};
+
+const SCRAPE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[cfg(test)]
 use crate::sleep;
-
-const SCRAPE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct PhotoData {
@@ -35,66 +34,6 @@ struct PhotoResponse {
     status: u16,
     count: Option<u16>,
     data: Option<[PhotoData; 1]>,
-}
-
-/// Use this to keep track of currently scraping Aircraft & callsigns
-/// is stored globally in an Arc Mutex
-#[derive(Debug)]
-pub struct ScraperThreadMap {
-    photo: HashMap<ModelAircraft, Sender<()>>,
-    flightroute: HashMap<Callsign, Sender<Option<ModelFlightroute>>>,
-}
-
-impl ScraperThreadMap {
-    pub fn new() -> Self {
-        Self {
-            photo: HashMap::new(),
-            flightroute: HashMap::new(),
-        }
-    }
-
-    /// If the HashMap as a Sender in it, return a Subscriber to that sender
-    fn get_flight_rx(&self, callsign: &Callsign) -> Option<Receiver<Option<ModelFlightroute>>> {
-        self.flightroute
-            .get(callsign)
-            .map(tokio::sync::broadcast::Sender::subscribe)
-    }
-
-    /// Insert a sender into the HashMap
-    fn insert_flight_tx(&mut self, callsign: &Callsign, tx: &Sender<Option<ModelFlightroute>>) {
-        self.flightroute.insert(callsign.to_owned(), tx.to_owned());
-    }
-
-    /// Remove the callsign/sender from HashMap
-    fn remove_flight(&mut self, callsign: &Callsign) {
-        self.flightroute.remove(callsign);
-    }
-
-    /// If the HashMap as a Sender in it, return a Subscriber to that sender
-    fn get_photo_rx(&self, aircraft: &ModelAircraft) -> Option<Receiver<()>> {
-        self.photo
-            .get(aircraft)
-            .map(tokio::sync::broadcast::Sender::subscribe)
-    }
-
-    /// Insert a sender into the HashMap
-    fn insert_photo_tx(&mut self, aircraft: &ModelAircraft, tx: &Sender<()>) {
-        self.photo.insert(aircraft.to_owned(), tx.to_owned());
-    }
-
-    /// Remove the aircraft/sender from HashMap
-    fn remove_photo(&mut self, aircraft: &ModelAircraft) {
-        self.photo.remove(aircraft);
-    }
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct Scraper {
-    flight_scrape_url: String,
-    allow_scrape_flightroute: Option<()>,
-    photo_url: String,
-    allow_scrape_photo: Option<()>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,14 +56,147 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct Scraper {
+    callsign_requests: HashMap<Callsign, BSender<Option<ModelFlightroute>>>,
+    photo_requests: HashMap<ModeS, BSender<()>>,
+    flight_scrape_url: String,
+    allow_scrape_flightroute: Option<()>,
+    photo_url: String,
+    allow_scrape_photo: Option<()>,
+    postgres: PgPool,
+    sx: Sender<ScraperMsg>,
+}
+
+#[derive(Debug)]
+pub enum ToRemove {
+    Callsign(Callsign),
+    Photo(ModeS),
+}
+
+#[derive(Debug)]
+pub enum ScraperMsg {
+    CallSign((oneshot::Sender<Option<ModelFlightroute>>, Callsign)),
+    Remove(ToRemove),
+    Photo((oneshot::Sender<()>, ModeS)),
+}
+
 impl Scraper {
-    pub fn new(app_env: &AppEnv) -> Self {
-        Self {
+    /// Remove item from the HashMap
+    fn msg_remove(&mut self, to_remove: ToRemove) {
+        match to_remove {
+            ToRemove::Callsign(callsign) => {
+                self.callsign_requests.remove(&callsign);
+            }
+            ToRemove::Photo(mode_s) => {
+                self.photo_requests.remove(&mode_s);
+            }
+        }
+    }
+
+    /// Scrape for a flightroute, or if currently being scraper, wait for response
+    fn msg_callsign(
+        &mut self,
+        oneshot: oneshot::Sender<Option<ModelFlightroute>>,
+        callsign: Callsign,
+        sx: Sender<ScraperMsg>,
+    ) {
+        if self.allow_scrape_flightroute.is_none() {
+            oneshot.send(None).ok();
+            return;
+        }
+        if let Some(int_tx) = self.callsign_requests.get(&callsign) {
+            let mut int_rx = int_tx.subscribe();
+            tokio::spawn(async move {
+                let t = int_rx.recv().await.unwrap_or(None);
+                oneshot.send(t).ok();
+                sx.send(ScraperMsg::Remove(ToRemove::Callsign(callsign)))
+                    .await
+                    .ok();
+            });
+        } else {
+            let (int_tx, mut int_rx) = tokio::sync::broadcast::channel(128);
+            self.callsign_requests
+                .insert(callsign.clone(), int_tx.clone());
+
+            let data = (
+                self.postgres.clone(),
+                callsign,
+                self.flight_scrape_url.clone(),
+            );
+            tokio::spawn(async move {
+                Self::spawn_callsign(data.0, &data.1, data.2, int_tx).await;
+                oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
+                sx.send(ScraperMsg::Remove(ToRemove::Callsign(data.1)))
+                    .await
+                    .ok();
+            });
+        }
+    }
+
+    /// Scrape for a photo, or if currently being scraper, wait for response
+    fn msg_photo(&mut self, oneshot: oneshot::Sender<()>, mode_s: ModeS, sx: Sender<ScraperMsg>) {
+        if self.allow_scrape_photo.is_none() {
+            oneshot.send(()).ok();
+            return;
+        }
+
+        if let Some(int_rx) = self.photo_requests.get(&mode_s) {
+            let mut int_tx = int_rx.subscribe();
+            tokio::spawn(async move {
+                int_tx.recv().await.ok();
+                oneshot.send(()).ok();
+                sx.send(ScraperMsg::Remove(ToRemove::Photo(mode_s)))
+                    .await
+                    .ok();
+            });
+        } else {
+            // refactor with the scrpagmshCallsignas well
+            let (int_tx, mut int_rx) = tokio::sync::broadcast::channel(128);
+            self.photo_requests.insert(mode_s.clone(), int_tx.clone());
+            let data = (self.postgres.clone(), mode_s, self.photo_url.clone());
+            tokio::spawn(async move {
+                Self::spawn_photo(data.0, &data.1, data.2, int_tx).await;
+                int_rx.recv().await.ok();
+                oneshot.send(()).ok();
+                sx.send(ScraperMsg::Remove(ToRemove::Photo(data.1)))
+                    .await
+                    .ok();
+            });
+        }
+    }
+
+    pub async fn listen(&mut self, mut rx: Receiver<ScraperMsg>) {
+        while let Some(msg) = rx.recv().await {
+            match msg {
+                ScraperMsg::Remove(to_remove) => self.msg_remove(to_remove),
+                ScraperMsg::CallSign((oneshot, callsign)) => {
+                    self.msg_callsign(oneshot, callsign, self.sx.clone());
+                }
+                ScraperMsg::Photo((oneshot, mode_s)) => {
+                    self.msg_photo(oneshot, mode_s, self.sx.clone());
+                }
+            }
+        }
+    }
+
+    /// Build a new scraper, could also just spawn in here?
+    pub fn start(app_env: &AppEnv, postgres: &PgPool) -> Sender<ScraperMsg> {
+        let (sx, tx) = tokio::sync::mpsc::channel(1024);
+        let mut scraper = Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
             allow_scrape_flightroute: app_env.allow_scrape_flightroute,
             allow_scrape_photo: app_env.allow_scrape_photo,
-        }
+            callsign_requests: HashMap::new(),
+            photo_requests: HashMap::new(),
+            postgres: postgres.clone(),
+            sx: sx.clone(),
+        };
+        tokio::spawn(async move {
+            scraper.listen(tx).await;
+        });
+        sx
     }
 
     /// Build a reqwest client, with a default timeout, and compression enabled
@@ -192,31 +264,9 @@ impl Scraper {
         }
     }
 
-    /// Scrape callsign url for whole page html string
-    #[cfg(not(test))]
-    async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
-        match Self::client_get(format!("{}/{callsign}", self.flight_scrape_url)).await {
-            Ok(response) => match response.text().await {
-                Ok(text) => Ok(text),
-                Err(e) => {
-                    error!("{e:?}");
-                    error!("can't transform callsign into text");
-                    Err(AppError::UnknownInDb(UnknownAC::Callsign))
-                }
-            },
-            Err(e) => {
-                error!("{e:?}");
-                error!("can't scrape callsign address");
-                Err(AppError::UnknownInDb(UnknownAC::Callsign))
-            }
-        }
-    }
-
     /// As above, but just return the test_scrape, instead of hitting a third party site
     #[cfg(test)]
-    async fn request_callsign(&self, callsign: &Callsign) -> Result<String, AppError> {
-        // artificial sleep, so can make sure things are in the hashmap
-
+    async fn request_callsign(callsign: &Callsign, _url: String) -> Result<String, AppError> {
         use crate::S;
         sleep!(500);
         if callsign.to_string() == "ANA460" {
@@ -226,45 +276,103 @@ impl Scraper {
         }
     }
 
-    /// Request for photo from third party site
     #[cfg(not(test))]
-    async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
-        match Self::client_get(format!(
-            "{}ac_thumb.json?m={}&n=1",
-            self.photo_url, aircraft.mode_s
-        ))
-        .await
-        {
-            Ok(response) => match response.json::<PhotoResponse>().await {
-                Ok(photo) => {
-                    if photo.data.is_some() {
-                        Some(photo)
-                    } else {
-                        None
-                    }
-                }
+    async fn request_callsign(callsign: &Callsign, url: String) -> Result<String, AppError> {
+        match Self::client_get(format!("{url}/{callsign}")).await {
+            Ok(response) => match response.text().await {
+                Ok(text) => Ok(text),
                 Err(e) => {
-                    error!("{e:?}");
-                    error!("can't transform photo into json");
-                    None
+                    tracing::error!("{e:?}");
+                    tracing::error!("can't transform callsign into text");
+                    Err(AppError::UnknownInDb(UnknownAC::Callsign))
                 }
             },
             Err(e) => {
-                error!("{e:?}");
-                error!("can't scrape photo address");
-                None
+                tracing::error!("{e:?}");
+                tracing::error!("can't scrape callsign address");
+                Err(AppError::UnknownInDb(UnknownAC::Callsign))
             }
         }
+    }
+
+    /// This is spawned in a tokio thread, scrapes the flightroute, inserts into postgres, and sends back modelflightroute
+    async fn spawn_callsign(
+        postgres: PgPool,
+        callsign: &Callsign,
+        url: String,
+        b_sender: BSender<Option<ModelFlightroute>>,
+    ) {
+        let return_none = || {
+            b_sender.send(None).ok();
+        };
+
+        let Ok(html) =
+            tokio::time::timeout(SCRAPE_TIMEOUT, Self::request_callsign(callsign, url)).await
+        else {
+            tracing::error!("{callsign}: scrape timeout");
+            return return_none();
+        };
+        let Ok(html) = html else {
+            tracing::error!("{callsign}: request error");
+            return return_none();
+        };
+        let Some(scraped_flightroute) = Self::extract_flightroute(&html) else {
+            return return_none();
+        };
+
+        if scraped_flightroute.origin == scraped_flightroute.destination {
+            tracing::error!(
+                "{callsign}: airport clash: origin: {o}, destination: {d}",
+                o = scraped_flightroute.origin,
+                d = scraped_flightroute.destination
+            );
+            return_none();
+        } else {
+            match ModelFlightroute::insert_scraped_flightroute(&postgres, &scraped_flightroute)
+                .await
+            {
+                Ok(flightroute) => {
+                    b_sender.send(flightroute).ok();
+                }
+                Err(e) => {
+                    tracing::error!("{}", e);
+                    return_none();
+                }
+            }
+        }
+    }
+
+    /// This is spawned in a tokio thread, scrapes the flightroute, inserts into postgres, and sends back just a unit
+    async fn spawn_photo(postgres: PgPool, mode_s: &ModeS, url: String, b_sender: BSender<()>) {
+        let send_unit = || {
+            b_sender.send(()).ok();
+        };
+        let Ok(photo) =
+            tokio::time::timeout(SCRAPE_TIMEOUT, Self::request_photo(mode_s, url)).await
+        else {
+            tracing::error!("{}: scrape timeout", mode_s);
+            return send_unit();
+        };
+
+        let Some(photo) = photo else {
+            return send_unit();
+        };
+        if let Some([data_0, ..]) = photo.data {
+            if let Err(e) = ModelAircraft::insert_photo(&postgres, data_0, mode_s).await {
+                tracing::error!("{e}");
+            }
+        }
+        send_unit();
     }
 
     /// Scrape photo for testings
     /// don't throw error as an internal process, but need to improve logging
     #[cfg(test)]
-    async fn request_photo(&self, aircraft: &ModelAircraft) -> Option<PhotoResponse> {
+    async fn request_photo(mode_s: &ModeS, _url: String) -> Option<PhotoResponse> {
         use crate::S;
 
         sleep!(500);
-        match aircraft.mode_s.as_str() {
+        match mode_s.to_string().as_str() {
             "393C00" => Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
@@ -276,86 +384,30 @@ impl Scraper {
         }
     }
 
-    /// Attempt to get photol url, and also insert into db
-    /// Inserts the aircraft into a shared HashMap, so that if there are multiple requests for the same aircraft, it'll only scrape once
-    /// Could also place the scrape into it's own tokio thread, but probably not worth it
-    pub async fn scrape_photo(
-        &self,
-        db: &PgPool,
-        aircraft: &ModelAircraft,
-        scraper_threads: &Arc<Mutex<ScraperThreadMap>>,
-    ) {
-        if self.allow_scrape_photo.is_some() {
-            let threads = scraper_threads.lock().await.get_photo_rx(aircraft);
-            if let Some(mut rx) = threads {
-                rx.recv().await.ok();
-            } else {
-                let (tx, _) = tokio::sync::broadcast::channel(1);
-                scraper_threads.lock().await.insert_photo_tx(aircraft, &tx);
-                if let Ok(Some(photo)) =
-                    tokio::time::timeout(SCRAPE_TIMEOUT, self.request_photo(aircraft)).await
-                {
-                    if let Some([data_0, ..]) = photo.data.as_ref() {
-                        if let Err(e) = aircraft.insert_photo(db, data_0).await {
-                            tracing::error!("{}", e);
-                        }
+    /// Request for photo from third party site
+    #[cfg(not(test))]
+    async fn request_photo(mode_s: &ModeS, url: String) -> Option<PhotoResponse> {
+        match Self::client_get(format!("{url}ac_thumb.json?m={mode_s}&n=1")).await {
+            Ok(response) => match response.json::<PhotoResponse>().await {
+                Ok(photo) => {
+                    if photo.data.is_some() {
+                        Some(photo)
+                    } else {
+                        None
                     }
                 }
-                scraper_threads.lock().await.remove_photo(aircraft);
-                tx.send(()).ok();
+                Err(e) => {
+                    tracing::error!("{e:?}");
+                    tracing::error!("can't transform photo into json");
+                    None
+                }
+            },
+            Err(e) => {
+                tracing::error!("{e:?}");
+                tracing::error!("can't scrape photo address");
+                None
             }
         }
-    }
-
-    /// Scrape third party site for a flightroute, and try to insert into db
-    /// Inserts the callsign into a shared HashMap, so that if there are multiple requests for the same callsign, it'll only scrape once
-    /// Will only insert a flightroute if the origin and destination are different locations
-    /// Could also place the scrape into it's own tokio thread, but probably not worth it
-    pub async fn scrape_flightroute(
-        &self,
-        postgres: &PgPool,
-        callsign: &Callsign,
-        scraper_threads: &Arc<Mutex<ScraperThreadMap>>,
-    ) -> Result<Option<ModelFlightroute>, AppError> {
-        let mut output = None;
-        if self.allow_scrape_flightroute.is_some() {
-            let thread = scraper_threads.lock().await.get_flight_rx(callsign);
-            if let Some(mut rx) = thread {
-                if let Ok(x) = rx.recv().await {
-                    output = x;
-                }
-            } else {
-                let (tx, _) = tokio::sync::broadcast::channel(1);
-                scraper_threads.lock().await.insert_flight_tx(callsign, &tx);
-
-                if let Ok(Ok(html)) =
-                    tokio::time::timeout(SCRAPE_TIMEOUT, self.request_callsign(callsign)).await
-                {
-                    if let Some(scraped_flightroute) = Self::extract_flightroute(&html) {
-                        if scraped_flightroute.origin == scraped_flightroute.destination {
-                            tracing::error!(
-                                "airport match, callsign: {callsign}, origin: {o}, destination: {d}",
-                                o = scraped_flightroute.origin,
-                                d = scraped_flightroute.destination
-                            );
-                        } else {
-                            match ModelFlightroute::insert_scraped_flightroute(
-                                postgres,
-                                &scraped_flightroute,
-                            )
-                            .await
-                            {
-                                Ok(flightroute) => output = flightroute,
-                                Err(e) => tracing::error!("{}", e),
-                            }
-                        }
-                    }
-                }
-                scraper_threads.lock().await.remove_flight(callsign);
-                tx.send(output.clone()).ok();
-            }
-        }
-        Ok(output)
     }
 }
 
@@ -364,19 +416,17 @@ impl Scraper {
 /// cargo watch -q -c -w src/ -x 'test scraper_ '
 #[cfg(test)]
 #[allow(clippy::pedantic, clippy::unwrap_used)]
-mod tests {
+pub mod tests {
     use super::*;
-    use crate::api::{AircraftSearch, ModeS, Registration, Validate};
-    use crate::{S, db_postgres, db_redis, sleep};
+    use crate::api::{AircraftSearch, ModeS, Validate};
+    use crate::{S, db_postgres, db_redis};
     use fred::interfaces::ClientLike;
     use serde::de::IntoDeserializer;
     use serde::de::value::{Error as ValueError, StringDeserializer};
 
-    const TEST_CALLSIGN: &str = "ANA460";
+    pub const TEST_CALLSIGN: &str = "ANA460";
     const TEST_ORIGIN: &str = "ROAH";
     const TEST_DESTINATION: &str = "RJTT";
-    const TEST_MODE_S: &str = "393C00";
-    const TEST_REGISTRATION: &str = "F-GPAA";
 
     async fn test_setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
@@ -384,11 +434,7 @@ mod tests {
         (app_env, db)
     }
 
-    fn test_threads() -> Arc<Mutex<ScraperThreadMap>> {
-        Arc::new(Mutex::new(ScraperThreadMap::new()))
-    }
-
-    async fn remove_scraped_data(db: &PgPool) {
+    pub async fn remove_scraped_data(db: &PgPool) {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         if let Some(flightroute) = ModelFlightroute::get(db, &callsign).await {
             sqlx::query!(
@@ -398,8 +444,8 @@ mod tests {
             .execute(db)
             .await
             .unwrap();
-
-            let query = r#"
+        }
+        let query = r#"
         UPDATE aircraft SET aircraft_photo_id = NULL WHERE aircraft_photo_id = (
             SELECT
                 ap.aircraft_photo_id
@@ -409,22 +455,17 @@ mod tests {
                 ap.url_photo = '001/001/example.jpg'
         )"#;
 
-            sqlx::query(query)
-                .bind(TEST_MODE_S)
-                .execute(db)
-                .await
-                .unwrap();
-            let query = r#"DELETE FROM aircraft_photo WHERE url_photo = $1"#;
-            sqlx::query(query)
-                .bind("001/001/example.jpg")
-                .execute(db)
-                .await
-                .unwrap();
+        sqlx::query(query).execute(db).await.unwrap();
+        let query = r#"DELETE FROM aircraft_photo WHERE url_photo = $1"#;
+        sqlx::query(query)
+            .bind("001/001/example.jpg")
+            .execute(db)
+            .await
+            .unwrap();
 
-            let app_env = AppEnv::get_env();
-            let redis = db_redis::get_pool(&app_env).await.unwrap();
-            redis.flushall::<()>(true).await.unwrap();
-        }
+        let app_env = AppEnv::get_env();
+        let redis = db_redis::get_pool(&app_env).await.unwrap();
+        redis.flushall::<()>(true).await.unwrap();
     }
 
     #[test]
@@ -497,12 +538,11 @@ mod tests {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
-        let scraper = Scraper::new(&setup.0);
-        let threads = test_threads();
+        let sender = Scraper::start(&setup.0, &setup.1);
+        let (s, r) = oneshot::channel();
+        sender.send(ScraperMsg::CallSign((s, callsign))).await.ok();
 
-        let result = scraper
-            .scrape_flightroute(&setup.1, &callsign, &threads)
-            .await;
+        let result = r.await;
 
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -553,50 +593,18 @@ mod tests {
     }
 
     #[tokio::test]
-    /// Multiple request - each in own thread - results in the ScraperThreadMap being correctly populated
-    async fn scraper_scrape_for_route_insert_threaded() {
-        let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
-        let setup = test_setup().await;
-        remove_scraped_data(&setup.1).await;
-        let thread_map = test_threads();
-
-        let mut spawned_threads = vec![];
-
-        for _ in 0..=3 {
-            let callsign = callsign.clone();
-            let pg = setup.1.clone();
-            let threads = Arc::clone(&thread_map);
-            let scraper = Scraper::new(&setup.0);
-            spawned_threads.push(tokio::spawn(async move {
-                scraper
-                    .scrape_flightroute(&pg, &callsign, &threads)
-                    .await
-                    .ok();
-            }))
-        }
-
-        sleep!(100);
-        assert_eq!(thread_map.lock().await.flightroute.len(), 1);
-
-        for i in spawned_threads {
-            i.await.ok();
-        }
-        assert_eq!(thread_map.lock().await.flightroute.len(), 0);
-        remove_scraped_data(&setup.1).await;
-    }
-
-    #[tokio::test]
     /// if callsign_scrape is none, doesn't scrape
     async fn scraper_scrape_for_route_null() {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let mut setup = test_setup().await;
-        let threads = test_threads();
+        remove_scraped_data(&setup.1).await;
         setup.0.allow_scrape_flightroute = None;
-        let scraper = Scraper::new(&setup.0);
-        let result = scraper
-            .scrape_flightroute(&setup.1, &callsign, &threads)
-            .await;
+        let sender = Scraper::start(&setup.0, &setup.1);
 
+        let (s, r) = oneshot::channel();
+        sender.send(ScraperMsg::CallSign((s, callsign))).await.ok();
+
+        let result = r.await;
         assert!(result.is_ok());
         let result = result.unwrap();
         assert!(result.is_none());
@@ -605,266 +613,90 @@ mod tests {
     #[tokio::test]
     async fn scraper_get_photo() {
         let setup = test_setup().await;
-        let scraper = Scraper::new(&setup.0);
+        let sender = Scraper::start(&setup.0, &setup.1);
 
-        let test_aircraft = ModelAircraft {
-            aircraft_id: 8415,
-            aircraft_type: S!("CRJ 200LR"),
-            icao_type: S!("CRJ2"),
-            manufacturer: S!("Bombardier"),
-            mode_s: S!("393C00"),
-            registration: S!("N429AW"),
-            registered_owner_country_iso_name: S!("US"),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_operator_flag_code: Some(S!("AWI")),
-            registered_owner: S!("United Express"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
+        let mode_s = ModeS::from(S!("393C00"));
 
-        let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_some());
-        let expected = PhotoResponse {
-            status: 200,
-            count: Some(1),
-            data: Some([PhotoData {
-                image: S!("001/001/example.jpg"),
-            }]),
-        };
-        assert_eq!(result.unwrap(), expected);
+        let result = ModelAircraft::get(
+            &setup.1,
+            &AircraftSearch::ModeS(mode_s.clone()),
+            &setup.0.url_photo_prefix,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let test_aircraft = ModelAircraft {
-            aircraft_id: 8415,
-            aircraft_type: S!("CRJ 200LR"),
-            icao_type: S!("CRJ2"),
-            manufacturer: S!("Bombardier"),
-            mode_s: S!("AAAAAA"),
-            registration: S!("N429AW"),
-            registered_owner_country_iso_name: S!("US"),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_operator_flag_code: Some(S!("AWI")),
-            registered_owner: S!("United Express"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
+        assert!(result.url_photo.is_none());
+        assert!(result.url_photo_thumbnail.is_none());
 
-        let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_none());
+        let (s, r) = oneshot::channel();
+        sender
+            .send(ScraperMsg::Photo((s, mode_s.clone())))
+            .await
+            .unwrap();
+        let result = r.await;
+        assert!(result.is_ok());
 
-        let test_aircraft = ModelAircraft {
-            aircraft_id: 8415,
-            aircraft_type: S!("CRJ 200LR"),
-            icao_type: S!("CRJ2"),
-            manufacturer: S!("Bombardier"),
-            mode_s: S!("AAAAAB"),
-            registration: S!("N429AW"),
-            registered_owner_country_iso_name: S!("US"),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_operator_flag_code: Some(S!("AWI")),
-            registered_owner: S!("United Express"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
+        let result = ModelAircraft::get(
+            &setup.1,
+            &AircraftSearch::ModeS(mode_s.clone()),
+            &setup.0.url_photo_prefix,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        let result = scraper.request_photo(&test_aircraft).await;
-        assert!(result.is_none());
+        assert!(result.url_photo.is_some());
+        assert!(result.url_photo_thumbnail.is_some());
+        assert!(result.url_photo.unwrap().ends_with("/001/001/example.jpg"));
+        assert!(
+            result
+                .url_photo_thumbnail
+                .unwrap()
+                .ends_with("/thumbnails/001/001/example.jpg")
+        );
+        remove_scraped_data(&setup.1).await;
     }
 
     #[tokio::test]
     async fn scraper_get_photo_null() {
         let mut setup = test_setup().await;
         setup.0.allow_scrape_photo = None;
-        let scraper = Scraper::new(&setup.0);
-        let threads = test_threads();
+        let sender = Scraper::start(&setup.0, &setup.1);
 
-        let test_aircraft = ModelAircraft {
-            aircraft_id: 8415,
-            aircraft_type: S!("CRJ 200LR"),
-            icao_type: S!("CRJ2"),
-            manufacturer: S!("Bombardier"),
-            mode_s: S!("393C00"),
-            registration: S!("N429AW"),
-            registered_owner_country_iso_name: S!("US"),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_operator_flag_code: Some(S!("AWI")),
-            registered_owner: S!("United Express"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
+        let mode_s = ModeS::from(S!("393C00"));
 
-        scraper
-            .scrape_photo(&setup.1, &test_aircraft, &threads)
-            .await;
-        // check for photo
-        // assert!(result.is_ok());
-    }
+        let result = ModelAircraft::get(
+            &setup.1,
+            &AircraftSearch::ModeS(mode_s.clone()),
+            &setup.0.url_photo_prefix,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-    #[tokio::test]
-    async fn scraper_get_photo_insert_by_mode_s() {
-        let setup = test_setup().await;
-        let scraper = Scraper::new(&setup.0);
-        let threads = test_threads();
+        assert!(result.url_photo.is_none());
+        assert!(result.url_photo_thumbnail.is_none());
 
-        let mode_s = ModeS::validate(TEST_MODE_S).unwrap();
-
-        let aircraft_search = AircraftSearch::ModeS(mode_s);
-        let test_aircraft =
-            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
-                .await
-                .unwrap()
-                .unwrap();
-
-        scraper
-            .scrape_photo(&setup.1, &test_aircraft, &threads)
-            .await;
-        // let result = result.unwrap();
-        // assert!(result.is_ok());
-        // check for photo in db
-
-        let result =
-            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
-
+        let (s, r) = oneshot::channel();
+        sender
+            .send(ScraperMsg::Photo((s, mode_s.clone())))
+            .await
+            .unwrap();
+        let result = r.await;
         assert!(result.is_ok());
-        let result = result.unwrap();
-        assert!(result.is_some());
-        let result = result.unwrap();
 
-        assert_eq!(result.aircraft_type, test_aircraft.aircraft_type);
-        assert_eq!(result.icao_type, test_aircraft.icao_type);
-        assert_eq!(result.manufacturer, test_aircraft.manufacturer);
-        assert_eq!(result.mode_s, test_aircraft.mode_s);
-        assert_eq!(result.registration, test_aircraft.registration);
-        assert_eq!(result.registered_owner, test_aircraft.registered_owner);
-        assert_eq!(
-            result.registered_owner_country_iso_name,
-            test_aircraft.registered_owner_country_iso_name
-        );
-        assert_eq!(
-            result.registered_owner_country_name,
-            test_aircraft.registered_owner_country_name
-        );
-        assert_eq!(
-            result.registered_owner_operator_flag_code,
-            test_aircraft.registered_owner_operator_flag_code
-        );
-        assert_eq!(
-            result.url_photo,
-            Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
-        );
-        assert_eq!(
-            result.url_photo_thumbnail,
-            Some(format!(
-                "{}thumbnails/001/001/example.jpg",
-                setup.0.url_photo_prefix
-            )),
-        );
+        let result = ModelAircraft::get(
+            &setup.1,
+            &AircraftSearch::ModeS(mode_s.clone()),
+            &setup.0.url_photo_prefix,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
-        remove_scraped_data(&setup.1).await;
-    }
-
-    #[tokio::test]
-    async fn scraper_get_photo_insert_by_mode_s_threaded() {
-        let setup = test_setup().await;
-        let thread_map = test_threads();
-
-        let mode_s = ModeS::validate(TEST_MODE_S).unwrap();
-
-        let aircraft_search = AircraftSearch::ModeS(mode_s);
-        let test_aircraft =
-            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
-                .await
-                .unwrap()
-                .unwrap();
-
-        let mut spawned_threads = vec![];
-
-        for _ in 0..=3 {
-            let test_aircraft = test_aircraft.clone();
-            let pg = setup.1.clone();
-            let threads = Arc::clone(&thread_map);
-            let scraper = Scraper::new(&setup.0);
-            spawned_threads.push(tokio::spawn(async move {
-                scraper.scrape_photo(&pg, &test_aircraft, &threads).await;
-            }))
-        }
-
-        sleep!(10);
-        assert_eq!(thread_map.lock().await.photo.len(), 1);
-        for i in spawned_threads {
-            i.await.ok();
-        }
-
-        assert_eq!(thread_map.lock().await.photo.len(), 0);
-
-        let result =
-            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
-
-        assert!(result.is_ok());
-        let result = result.unwrap();
-        assert!(result.is_some());
-
-        remove_scraped_data(&setup.1).await;
-    }
-
-    #[tokio::test]
-    async fn scraper_get_photo_insert_by_registration() {
-        let setup = test_setup().await;
-        let scraper = Scraper::new(&setup.0);
-        let threads = test_threads();
-
-        let registration = Registration::validate(TEST_REGISTRATION).unwrap();
-
-        let aircraft_search = AircraftSearch::Registration(registration);
-        let test_aircraft =
-            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix)
-                .await
-                .unwrap()
-                .unwrap();
-
-        scraper
-            .scrape_photo(&setup.1, &test_aircraft, &threads)
-            .await;
-
-        // check for photo in db
-
-        let result =
-            ModelAircraft::get(&setup.1, &aircraft_search, &setup.0.url_photo_prefix).await;
-
-        assert!(result.is_ok());
-        let result = result.unwrap();
-        assert!(result.is_some());
-        let result = result.unwrap();
-
-        assert_eq!(result.aircraft_type, test_aircraft.aircraft_type);
-        assert_eq!(result.icao_type, test_aircraft.icao_type);
-        assert_eq!(result.manufacturer, test_aircraft.manufacturer);
-        assert_eq!(result.mode_s, test_aircraft.mode_s);
-        assert_eq!(result.registration, test_aircraft.registration);
-        assert_eq!(result.registered_owner, test_aircraft.registered_owner);
-        assert_eq!(
-            result.registered_owner_country_iso_name,
-            test_aircraft.registered_owner_country_iso_name
-        );
-        assert_eq!(
-            result.registered_owner_country_name,
-            test_aircraft.registered_owner_country_name
-        );
-        assert_eq!(
-            result.registered_owner_operator_flag_code,
-            test_aircraft.registered_owner_operator_flag_code
-        );
-        assert_eq!(
-            result.url_photo,
-            Some(format!("{}001/001/example.jpg", setup.0.url_photo_prefix)),
-        );
-        assert_eq!(
-            result.url_photo_thumbnail,
-            Some(format!(
-                "{}thumbnails/001/001/example.jpg",
-                setup.0.url_photo_prefix
-            )),
-        );
-
+        assert!(result.url_photo.is_none());
+        assert!(result.url_photo_thumbnail.is_none());
         remove_scraped_data(&setup.1).await;
     }
 }
