@@ -416,9 +416,9 @@ VALUES
         destination: ModelAirport,
     ) -> Result<(), AppError> {
         sqlx::query!("UPDATE flightroute SET airport_origin_id = $1, airport_destination_id = $2 WHERE flightroute_id = $3",
-		origin.airport_id, destination.airport_id, self.flightroute_id)
-		.execute(postgres)
-		.await?;
+        origin.airport_id, destination.airport_id, self.flightroute_id)
+        .execute(postgres)
+        .await?;
 
         Ok(())
     }

@@ -278,7 +278,7 @@ WHERE
 
         // Ireland and Argentina have multiple prefixes, so need to account for that by query for a vec
         // and then checking against the given registration
-        // Something is wrong with this query
+        // TODO  - is something is wrong with this query?
         let registration_prefix = sqlx::query_as!(
             CountryRegistrationPrefix,
             "
