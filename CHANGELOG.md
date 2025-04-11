@@ -19,6 +19,7 @@
 + extract flightroute, [be9b4bf0a5ff761d14238d619be2df2bd3ee2804]
 + scraper, use mesage bus instead of `Arc<Mutex<T>>`, [74ebb8be155dff961f8ca09b79845c9417423bef]
 + dead code removed, [a5bb7f9f5c8493b0de38705503b5e1fcb3e2a1f6]
++ renaming & dead code removed, [2d7e2f781732c91dcfdb16294af9606cf2ad2a62]
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.4.1'>v0.4.1</a>
 ### 2025-01-17
@@ -234,7 +235,7 @@ If you are aware of any more aircraft registries available for download, or find
 + run.sh v0.1.0, [fbdd1a94](https://github.com/mrjackwills/adsbdb/commit/fbdd1a9423772b27a53d1d35c5b479f180dd3818)
 
 ### Fixes
-+ ApiError import/export,[0400ab66f8f877658830b57d85664415f4b649b3]
++ ApiError import/export, [0400ab66f8f877658830b57d85664415f4b649b3]
 + .gitattributes(?), [b238df27](https://github.com/mrjackwills/adsbdb/commit/b238df27d297b11254ce5a419225cae89c9c307d)
 + redis dependency updates, [e6da9e0a](https://github.com/mrjackwills/adsbdb/commit/e6da9e0a0a60862ee0eaba3f929da320792bcd82)
 + scraping error message more detail, [a3a1263f](https://github.com/mrjackwills/adsbdb/commit/a3a1263f32a9afded8fc27d93779823d91549dd2)
