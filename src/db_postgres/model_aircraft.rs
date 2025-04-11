@@ -558,7 +558,6 @@ mod tests {
             url_photo_thumbnail: None,
         };
 
-        // let mode_s = ModeS::validate(&test_aircraft.mode_s).unwrap();
         ModelAircraft::photo_transaction(&mut transaction, photodata, &test_aircraft.mode_s)
             .await
             .unwrap();

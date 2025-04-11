@@ -30,7 +30,7 @@ use crate::{
     parse_env::AppEnv,
     scraper::{
         Scraper,
-        ScraperMsg, // new_s::{Sc, ScraperMsg},
+        ScraperMsg,
     },
 };
 pub use app_error::*;
@@ -44,10 +44,8 @@ const X_FORWARDED_FOR: &str = "x-forwarded-for";
 pub struct ApplicationState {
     postgres: PgPool,
     redis: Pool,
-    // scraper_threads: Arc<Mutex<ScraperThreadMap>>,
-    // scraper: Scraper,
     uptime: Instant,
-    s_t: tokio::sync::mpsc::Sender<ScraperMsg>,
+    scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
     url_prefix: String,
 }
 
@@ -56,17 +54,14 @@ impl ApplicationState {
         app_env: &AppEnv,
         postgres: PgPool,
         redis: Pool,
-        // scraper_threads: Arc<Mutex<ScraperThreadMap>>,
-        s_t: tokio::sync::mpsc::Sender<ScraperMsg>,
+        scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
     ) -> Self {
         Self {
             postgres,
             redis,
-            // scraper_threads,
-            // scraper: Scraper::new(app_env),
             uptime: Instant::now(),
             url_prefix: app_env.url_photo_prefix.clone(),
-            s_t,
+            scraper_tx,
         }
     }
 }
@@ -175,7 +170,6 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
         .route(&Routes::ModeS.addr(), get(api_routes::mode_s_get));
 
     // If .env flag is set, enable update routes
-
     let mut allowed_methods = vec![axum::http::Method::GET];
     if let Some(hash) = &app_env.allow_update {
         api_routes = api_routes

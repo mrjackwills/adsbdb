@@ -65,7 +65,7 @@ pub struct Scraper {
     photo_url: String,
     allow_scrape_photo: Option<()>,
     postgres: PgPool,
-    sx: Sender<ScraperMsg>,
+    tx: Sender<ScraperMsg>,
 }
 
 #[derive(Debug)]
@@ -99,7 +99,7 @@ impl Scraper {
         &mut self,
         oneshot: oneshot::Sender<Option<ModelFlightroute>>,
         callsign: Callsign,
-        sx: Sender<ScraperMsg>,
+        tx: Sender<ScraperMsg>,
     ) {
         if self.allow_scrape_flightroute.is_none() {
             oneshot.send(None).ok();
@@ -110,7 +110,7 @@ impl Scraper {
             tokio::spawn(async move {
                 let t = int_rx.recv().await.unwrap_or(None);
                 oneshot.send(t).ok();
-                sx.send(ScraperMsg::Remove(ToRemove::Callsign(callsign)))
+                tx.send(ScraperMsg::Remove(ToRemove::Callsign(callsign)))
                     .await
                     .ok();
             });
@@ -127,7 +127,7 @@ impl Scraper {
             tokio::spawn(async move {
                 Self::spawn_callsign(data.0, &data.1, data.2, int_tx).await;
                 oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
-                sx.send(ScraperMsg::Remove(ToRemove::Callsign(data.1)))
+                tx.send(ScraperMsg::Remove(ToRemove::Callsign(data.1)))
                     .await
                     .ok();
             });
@@ -135,7 +135,7 @@ impl Scraper {
     }
 
     /// Scrape for a photo, or if currently being scraper, wait for response
-    fn msg_photo(&mut self, oneshot: oneshot::Sender<()>, mode_s: ModeS, sx: Sender<ScraperMsg>) {
+    fn msg_photo(&mut self, oneshot: oneshot::Sender<()>, mode_s: ModeS, tx: Sender<ScraperMsg>) {
         if self.allow_scrape_photo.is_none() {
             oneshot.send(()).ok();
             return;
@@ -146,7 +146,7 @@ impl Scraper {
             tokio::spawn(async move {
                 int_tx.recv().await.ok();
                 oneshot.send(()).ok();
-                sx.send(ScraperMsg::Remove(ToRemove::Photo(mode_s)))
+                tx.send(ScraperMsg::Remove(ToRemove::Photo(mode_s)))
                     .await
                     .ok();
             });
@@ -159,7 +159,7 @@ impl Scraper {
                 Self::spawn_photo(data.0, &data.1, data.2, int_tx).await;
                 int_rx.recv().await.ok();
                 oneshot.send(()).ok();
-                sx.send(ScraperMsg::Remove(ToRemove::Photo(data.1)))
+                tx.send(ScraperMsg::Remove(ToRemove::Photo(data.1)))
                     .await
                     .ok();
             });
@@ -171,18 +171,18 @@ impl Scraper {
             match msg {
                 ScraperMsg::Remove(to_remove) => self.msg_remove(to_remove),
                 ScraperMsg::CallSign((oneshot, callsign)) => {
-                    self.msg_callsign(oneshot, callsign, self.sx.clone());
+                    self.msg_callsign(oneshot, callsign, self.tx.clone());
                 }
                 ScraperMsg::Photo((oneshot, mode_s)) => {
-                    self.msg_photo(oneshot, mode_s, self.sx.clone());
+                    self.msg_photo(oneshot, mode_s, self.tx.clone());
                 }
             }
         }
     }
 
-    /// Build a new scraper, could also just spawn in here?
+    /// Build a new scraper, and spawn in a tokio thread, return a Sender to be inserted into ApplicationState
     pub fn start(app_env: &AppEnv, postgres: &PgPool) -> Sender<ScraperMsg> {
-        let (sx, tx) = tokio::sync::mpsc::channel(1024);
+        let (tx, rx) = tokio::sync::mpsc::channel(1024);
         let mut scraper = Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
@@ -191,12 +191,12 @@ impl Scraper {
             callsign_requests: HashMap::new(),
             photo_requests: HashMap::new(),
             postgres: postgres.clone(),
-            sx: sx.clone(),
+            tx: tx.clone(),
         };
         tokio::spawn(async move {
-            scraper.listen(tx).await;
+            scraper.listen(rx).await;
         });
-        sx
+        tx
     }
 
     /// Build a reqwest client, with a default timeout, and compression enabled

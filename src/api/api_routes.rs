@@ -31,11 +31,11 @@ async fn find_flightroute(
         })
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
-        if flightroute.is_none() {
+        if flightroute.is_none()  {
             let (one_tx, one_rx) = tokio::sync::oneshot::channel();
 
             if state
-                .s_t
+                .scraper_tx
                 .send(crate::scraper::ScraperMsg::CallSign((
                     one_tx,
                     callsign.clone(),
@@ -69,7 +69,7 @@ async fn find_aircraft(
             if craft.url_photo.is_none() {
                 let (one_tx, one_rx) = tokio::sync::oneshot::channel();
                 if state
-                    .s_t
+                    .scraper_tx
                     .send(crate::scraper::ScraperMsg::Photo((
                         one_tx,
                         craft.mode_s.clone(),

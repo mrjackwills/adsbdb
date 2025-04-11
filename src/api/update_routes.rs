@@ -131,7 +131,7 @@ pub struct UpdatedCallsign {
 
 /// Just some simple to checks to make sure that the new aircraft body is valid
 /// Just basic checks, could still result in invalid data being inputted
-/// But it's better than nothing, the limits are the current max length  for each +10%
+/// But it's better than nothing, the limits are the current max length for each +10%
 fn check_aircraft_body_length(body: &ResponseAircraft) -> Result<(), ()> {
     let counter = |x: &str, limit: usize| x.chars().count() > limit;
     if counter(&body.aircraft_type, 65)
@@ -211,6 +211,7 @@ fn model_body_equal(c: &ModelAircraft, b: &ResponseAircraft) -> bool {
         && b.url_photo == c.url_photo
         && b.url_photo_thumbnail == c.url_photo_thumbnail
 }
+
 // At the moment this is only for mode_s, where the aircraft GET endpoint can search by registration as well
 pub async fn aircraft_patch(
     State(state): State<ApplicationState>,
