@@ -28,10 +28,7 @@ use crate::{
     S,
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
-    scraper::{
-        Scraper,
-        ScraperMsg,
-    },
+    scraper::{Scraper, ScraperMsg},
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
