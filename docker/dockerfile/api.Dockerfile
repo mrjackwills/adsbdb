@@ -2,7 +2,7 @@
 ## Builder ##
 #############
 
-FROM --platform=$BUILDPLATFORM rust:slim AS builder
+FROM --platform=$BUILDPLATFORM rust:1.86.0-slim-bookworm AS builder
 
 WORKDIR /usr/src
 
@@ -34,7 +34,9 @@ RUN cargo build --release
 ## Runtime Ubuntu ##
 ####################
 
-FROM --platform=$BUILDPLATFORM ubuntu:22.04
+FROM --platform=$BUILDPLATFORM ubuntu:24.04
+
+RUN userdel -r ubuntu
 
 ARG DOCKER_GUID=1000 \
 	DOCKER_UID=1000 \
@@ -60,7 +62,7 @@ RUN chmod +x /healthcheck/health_api.sh
 
 COPY --from=builder /usr/src/adsbdb/target/release/adsbdb /app/
 
-# Use an unprivileged user
+# Use the unprivileged user
 USER ${DOCKER_APP_USER}
 
 CMD ["/app/adsbdb"]
