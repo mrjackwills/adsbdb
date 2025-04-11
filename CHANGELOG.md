@@ -17,7 +17,7 @@
 ### Refactors
 + postgres migrations, [257c07686ea055608af83a720f5b743538f65807]
 + extract flightroute, [be9b4bf0a5ff761d14238d619be2df2bd3ee2804]
-+ scraper, use mesage bus instead of `Arc<Mutex<T>>`, [74ebb8be155dff961f8ca09b79845c9417423bef]
++ scraper, use message bus instead of `Arc<Mutex<T>>`, [74ebb8be155dff961f8ca09b79845c9417423bef]
 + dead code removed, [a5bb7f9f5c8493b0de38705503b5e1fcb3e2a1f6]
 + renaming & dead code removed, [2d7e2f781732c91dcfdb16294af9606cf2ad2a62]
 
