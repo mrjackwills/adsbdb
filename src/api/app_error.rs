@@ -153,7 +153,7 @@ impl IntoResponse for AppError {
                         exit();
                     }
                     _ => (),
-                };
+                }
                 internal!(prefix)
             }
 

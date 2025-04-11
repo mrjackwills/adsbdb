@@ -10,14 +10,12 @@ use super::response::{
     AircraftAndRoute, AsJsonRes, Online, ResponseAircraft, ResponseAirline, ResponseFlightRoute,
     ResponseJson,
 };
-use super::{app_error::UnknownAC, AppError, ApplicationState};
+use super::{AppError, ApplicationState, app_error::UnknownAC};
 use crate::{
-    db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
-    db_redis::{get_cache, insert_cache, RedisKey},
-};
-use crate::{
-    n_number::{mode_s_to_n_number, n_number_to_mode_s},
     S,
+    db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute},
+    db_redis::{RedisKey, get_cache, insert_cache},
+    n_number::{mode_s_to_n_number, n_number_to_mode_s},
 };
 
 /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
@@ -34,10 +32,19 @@ async fn find_flightroute(
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
         if flightroute.is_none() {
-            flightroute = state
-                .scraper
-                .scrape_flightroute(&state.postgres, callsign, &state.scraper_threads)
-                .await?;
+            let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+
+            if state
+                .scraper_tx
+                .send(crate::scraper::ScraperMsg::CallSign((
+                    one_tx,
+                    callsign.clone(),
+                )))
+                .await
+                .is_ok()
+            {
+                flightroute = one_rx.await.unwrap_or(None);
+            }
         }
         insert_cache(&state.redis, flightroute.as_ref(), &redis_key).await?;
         Ok(flightroute)
@@ -60,10 +67,18 @@ async fn find_aircraft(
             ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
         if let Some(craft) = aircraft.as_ref() {
             if craft.url_photo.is_none() {
-                state
-                    .scraper
-                    .scrape_photo(&state.postgres, craft, &state.scraper_threads)
-                    .await;
+                let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+                if state
+                    .scraper_tx
+                    .send(crate::scraper::ScraperMsg::Photo((
+                        one_tx,
+                        craft.mode_s.clone(),
+                    )))
+                    .await
+                    .is_ok()
+                {
+                    one_rx.await.ok();
+                }
                 aircraft =
                     ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
@@ -220,42 +235,35 @@ pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, As
     unused_must_use
 )]
 mod tests {
-    use std::sync::Arc;
 
     use super::*;
 
     use axum::http::Uri;
-    // use fred::error::Error;
     use fred::interfaces::ClientLike;
     use fred::interfaces::HashesInterface;
     use fred::interfaces::KeysInterface;
-    use tokio::sync::Mutex;
 
+    use crate::S;
+    use crate::api::Registration;
     use crate::api::input::Validate;
     use crate::api::response::Airline;
     use crate::api::response::Airport;
-    use crate::api::Registration;
     use crate::db_postgres;
     use crate::db_redis;
     use crate::parse_env;
-    use crate::scraper::ScraperThreadMap;
+    use crate::scraper;
+    use crate::scraper::tests::{TEST_CALLSIGN, remove_scraped_data};
     use crate::sleep;
-    use crate::S;
-
-    const CALLSIGN: &str = "ANA460";
 
     async fn get_application_state() -> State<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::get_pool(&app_env).await.unwrap();
         let redis = db_redis::get_pool(&app_env).await.unwrap();
-        let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
         redis.flushall::<()>(true).await.unwrap();
-        State(ApplicationState::new(
-            &app_env,
-            postgres,
-            redis,
-            scraper_threads,
-        ))
+
+        let scraper_tx = scraper::Scraper::start(&app_env, &postgres);
+
+        State(ApplicationState::new(&app_env, postgres, redis, scraper_tx))
     }
 
     #[tokio::test]
@@ -1026,10 +1034,8 @@ mod tests {
     /// Insert a new flightroute using the scraper
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
-        let path = Callsign::validate(CALLSIGN).unwrap();
-
+        let path = Callsign::validate(TEST_CALLSIGN).unwrap();
         let response = callsign_get(application_state.clone(), path).await;
-
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
@@ -1074,6 +1080,7 @@ mod tests {
         assert!(response.1.response.flightroute.is_some());
         let result = response.1.response.flightroute.clone().unwrap();
         assert_eq!(result, expected);
+        remove_scraped_data(&application_state.postgres).await;
     }
 
     #[tokio::test]

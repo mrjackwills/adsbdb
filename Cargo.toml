@@ -1,13 +1,13 @@
 [package]
 name = "adsbdb"
-version = "0.4.1"
-edition = "2021"
+version = "0.4.2"
+edition = "2024"
 authors = ["Jack Wills <email@mrjackwills.com>"]
 description = "aircraft & flightroute api"
 repository = "https://github.com/mrjackwills/adsbdb"
 homepage = "https://www.adsbdb.com"
 license = "MIT"
-rust-version = "1.82.0"
+rust-version = "1.85.0"
 readme = "README.md"
 
 [lints.rust]
@@ -28,7 +28,7 @@ doc_markdown = "allow"
 argon2 ="0.5"
 axum = {version = "0.8", features=["macros"]}
 dotenvy = "0.15"
-fred = { version = "10.0" }
+fred = { version = "10.1" }
 http-body = "1.0"
 mimalloc = "0.1"
 rand = { version = "0.8" }
@@ -49,13 +49,12 @@ sqlx = { version = "0.8", features = [
 	"time",
 ] }
 thiserror = "2.0"
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.44", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
-
 
 [dev-dependencies]
 regex = "1.11"

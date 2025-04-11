@@ -3,19 +3,18 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
+    Router,
     extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, State},
     http::{HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
     routing::{get, patch},
-    Router,
 };
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
-    sync::Arc,
     time::Instant,
 };
-use tokio::{signal, sync::Mutex};
+use tokio::signal;
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -26,10 +25,10 @@ mod response;
 mod update_routes;
 
 use crate::{
+    S,
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
-    scraper::{Scraper, ScraperThreadMap},
-    S,
+    scraper::{Scraper, ScraperMsg},
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
@@ -42,9 +41,8 @@ const X_FORWARDED_FOR: &str = "x-forwarded-for";
 pub struct ApplicationState {
     postgres: PgPool,
     redis: Pool,
-    scraper_threads: Arc<Mutex<ScraperThreadMap>>,
-    scraper: Scraper,
     uptime: Instant,
+    scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
     url_prefix: String,
 }
 
@@ -53,15 +51,14 @@ impl ApplicationState {
         app_env: &AppEnv,
         postgres: PgPool,
         redis: Pool,
-        scraper_threads: Arc<Mutex<ScraperThreadMap>>,
+        scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
     ) -> Self {
         Self {
             postgres,
             redis,
-            scraper_threads,
-            scraper: Scraper::new(app_env),
             uptime: Instant::now(),
             url_prefix: app_env.url_photo_prefix.clone(),
+            scraper_tx,
         }
     }
 }
@@ -157,9 +154,9 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 
 /// Serve the app!
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
-    // TODO change this to RX/TX instead of Arc<Mutex>
-    let scraper_threads = Arc::new(Mutex::new(ScraperThreadMap::new()));
-    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_threads);
+    let scraper_tx = Scraper::start(&app_env, &postgres);
+
+    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx);
 
     let mut api_routes = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
@@ -170,7 +167,6 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
         .route(&Routes::ModeS.addr(), get(api_routes::mode_s_get));
 
     // If .env flag is set, enable update routes
-
     let mut allowed_methods = vec![axum::http::Method::GET];
     if let Some(hash) = &app_env.allow_update {
         api_routes = api_routes
@@ -189,7 +185,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
                 )),
             );
         allowed_methods.push(axum::http::Method::PATCH);
-    };
+    }
     let prefix = get_api_version();
 
     let cors = CorsLayer::new()
@@ -214,7 +210,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
     info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     info!("starting server @ {addr}{prefix}");
     info!(
-        "scrape_flightroute: {}, scrape_flightroute: {}",
+        "scrape_flightroute: {}, scrape_photo: {}",
         app_env.allow_scrape_flightroute.is_some(),
         app_env.allow_scrape_photo.is_some()
     );

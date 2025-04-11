@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nSELECT\n    airport_id\nFROM\n    airport\n    LEFT JOIN airport_icao_code ar USING (airport_icao_code_id)\nWHERE\n    ar.icao_code = UPPER($1)",
+  "query": "\nSELECT\n    airport_id\nFROM\n    airport\n    JOIN airport_icao_code ar USING (airport_icao_code_id)\nWHERE\n    ar.icao_code = UPPER($1)",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "c75bee4b0df60236970bfe2ad3dd4d2f77524c201f72aad7dca6bfcfa260563f"
+  "hash": "c87c88c2e919837712b05ef5349ac7c7e2f494a3a24df97dae00c1944c93d07f"
 }

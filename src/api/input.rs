@@ -3,8 +3,8 @@ use std::fmt;
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
-    n_number::{n_number_to_mode_s, ALLCHARS},
     S,
+    n_number::{ALLCHARS, n_number_to_mode_s},
 };
 
 use super::AppError;
@@ -73,8 +73,31 @@ impl Validate for AirlineCode {
 /// Make unit structs, StructName(String), and impl display on it
 macro_rules! unit_struct {
     ($struct_name:ident) => {
-        #[derive(Debug, Clone, PartialEq, Eq)]
+        #[derive(
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            Hash,
+            serde::Deserialize,
+            serde::Serialize,
+            sqlx::Decode,
+            sqlx::Encode,
+        )]
         pub struct $struct_name(String);
+
+        impl sqlx::Type<sqlx::Postgres> for $struct_name {
+            fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
+                <String as sqlx::Type<sqlx::Postgres>>::type_info()
+            }
+        }
+
+        /// See - https://github.com/launchbadge/sqlx/issues/2648
+        impl From<String> for $struct_name {
+            fn from(value: String) -> Self {
+                Self(value)
+            }
+        }
 
         impl std::fmt::Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -364,9 +387,9 @@ mod tests {
         test("Naaaaaa");
         // Doesn't start with N
         test("Aaaaaaa");
-        // contains invalid  char
+        // contains invalid char
         test("n1234o");
-        // contains invalid  char
+        // contains invalid char
         test("n1234i");
         // contains invalid non-alpha char
         test("Naa12$");

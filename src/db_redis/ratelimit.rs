@@ -9,7 +9,7 @@ pub struct RateLimit {
 const UPPER_LIMIT: u64 = 1024;
 const LOWER_LIMIT: u64 = 512;
 
-const ONE_MINUTE: i64 = 60;
+const ONE_MINUTE_AS_SEC: i64 = 60;
 
 impl RateLimit {
     pub fn new(ip: IpAddr) -> Self {
@@ -28,7 +28,7 @@ impl RateLimit {
                     tracing::info!("{} - {count}", self.key);
                 }
                 redis
-                    .expire::<(), &str>(&self.key, ONE_MINUTE * 5, None)
+                    .expire::<(), &str>(&self.key, ONE_MINUTE_AS_SEC * 5, None)
                     .await?;
             }
             if count > LOWER_LIMIT {
@@ -38,14 +38,14 @@ impl RateLimit {
             }
             if count == LOWER_LIMIT {
                 redis
-                    .expire::<i64, &String>(&self.key, ONE_MINUTE, None)
+                    .expire::<i64, &String>(&self.key, ONE_MINUTE_AS_SEC, None)
                     .await?;
-                return Err(AppError::RateLimited(ONE_MINUTE));
+                return Err(AppError::RateLimited(ONE_MINUTE_AS_SEC));
             }
         } else {
             redis.incr::<(), _>(&self.key).await?;
             redis
-                .expire::<i64, &String>(&self.key, ONE_MINUTE, None)
+                .expire::<i64, &String>(&self.key, ONE_MINUTE_AS_SEC, None)
                 .await?;
         }
         Ok(())

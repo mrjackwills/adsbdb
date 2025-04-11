@@ -20,8 +20,6 @@ bootstrap_from_sql_file() {
 	psql -U "${POSTGRES_USER}" -d "${POSTGRES_USER}" -f /init/init_db.sql
 }
 
-# ! psql -v ON_ERROR_STOP=1 -U "adsbdb" -d "${POSTGRES_USER}" -f "/init/migrations.sql"
-
 # Run any & all migrations
 run_migrations() {
 	if ! psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "${DB_NAME}" -f "/init/migrations.sql"; then
@@ -58,7 +56,7 @@ main() {
 	else
 		from_scratch
 	fi
-		run_migrations
+	run_migrations
 }
 
 main

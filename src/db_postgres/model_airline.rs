@@ -38,7 +38,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-    LEFT JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
 WHERE
     icao_prefix = $1",
                 x.0
@@ -67,7 +67,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-    LEFT JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
 WHERE
     iata_prefix = $1
 ORDER BY
@@ -101,7 +101,7 @@ SELECT
     ai.icao_prefix
 FROM
     airline ai
-    LEFT JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
 WHERE
     icao_prefix = $1
 ORDER BY
@@ -136,7 +136,7 @@ ORDER BY
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::{api::tests::test_setup, S};
+    use crate::{S, api::tests::test_setup};
 
     #[tokio::test]
     async fn model_airline_get_icao_iata_none() {

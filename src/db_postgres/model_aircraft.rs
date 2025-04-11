@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use crate::{
-    api::{AircraftSearch, AppError, ResponseAircraft},
+    S,
+    api::{AircraftSearch, AppError, ModeS, Registration, ResponseAircraft},
     redis_hash_to_struct,
     scraper::PhotoData,
-    S,
 };
 
 /// Generic PostgreSQL ID
@@ -75,6 +75,7 @@ generic_id!(AircraftRegistration);
 generic_id!(AircraftRegisteredOwner);
 generic_id!(AircraftOperatorFlagCode);
 generic_id!(AircraftPhoto);
+generic_id!(AircraftId);
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize)]
 struct CountryRegistrationPrefix {
@@ -85,13 +86,13 @@ struct CountryRegistrationPrefix {
 // sqlx::FromRow,
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ModelAircraft {
-    pub aircraft_id: i64,
+    aircraft_id: AircraftId,
     #[serde(rename = "type")]
     pub aircraft_type: String,
     pub icao_type: String,
     pub manufacturer: String,
-    pub mode_s: String,
-    pub registration: String,
+    pub mode_s: ModeS,
+    pub registration: Registration,
     pub registered_owner_country_iso_name: String,
     pub registered_owner_country_name: String,
     pub registered_owner_operator_flag_code: Option<String>,
@@ -133,13 +134,13 @@ SELECT
     END AS url_photo_thumbnail
 FROM
     aircraft aa
-    LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-    LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
-    LEFT JOIN country co USING(country_id)
-    LEFT JOIN aircraft_type at USING(aircraft_type_id)
-    LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
-    LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
-    LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+    JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+    JOIN country co USING(country_id)
+    JOIN aircraft_registration ar USING(aircraft_registration_id)
+    JOIN aircraft_type at USING(aircraft_type_id)
+    JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+    JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+    JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
     LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
     LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
@@ -181,13 +182,13 @@ SELECT
     END AS url_photo_thumbnail
 FROM
     aircraft aa
-    LEFT JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-    LEFT JOIN aircraft_registration ar USING(aircraft_registration_id)
-    LEFT JOIN country co USING(country_id)
-    LEFT JOIN aircraft_type at USING(aircraft_type_id)
-    LEFT JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
-    LEFT JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
-    LEFT JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
+    JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
+	JOIN country co USING(country_id)
+    JOIN aircraft_registration ar USING(aircraft_registration_id)
+    JOIN aircraft_type at USING(aircraft_type_id)
+    JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
+    JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)
+    JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)
     LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)
     LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)
 WHERE
@@ -214,19 +215,10 @@ WHERE
         })
     }
 
-    /// Insert a new flightroute based on scraped data, separated transaction so can be tested with a rollback
-    pub async fn insert_photo(&self, db: &PgPool, photo: &PhotoData) -> Result<(), AppError> {
-        let mut transaction = db.begin().await?;
-        self.photo_transaction(&mut transaction, photo).await?;
-        transaction.commit().await?;
-        Ok(())
-    }
-
-    /// Transaction to insert a new flightroute
-    async fn photo_transaction(
-        &self,
+    pub async fn photo_transaction(
         transaction: &mut Transaction<'_, Postgres>,
-        photo: &PhotoData,
+        photo: PhotoData,
+        mode_s: &ModeS,
     ) -> Result<(), AppError> {
         let aircraft_photo = sqlx::query_as!(
             ID::<AircraftPhoto>,
@@ -242,6 +234,7 @@ RETURNING
         .fetch_one(&mut **transaction)
         .await?
         .id;
+
         sqlx::query!(
             "
 UPDATE
@@ -249,12 +242,30 @@ UPDATE
 SET
     aircraft_photo_id = $1
 WHERE
-    aircraft_id = $2",
+    aircraft_id = (
+        SELECT a.aircraft_id
+        FROM aircraft a
+        JOIN aircraft_mode_s ams USING (aircraft_mode_s_id)
+        WHERE ams.mode_s = $2
+        LIMIT 1
+    );",
             aircraft_photo.0,
-            self.aircraft_id
+            mode_s.to_string()
         )
         .execute(&mut **transaction)
         .await?;
+        Ok(())
+    }
+
+    /// Insert a new flightroute based on scraped data, separated transaction so can be tested with a rollback
+    pub async fn insert_photo(
+        db: &PgPool,
+        photo: PhotoData,
+        mode_s: &ModeS,
+    ) -> Result<(), AppError> {
+        let mut transaction = db.begin().await?;
+        Self::photo_transaction(&mut transaction, photo, mode_s).await?;
+        transaction.commit().await?;
         Ok(())
     }
 
@@ -278,7 +289,7 @@ WHERE
 
         // Ireland and Argentina have multiple prefixes, so need to account for that by query for a vec
         // and then checking against the given registration
-        // Something is wrong with this query
+        // TODO - is something is wrong with this query?
         let registration_prefix = sqlx::query_as!(
             CountryRegistrationPrefix,
             "
@@ -410,7 +421,7 @@ WHERE
             country_id.id.0,
             aircraft_operator_flag_code_id.map(|i| i.0),
             aircraft_registered_owner_id.0,
-            self.aircraft_id,
+            self.aircraft_id.0,
         )
         .execute(&mut **transaction)
         .await?;
@@ -518,10 +529,7 @@ WHERE aircraft_registered_owner_id IN (
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::{
-        api::{tests::test_setup, ModeS, Registration, Validate},
-        S,
-    };
+    use crate::{S, api::tests::test_setup};
 
     #[tokio::test]
     async fn model_aircraft_photo_transaction_mode_s() {
@@ -533,17 +541,15 @@ mod tests {
             image: S!("example.jpg"),
         };
 
-        let mode_s = "A51D23";
-
         let url_prefix = "http://www.example.com/";
 
         let test_aircraft = ModelAircraft {
-            aircraft_id: 8415,
+            aircraft_id: AircraftId::from(8415),
             aircraft_type: S!("CRJ 200LR"),
             icao_type: S!("CRJ2"),
             manufacturer: S!("Bombardier"),
-            mode_s: S!("A51D23"),
-            registration: S!("N429AW"),
+            mode_s: ModeS::from(S!("A51D23")),
+            registration: Registration::from(S!("N429AW")),
             registered_owner_country_iso_name: S!("US"),
             registered_owner_country_name: S!("United States"),
             registered_owner_operator_flag_code: Some(S!("AWI")),
@@ -552,14 +558,13 @@ mod tests {
             url_photo_thumbnail: None,
         };
 
-        test_aircraft
-            .photo_transaction(&mut transaction, &photodata)
+        ModelAircraft::photo_transaction(&mut transaction, photodata, &test_aircraft.mode_s)
             .await
             .unwrap();
 
         let result = ModelAircraft::query_by_mode_s(
             &mut *transaction,
-            &AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap()),
+            &AircraftSearch::ModeS(test_aircraft.mode_s),
             url_prefix,
         )
         .await
@@ -567,76 +572,12 @@ mod tests {
         .unwrap();
 
         let expected = ModelAircraft {
-            aircraft_id: 8415,
+            aircraft_id: AircraftId::from(8415),
             aircraft_type: S!("CRJ 200LR"),
-            registration: S!("N429AW"),
+            registration: Registration::from(S!("N429AW")),
             icao_type: S!("CRJ2"),
             manufacturer: S!("Bombardier"),
-            mode_s: S!("A51D23"),
-            registered_owner_country_iso_name: S!("US"),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_operator_flag_code: Some(S!("AWI")),
-            registered_owner: S!("United Express"),
-            url_photo: Some(S!("http://www.example.com/example.jpg")),
-            url_photo_thumbnail: Some(S!("http://www.example.com/thumbnails/example.jpg")),
-        };
-
-        assert_eq!(result, expected);
-
-        // Cancel transaction, so can continually re-test with this route
-        transaction.rollback().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn model_aircraft_photo_transaction_registration() {
-        let test_setup = test_setup().await;
-
-        let mut transaction = test_setup.postgres.begin().await.unwrap();
-
-        let photodata = PhotoData {
-            image: S!("example.jpg"),
-        };
-
-        let registration = "N429AW";
-
-        let url_prefix = "http://www.example.com/";
-
-        let test_aircraft = ModelAircraft {
-            aircraft_id: 8415,
-            aircraft_type: S!("CRJ 200LR"),
-            icao_type: S!("CRJ2"),
-            manufacturer: S!("Bombardier"),
-            mode_s: S!("A51D23"),
-            registration: S!("N429AW"),
-            registered_owner_country_iso_name: S!("US"),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_operator_flag_code: Some(S!("AWI")),
-            registered_owner: S!("United Express"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
-
-        test_aircraft
-            .photo_transaction(&mut transaction, &photodata)
-            .await
-            .unwrap();
-
-        let result = ModelAircraft::query_by_registration(
-            &mut *transaction,
-            &AircraftSearch::Registration(Registration::validate(registration).unwrap()),
-            url_prefix,
-        )
-        .await
-        .unwrap()
-        .unwrap();
-
-        let expected = ModelAircraft {
-            aircraft_id: 8415,
-            aircraft_type: S!("CRJ 200LR"),
-            registration: S!("N429AW"),
-            icao_type: S!("CRJ2"),
-            manufacturer: S!("Bombardier"),
-            mode_s: S!("A51D23"),
+            mode_s: ModeS::from(S!("A51D23")),
             registered_owner_country_iso_name: S!("US"),
             registered_owner_country_name: S!("United States"),
             registered_owner_operator_flag_code: Some(S!("AWI")),
@@ -652,16 +593,14 @@ mod tests {
     }
 
     // Update
-    //
-
     fn generate_aircraft() -> ModelAircraft {
         ModelAircraft {
-            aircraft_id: 8415,
+            aircraft_id: AircraftId::from(8415),
             aircraft_type: S!("CRJ 200LR"),
-            registration: S!("N429AW"),
+            registration: Registration::from(S!("N429AW")),
             icao_type: S!("CRJ2"),
             manufacturer: S!("Bombardier"),
-            mode_s: S!("A51D23"),
+            mode_s: ModeS::from(S!("A51D23")),
             registered_owner_country_iso_name: S!("US"),
             registered_owner_country_name: S!("United States"),
             registered_owner_operator_flag_code: Some(S!("AWI")),
@@ -681,8 +620,6 @@ mod tests {
     /// Update an aircraft, set each updatable value to XX, and validate that the aircraft details have been changed
     async fn model_aircraft_update_new_values() {
         let test_setup = test_setup().await;
-
-        // aircraft type
         let mut transaction = test_setup.postgres.begin().await.unwrap();
         let aircraft = generate_aircraft();
         let mut input = ResponseAircraft::from(aircraft.clone());
@@ -694,7 +631,7 @@ mod tests {
             "SELECT at.type AS value
             FROM aircraft a
             LEFT JOIN aircraft_type at USING (aircraft_type_id) WHERE aircraft_id = $1",
-            aircraft.aircraft_id
+            aircraft.aircraft_id.0
         )
         .fetch_one(&mut *transaction)
         .await;
@@ -714,7 +651,7 @@ mod tests {
             "SELECT ait.icao_type AS value
             FROM aircraft a
             LEFT JOIN aircraft_icao_type ait USING (aircraft_icao_type_id) WHERE aircraft_id = $1",
-            aircraft.aircraft_id
+            aircraft.aircraft_id.0
         )
         .fetch_one(&mut *transaction)
         .await;
@@ -734,7 +671,7 @@ mod tests {
             "SELECT am.manufacturer AS value
             FROM aircraft a
             LEFT JOIN aircraft_manufacturer am USING (aircraft_manufacturer_id) WHERE aircraft_id = $1",
-            aircraft.aircraft_id
+            aircraft.aircraft_id.0
         )
         .fetch_one(&mut *transaction)
         .await;
@@ -752,7 +689,7 @@ mod tests {
         let result = sqlx::query_as!(TestOutput,
             "SELECT aro.registered_owner AS value
             FROM aircraft a
-            LEFT JOIN aircraft_registered_owner aro USING (aircraft_registered_owner_id) WHERE aircraft_id = $1", aircraft.aircraft_id).fetch_one(&mut *transaction).await;
+            LEFT JOIN aircraft_registered_owner aro USING (aircraft_registered_owner_id) WHERE aircraft_id = $1", aircraft.aircraft_id.0).fetch_one(&mut *transaction).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().value, "XXX");
         transaction.rollback().await.unwrap();
@@ -770,7 +707,7 @@ mod tests {
             "SELECT ar.registration AS value
             FROM aircraft a
             LEFT JOIN aircraft_registration ar USING (aircraft_registration_id) WHERE aircraft_id = $1",
-            aircraft.aircraft_id
+            aircraft.aircraft_id.0
         )
         .fetch_one(&mut *transaction)
         .await;
@@ -792,7 +729,7 @@ mod tests {
             "SELECT aofc.operator_flag_code AS value
             FROM aircraft a
             LEFT JOIN aircraft_operator_flag_code aofc USING (aircraft_operator_flag_code_id) WHERE aircraft_id = $1",
-            aircraft.aircraft_id
+            aircraft.aircraft_id.0
         )
         .fetch_one(&mut *transaction)
         .await;
