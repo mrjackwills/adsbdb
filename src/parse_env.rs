@@ -9,8 +9,6 @@ type EnvHashMap = HashMap<String, String>;
 enum EnvError {
     #[error("missing env: '{0}'")]
     NotFound(String),
-    #[error("'{0}' - cannot parse'")]
-    Parse(String),
 }
 
 #[derive(Debug, Clone)]
