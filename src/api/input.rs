@@ -387,9 +387,9 @@ mod tests {
         test("Naaaaaa");
         // Doesn't start with N
         test("Aaaaaaa");
-        // contains invalid  char
+        // contains invalid char
         test("n1234o");
-        // contains invalid  char
+        // contains invalid char
         test("n1234i");
         // contains invalid non-alpha char
         test("Naa12$");

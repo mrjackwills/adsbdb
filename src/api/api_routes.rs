@@ -31,7 +31,7 @@ async fn find_flightroute(
         })
     } else {
         let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
-        if flightroute.is_none()  {
+        if flightroute.is_none() {
             let (one_tx, one_rx) = tokio::sync::oneshot::channel();
 
             if state

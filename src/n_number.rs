@@ -127,8 +127,8 @@ fn suffix_index(offset: &str, index: usize) -> Result<usize, AppError> {
 
 /// Compute the offset corresponding to the given alphabetical suffix
 /// Reverse function of get_suffix()
-/// ''   -> 0
-/// 'A'  -> 1
+/// ''  -> 0
+/// 'A' -> 1
 fn suffix_offset(offset: &str) -> Result<usize, AppError> {
     let offset_len = offset.chars().count();
     if offset_len == 0 {
