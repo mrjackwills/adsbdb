@@ -1,0 +1,77 @@
+---
+name: CI
+# inspired by: https://gist.github.com/LukeMathWalker/5ae1107432ce283310c3e601fac915f3
+on: [push, pull_request]
+
+jobs:
+  cargo_check:
+    name: Cargo check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run cargo check
+        run: cargo check
+
+  cargo_test:
+    name: Cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run cargo test
+        run: cargo test
+
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Run Rustfmt
+        run: cargo fmt --check
+
+  cargo_clippy:
+    name: Cargo clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Lint with cargo clippy
+        run: cargo clippy -- -D warnings
+
+  cargo_audit:
+    name: Cargo package audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo audit
+        run: cargo install cargo-audit
+      - name: Check crates for vulnerabilities with cargo audit
+        run: cargo audit
+
+  typos_spell_check:
+    name: Spell Check with Typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check spelling with typos
+        uses: crate-ci/typos@master
+
+  commit_lint:
+    name: Lint commits against the Conventional Commits specification with commitlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: wagoid/commitlint-github-action@v5
+
+  # can update version numbers in files with: https://github.com/marketplace/actions/update-files-version-field
+  # can generate changelog and semver tag with: https://github.com/marketplace/actions/standard-version
