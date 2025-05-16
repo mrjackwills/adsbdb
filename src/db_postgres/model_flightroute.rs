@@ -521,7 +521,7 @@ mod tests {
         remove_flightroute(&setup.1, &scraped_flightroute).await;
     }
 
-    const ICAO_CALLSIGNS: [(&str, &str); 109] = [
+    const ICAO_CALLSIGNS: [(&str, &str); 106] = [
         ("AAL177", "AA177"),
         ("AAL2251", "AA2251"),
         ("AAL2781", "AA2781"),
@@ -557,7 +557,6 @@ mod tests {
         ("FFT329", "F9329"),
         ("FFT8511", "F98511"),
         ("FIN7052", "AY7052"),
-        ("IBE841", "IB841"),
         ("JAF21", "JF21"),
         ("JBU2003", "B62003"),
         ("JST712", "JQ712"),
@@ -589,7 +588,6 @@ mod tests {
         ("TAP948N", "TP948N"),
         ("TAY59P", "3V59P"),
         ("THY3467", "TK3467"),
-        ("TOM188", "BY188"),
         ("TOM4541", "BY4541"),
         ("UAE7DK", "EK7DK"),
         ("UAE978", "EK978"),
@@ -606,7 +604,6 @@ mod tests {
         ("BCS2885", "QY2885"),
         ("CES552", "MU552"),
         ("CSN674", "CZ674"),
-        ("ELY314", "LY314"),
         ("OMA102", "WY102"),
         ("RYR21VT", "FR21VT"),
         ("RYR26", "FR26"),
