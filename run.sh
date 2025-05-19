@@ -104,6 +104,7 @@ dev_up() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	echo "starting containers: ${TO_RUN[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
+	run_migrations
 }
 
 dev_down() {
@@ -116,6 +117,7 @@ production_up() {
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		docker compose -f docker-compose.yml up -d
+		run_migrations
 	else
 		exit
 	fi
@@ -126,6 +128,7 @@ production_rebuild() {
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		docker compose -f docker-compose.yml up -d --build
+		run_migrations
 	else
 		exit
 	fi
@@ -186,6 +189,12 @@ pull_branch() {
 	fi
 	git_pull_branch
 	main
+}
+
+run_migrations() {
+	if ask_yn "run init_postgres.sh"; then
+		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
+	fi
 }
 
 main() {

@@ -19,7 +19,7 @@ services:
     shm_size: 512MB
     volumes:
       - $HOME/databases.d/adsbdb/pg_data:/pg_data
-    command: -p 5433
+    command: -p 5432
     networks:
       - adsbdb-net
     deploy:

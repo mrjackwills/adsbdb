@@ -12,7 +12,7 @@ RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
 	&& chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /healthcheck /init /backups /logs
 
 # From dump OR scratch
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/postgres_init.sh /docker-entrypoint-initdb.d/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/init_postgres.sh /docker-entrypoint-initdb.d/
 
 # This is a bit of a hack, for pg_dump.tar
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/init_db.sql ./docker/init/migrations.sql ./docker/data/pg_dump.tar* /init/
@@ -21,7 +21,7 @@ COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/confs/.psqlrc /home
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/healthcheck/health_postgres.sh /healthcheck/
 
-RUN chmod +x /healthcheck/health_postgres.sh /docker-entrypoint-initdb.d/postgres_init.sh
+RUN chmod +x /healthcheck/health_postgres.sh /docker-entrypoint-initdb.d/init_postgres.sh
 
 
 USER ${DOCKER_APP_USER}

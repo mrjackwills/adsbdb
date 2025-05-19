@@ -18,9 +18,9 @@ services:
     shm_size: 512MB
     volumes:
       - /ramdrive/adsbdb/pg_data:/pg_data
-    command: -p 5433
+    command: -p 5432
     ports:
-      - 127.0.0.1:5433:5433
+      - 127.0.0.1:5432:5432
     networks:
       - dev-adsbdb-net
     logging:
