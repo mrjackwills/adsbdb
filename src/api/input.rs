@@ -221,7 +221,6 @@ impl Validate for NNumber {
 // Split this into an enum, Icao, Iata, Other
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Callsign {
-    // Could put optional ModelAirline in here?
     Icao((String, String)),
     Iata((String, String)),
     Other(String),
@@ -247,7 +246,6 @@ impl fmt::Display for Callsign {
 
 impl Validate for Callsign {
     // Make sure that input is a valid callsign String, validity is [a-z]{4-8}
-    // output into Callsign Enum
     fn validate(input: &str) -> Result<Self, AppError> {
         let input = input.to_uppercase();
         if (4..=8).contains(&input.len()) && input.chars().all(|c| valid_char(c, 'z')) {

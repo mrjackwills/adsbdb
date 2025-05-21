@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 2024-06-03
-# v0.3.0
+# 2025-05-21
+# v0.4.0
 
 APP_NAME='adsbdb'
 
@@ -16,15 +16,7 @@ DEV=dev
 # Get the directory of the script
 APP_DIR=$(dirname "$(readlink -f "$0")")
 
-# Check if the directory is empty
-if [ -z "$(ls -A "$APP_DIR")" ]; then
-	error_close "The ${APP_DIR} directory is empty."
-fi
-
-if ! [ -x "$(command -v dialog)" ]; then
-	error_close "dialog is not installed"
-fi
-
+# $1 error text to print
 error_close() {
 	echo -e "\n${RED}ERROR - EXITED: ${YELLOW}$1${RESET}\n"
 	exit 1
@@ -63,7 +55,18 @@ set_base_dir() {
 	fi
 }
 
-set_base_dir
+init() {
+	# Check if the directory is empty
+	if [ -z "$(ls -A "$APP_DIR")" ]; then
+		error_close "The ${APP_DIR} directory is empty."
+	fi
+
+	if ! [ -x "$(command -v dialog)" ]; then
+		error_close "dialog is not installed"
+	fi
+	set_base_dir
+
+}
 
 DOCKER_DIR="${APP_DIR}/docker"
 
@@ -104,6 +107,7 @@ dev_up() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	echo "starting containers: ${TO_RUN[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
+	run_migrations
 }
 
 dev_down() {
@@ -116,6 +120,7 @@ production_up() {
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		docker compose -f docker-compose.yml up -d
+		run_migrations
 	else
 		exit
 	fi
@@ -126,6 +131,7 @@ production_rebuild() {
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		docker compose -f docker-compose.yml up -d --build
+		run_migrations
 	else
 		exit
 	fi
@@ -171,6 +177,7 @@ git_pull_branch() {
 	git fetch --tags
 	latest_tag=$(git tag | sort -V | tail -n 1)
 	git checkout -b "$latest_tag"
+	sleep 5
 }
 
 pull_branch() {
@@ -186,6 +193,12 @@ pull_branch() {
 	fi
 	git_pull_branch
 	main
+}
+
+run_migrations() {
+	if ask_yn "run init_postgres.sh"; then
+		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
+	fi
 }
 
 main() {
@@ -238,4 +251,5 @@ main() {
 	done
 }
 
+init
 main

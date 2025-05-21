@@ -30,7 +30,6 @@
 				"gruntfuggly.todo-tree",
 				"ms-vscode.live-server",
 				"mutantdino.resourcemonitor",
-				"rangav.vscode-thunder-client",
 				"redhat.vscode-yaml",
 				"rust-lang.rust-analyzer",
 				"tamasfe.even-better-toml",
@@ -42,8 +41,7 @@
 				// VS Code don't watch files under ./target
 				"files.watcherExclude": {
 					"**/target/**": true
-				},
-				"rust-analyzer.checkOnSave.command": "clippy"
+				}
 			}
 		}
 	},

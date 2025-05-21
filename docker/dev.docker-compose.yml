@@ -3,7 +3,7 @@ networks:
     name: dev-adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.4.2
+    image: adsbdb_postgres:0.4.3
     container_name: adsbdb_postgres
     build:
       context: /workspaces/adsbdb/
@@ -18,9 +18,9 @@ services:
     shm_size: 512MB
     volumes:
       - /ramdrive/adsbdb/pg_data:/pg_data
-    command: -p 5433
+    command: -p 5432
     ports:
-      - 127.0.0.1:5433:5433
+      - 127.0.0.1:5432:5432
     networks:
       - dev-adsbdb-net
     logging:
@@ -39,7 +39,7 @@ services:
           memory: 512M
 
   adsbdb_redis:
-    image: adsbdb_redis:0.4.2
+    image: adsbdb_redis:0.4.3
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -72,7 +72,7 @@ services:
         limits:
           memory: 32MB
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.4.2
+    image: adsbdb_postgres_backup:0.4.3
     container_name: adsbdb_postgres_backup
     build:
       context: /workspaces/adsbdb/
@@ -102,7 +102,7 @@ services:
         limits:
           memory: 32M
   adsbdb_api:
-    image: adsbdb_api:0.4.2
+    image: adsbdb_api:0.4.3
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:

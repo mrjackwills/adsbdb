@@ -274,7 +274,7 @@ pub mod tests {
     use super::*;
 
     use crate::S;
-    use crate::api::get_api_version;
+    use crate::api::API_VERSION;
     use crate::api::serve;
     use crate::db_postgres;
     use crate::db_redis;
@@ -319,14 +319,14 @@ pub mod tests {
     fn callsign_url() -> String {
         format!(
             "http://127.0.0.1:8282{}/callsign/{CALLSIGN}",
-            get_api_version(),
+            API_VERSION.as_str()
         )
     }
 
     fn aircraft_url() -> String {
         format!(
             "http://127.0.0.1:8282{}/aircraft/{AIRCRAFT}",
-            get_api_version()
+            API_VERSION.as_str()
         )
     }
 
@@ -453,7 +453,7 @@ pub mod tests {
         let resp = client
             .patch(format!(
                 "http://127.0.0.1:8282{}/aircraft/101010",
-                get_api_version(),
+                API_VERSION.as_str()
             ))
             .header("authorization", "password123")
             .json(&gen_aircraft())
@@ -1100,7 +1100,7 @@ pub mod tests {
         let resp = client
             .patch(format!(
                 "http://127.0.0.1:8282{}/callsign/ZZ0909",
-                get_api_version(),
+                API_VERSION.as_str()
             ))
             .header("authorization", "password123")
             .json(&HashMap::from([
