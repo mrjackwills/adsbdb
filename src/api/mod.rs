@@ -12,6 +12,7 @@ use axum::{
 };
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
+    sync::LazyLock,
     time::Instant,
 };
 use tokio::signal;
@@ -101,8 +102,7 @@ async fn rate_limiting(
     Ok(next.run(Request::from_parts(parts, body)).await)
 }
 
-/// Create a /v[x] prefix for all api routes, where x is the current major version
-fn get_api_version() -> String {
+static API_VERSION: LazyLock<String> = LazyLock::new(|| {
     format!(
         "/v{}",
         env!("CARGO_PKG_VERSION")
@@ -110,7 +110,9 @@ fn get_api_version() -> String {
             .take(1)
             .collect::<String>()
     )
-}
+});
+
+/// Create api routes from a given ident and path
 #[macro_export]
 macro_rules! define_routes {
     ($enum_name:ident, $($variant:ident => $route:expr),*) => {
@@ -158,7 +160,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
 
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx);
 
-    let mut api_routes = Router::new()
+    let mut api_router = Router::new()
         .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
         .route(&Routes::Airline.addr(), get(api_routes::airline_get))
         .route(&Routes::Callsign.addr(), get(api_routes::callsign_get))
@@ -168,32 +170,33 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
 
     // If .env flag is set, enable update routes
     let mut allowed_methods = vec![axum::http::Method::GET];
-    if let Some(hash) = &app_env.allow_update {
-        api_routes = api_routes
+    if let Some(update_hash) = &app_env.allow_update {
+        api_router = api_router
             .route(
                 &Routes::Callsign.addr(),
                 patch(update_routes::callsign_patch).layer(middleware::from_fn_with_state(
-                    hash.clone(),
+                    update_hash.clone(),
                     update_routes::auth_header,
                 )),
             )
             .route(
                 &Routes::Aircraft.addr(),
                 patch(update_routes::aircraft_patch).layer(middleware::from_fn_with_state(
-                    hash.clone(),
+                    update_hash.clone(),
                     update_routes::auth_header,
                 )),
             );
         allowed_methods.push(axum::http::Method::PATCH);
     }
-    let prefix = get_api_version();
+
+    // let prefix = API_VERSION.as_str(),;
 
     let cors = CorsLayer::new()
         .allow_methods(allowed_methods)
         .allow_origin(Any);
 
     let app = Router::new()
-        .nest(&prefix, api_routes)
+        .nest(API_VERSION.as_str(), api_router)
         .fallback(api_routes::fallback)
         .with_state(application_state.clone())
         .layer(
@@ -208,7 +211,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
 
     let addr = get_addr(&app_env)?;
     info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    info!("starting server @ {addr}{prefix}");
+    info!("starting server @ {addr}{}", API_VERSION.as_str());
     info!(
         "scrape_flightroute: {}, scrape_photo: {}",
         app_env.allow_scrape_flightroute.is_some(),
@@ -333,8 +336,7 @@ pub mod tests {
 
     #[test]
     fn http_mod_get_api_version() {
-        let prefix = get_api_version();
-        assert_eq!(prefix, S!("/v0"));
+        assert_eq!(API_VERSION.as_str(), S!("/v0"));
     }
 
     #[tokio::test]
@@ -343,7 +345,7 @@ pub mod tests {
         let callsign = "ACA959";
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             callsign
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -393,7 +395,7 @@ pub mod tests {
         let callsign = "AC959";
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             callsign
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -443,7 +445,7 @@ pub mod tests {
         let callsign = "QFA31";
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             callsign
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -498,7 +500,7 @@ pub mod tests {
         let callsign = "QF31";
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             callsign
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -553,7 +555,7 @@ pub mod tests {
         let callsign = "ABABAB";
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             callsign
         );
         let response = reqwest::get(url).await.unwrap();
@@ -568,7 +570,7 @@ pub mod tests {
         let mode_s = "4CABD2";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -600,7 +602,7 @@ pub mod tests {
         let registration = "G-HMGE";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             registration
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -635,7 +637,7 @@ pub mod tests {
         let callsign = "ACA959";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s,
             callsign
         );
@@ -719,7 +721,7 @@ pub mod tests {
         let callsign = "AC959";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s,
             callsign
         );
@@ -803,7 +805,7 @@ pub mod tests {
         let callsign = "QFA31";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s,
             callsign
         );
@@ -907,7 +909,7 @@ pub mod tests {
         let callsign = "QF31";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}?callsign={}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s,
             callsign
         );
@@ -1010,7 +1012,7 @@ pub mod tests {
         let mode_s = "ABABAB";
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -1025,7 +1027,7 @@ pub mod tests {
         let n_number = "n1235f";
         let url = format!(
             "http://127.0.0.1:8282{}/n-number/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             n_number
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -1040,7 +1042,7 @@ pub mod tests {
         let n_number = "a1235f";
         let url = format!(
             "http://127.0.0.1:8282{}/n-number/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             n_number
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -1055,7 +1057,7 @@ pub mod tests {
         let mode_s = "ACD2D3";
         let url = format!(
             "http://127.0.0.1:8282{}/mode-s/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -1070,7 +1072,7 @@ pub mod tests {
         let mode_s = "CCD2D3";
         let url = format!(
             "http://127.0.0.1:8282{}/mode-s/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -1085,7 +1087,7 @@ pub mod tests {
         let mode_s = "JCD2D3";
         let url = format!(
             "http://127.0.0.1:8282{}/mode-s/{}",
-            get_api_version(),
+            API_VERSION.as_str(),
             mode_s
         );
         let resp = reqwest::get(url).await.unwrap();
@@ -1097,7 +1099,7 @@ pub mod tests {
     #[tokio::test]
     async fn http_mod_get_online() {
         start_server().await;
-        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         sleep!();
         let resp = reqwest::get(url).await.unwrap();
 
@@ -1111,8 +1113,8 @@ pub mod tests {
     // 404 response
     async fn http_mod_get_unknown() {
         start_server().await;
+        let version = API_VERSION.as_str();
 
-        let version = get_api_version();
         let rand_route = "asdasjkaj9ahsddasdasd";
         let url = format!("http://127.0.0.1:8282{version}/{rand_route}");
         let resp = reqwest::get(url).await.unwrap();
@@ -1129,7 +1131,7 @@ pub mod tests {
     async fn http_mod_rate_limit() {
         let test_setup = start_server().await;
 
-        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         for _ in 1..=45 {
             reqwest::get(&url).await.unwrap();
         }
@@ -1144,7 +1146,7 @@ pub mod tests {
     async fn http_mod_rate_limit_small() {
         let setup = start_server().await;
 
-        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         for _ in 1..=511 {
             reqwest::get(&url).await.unwrap();
         }
@@ -1189,7 +1191,7 @@ pub mod tests {
     async fn http_mod_rate_limit_big() {
         let setup = start_server().await;
 
-        let url = format!("http://127.0.0.1:8282{}/online", get_api_version());
+        let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         for _ in 1..=1023 {
             reqwest::get(&url).await.unwrap();
         }

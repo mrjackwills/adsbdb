@@ -106,9 +106,13 @@ async fn find_airline(
     }
 }
 
+// ************** //
+// Route Handlers //
+// ************** //
+
 /// Return an aircraft detail from a modes input
 /// optional query param of callsign, so can get both aircraft and flightroute in a single request
-/// TODO turn this optional into an extractor?
+/// /aircraft/[:REGISTRATION/:MODE-S] *or* /aircraft/[:REGISTRATION/:MODE-S]?callsign=[:CALLSIGN]
 pub async fn aircraft_get(
     State(state): State<ApplicationState>,
     aircraft_search: AircraftSearch,
@@ -150,6 +154,7 @@ pub async fn aircraft_get(
 }
 
 /// Return an airline detail from a ICAO or IATA airline prefix
+/// /airline/[:AIRLINE_CODE]
 pub async fn airline_get(
     State(state): State<ApplicationState>,
     airline_code: AirlineCode,
@@ -166,6 +171,7 @@ pub async fn airline_get(
 }
 
 /// Return a flightroute detail from a callsign input
+/// /callsign/[:CALLSIGN]
 pub async fn callsign_get(
     State(state): State<ApplicationState>,
     callsign: Callsign,
@@ -185,6 +191,7 @@ pub async fn callsign_get(
 }
 
 /// Route to convert N-Number to Mode_S
+/// /n-number/[:N-NUMBER]
 pub async fn n_number_get(
     n_number: NNumber,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
@@ -195,6 +202,7 @@ pub async fn n_number_get(
 }
 
 /// Route to convert Mode_S to N-Number
+/// /mode-s/[:MODE-S]
 pub async fn mode_s_get(
     mode_s: ModeS,
 ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
@@ -205,6 +213,7 @@ pub async fn mode_s_get(
 }
 
 /// Return a simple online status response
+/// /online
 pub async fn online_get(
     State(state): State<ApplicationState>,
 ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
@@ -218,6 +227,7 @@ pub async fn online_get(
 }
 
 /// return a unknown endpoint response
+/// /*
 pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, AsJsonRes<String>) {
     (
         StatusCode::NOT_FOUND,
