@@ -1,6 +1,7 @@
 ### Chores
 + .devcontainer updated, [e18b8d2402765a28bf943743bb084c4e7306f265]
 + dependencies updated, [6f62c302aece6c99990c396b4bef14c963328e63], [83898cafc089cd7b92605ece8e10c83a25b63081]
++ run.sh updated, [6912c600c65d5abc1fa232f5e5cc274d2ef64cfa]
 
 ### Fixes
 + postgres migrations & port, [0993fa66c3970fc23b9c7ec4fb4755b9cb696cde]
