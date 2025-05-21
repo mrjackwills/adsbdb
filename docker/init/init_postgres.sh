@@ -50,18 +50,6 @@ from_scratch() {
 	bootstrap_from_sql_file
 }
 
-# main() {
-# 	if [ -f "/init/pg_dump.tar" ]; then
-# 		from_pg_dump
-# 	else
-# 		from_scratch
-# 	fi
-# run_migrations
-# }
-
-# main
-
-
 create_tables() {
 	if [ -f "/init/pg_dump.tar" ]; then
 		from_pg_dump
