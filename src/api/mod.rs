@@ -1,5 +1,5 @@
-use router::ApiRoutes;
 use fred::clients::Pool;
+use router::ApiRoutes;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -20,10 +20,10 @@ use tokio::signal;
 use tower::ServiceBuilder;
 use tracing::info;
 
-mod router;
 mod app_error;
 mod input;
 mod response;
+mod router;
 mod update_routes;
 
 use crate::{
