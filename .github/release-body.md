@@ -1,27 +1,19 @@
-### 2025-04-11
+### 2025-05-21
 
 ### Chores
-+ dependencies updated, [8ac971c1a1fa3bd647c72a776e4aa85c9fd59523]
-+ dockerfile dependency fix, [05a1978abaca35158077cb3a279a97959d5f5cdb]
-+ Rust 1.86.0 linting, [5ade07ad47d0a1acd96b9feed9f2c3e7dc37955b]
-+ .devcontainer updated, [89878dd7a89ea14bc953e7763c2c4e28280ad171]
-+ update api.Dockerfile, use ubuntu 24.04, [ff8613259a36dad475d15a2fe08102ad2a9c10d0]
-
-### Docs
-+ README.md updated, [bb625d5680f31ff07bc539980c4d5dc36a96e421]
-
-### Features
-+ create_release.sh build containers, [7e2f6c05853079411ef4a3e030bf1146b1c3a6a1]
-+ Rust 2024 edition, [d3d4809abee579da4f07b733d6450513f5396e11]
++ .devcontainer updated, [e18b8d2402765a28bf943743bb084c4e7306f265]
++ dependencies updated, [6f62c302aece6c99990c396b4bef14c963328e63], [83898cafc089cd7b92605ece8e10c83a25b63081]
++ run.sh updated, [6912c600c65d5abc1fa232f5e5cc274d2ef64cfa]
 
 ### Fixes
-+ startup information typo, [2cb5f3b66c27380cc905f42a1bf3fb597808d0c7]
++ postgres migrations & port, [0993fa66c3970fc23b9c7ec4fb4755b9cb696cde]
 
 ### Refactors
-+ postgres migrations, [257c07686ea055608af83a720f5b743538f65807]
-+ extract flightroute, [be9b4bf0a5ff761d14238d619be2df2bd3ee2804]
-+ scraper, use message bus instead of `Arc<Mutex<T>>`, [74ebb8be155dff961f8ca09b79845c9417423bef]
-+ dead code removed, [a5bb7f9f5c8493b0de38705503b5e1fcb3e2a1f6]
-+ renaming & dead code removed, [2d7e2f781732c91dcfdb16294af9606cf2ad2a62]
++ LazyStatic api version, [79d944936b680e747f74efebdfbc9ef9420767ae]
++ dead code removed, [d13c292227613d7a091dfc9d71a336fa0798c67d]
++ use ApiRoutes struct, [2fda148387f4253f33b13a45f291419bf3846bbb]
+
+### Tests
++ tests updated with new flightroute data, [36d47d479cfc5b7fcbaa4265e04e87bac7c76294], [bb04dd5d4515463a3d73bbe6b6db78316e3f4a69]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
