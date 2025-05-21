@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 2024-06-03
-# v0.3.0
+# 2025-05-21
+# v0.4.0
 
 APP_NAME='adsbdb'
 
@@ -16,15 +16,7 @@ DEV=dev
 # Get the directory of the script
 APP_DIR=$(dirname "$(readlink -f "$0")")
 
-# Check if the directory is empty
-if [ -z "$(ls -A "$APP_DIR")" ]; then
-	error_close "The ${APP_DIR} directory is empty."
-fi
-
-if ! [ -x "$(command -v dialog)" ]; then
-	error_close "dialog is not installed"
-fi
-
+# $1 error text to print
 error_close() {
 	echo -e "\n${RED}ERROR - EXITED: ${YELLOW}$1${RESET}\n"
 	exit 1
@@ -63,7 +55,18 @@ set_base_dir() {
 	fi
 }
 
-set_base_dir
+init() {
+	# Check if the directory is empty
+	if [ -z "$(ls -A "$APP_DIR")" ]; then
+		error_close "The ${APP_DIR} directory is empty."
+	fi
+
+	if ! [ -x "$(command -v dialog)" ]; then
+		error_close "dialog is not installed"
+	fi
+	set_base_dir
+
+}
 
 DOCKER_DIR="${APP_DIR}/docker"
 
@@ -174,6 +177,7 @@ git_pull_branch() {
 	git fetch --tags
 	latest_tag=$(git tag | sort -V | tail -n 1)
 	git checkout -b "$latest_tag"
+	sleep 5
 }
 
 pull_branch() {
@@ -247,4 +251,5 @@ main() {
 	done
 }
 
+init
 main
