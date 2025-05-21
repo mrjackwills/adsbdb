@@ -18,223 +18,229 @@ use crate::{
     n_number::{mode_s_to_n_number, n_number_to_mode_s},
 };
 
-/// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
-/// Check redis cache for Option\<ModelFlightroute>, else query postgres
-async fn find_flightroute(
-    state: &ApplicationState,
-    callsign: &Callsign,
-) -> Result<Option<ModelFlightroute>, AppError> {
-    let redis_key = RedisKey::Callsign(callsign);
-    if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
-        flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| {
-            Ok(Some(route))
-        })
-    } else {
-        let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
-        if flightroute.is_none() {
-            let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+pub struct ApiRoutes;
 
-            if state
-                .scraper_tx
-                .send(crate::scraper::ScraperMsg::CallSign((
-                    one_tx,
-                    callsign.clone(),
-                )))
-                .await
-                .is_ok()
-            {
-                flightroute = one_rx.await.unwrap_or(None);
-            }
-        }
-        insert_cache(&state.redis, flightroute.as_ref(), &redis_key).await?;
-        Ok(flightroute)
-    }
-}
-
-/// Check redis cache for Option\<ModelAircraft>, else query postgres
-async fn find_aircraft(
-    state: &ApplicationState,
-    aircraft_search: &AircraftSearch,
-) -> Result<Option<ModelAircraft>, AppError> {
-    let redis_key = RedisKey::from(aircraft_search);
-
-    if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
-        aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| {
-            Ok(Some(craft))
-        })
-    } else {
-        let mut aircraft =
-            ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
-        if let Some(craft) = aircraft.as_ref() {
-            if craft.url_photo.is_none() {
+impl ApiRoutes {
+    /// Get flightroute, refactored so can use in either `get_mode_s` (with a callsign query param), or `get_callsign`.
+    /// Check redis cache for Option\<ModelFlightroute>, else query postgres
+    async fn find_flightroute(
+        state: &ApplicationState,
+        callsign: &Callsign,
+    ) -> Result<Option<ModelFlightroute>, AppError> {
+        let redis_key = RedisKey::Callsign(callsign);
+        if let Some(flightroute) = get_cache::<ModelFlightroute>(&state.redis, &redis_key).await? {
+            flightroute.map_or(Err(AppError::UnknownInDb(UnknownAC::Callsign)), |route| {
+                Ok(Some(route))
+            })
+        } else {
+            let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
+            if flightroute.is_none() {
                 let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+
                 if state
                     .scraper_tx
-                    .send(crate::scraper::ScraperMsg::Photo((
+                    .send(crate::scraper::ScraperMsg::CallSign((
                         one_tx,
-                        craft.mode_s.clone(),
+                        callsign.clone(),
                     )))
                     .await
                     .is_ok()
                 {
-                    one_rx.await.ok();
+                    flightroute = one_rx.await.unwrap_or(None);
                 }
-                aircraft =
-                    ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
+            insert_cache(&state.redis, flightroute.as_ref(), &redis_key).await?;
+            Ok(flightroute)
         }
-        insert_cache(&state.redis, aircraft.as_ref(), &redis_key).await?;
-        Ok(aircraft)
     }
-}
 
-/// Check redis cache for Option\<ModelAircraft>, else query postgres
-async fn find_airline(
-    state: ApplicationState,
-    airline: &AirlineCode,
-) -> Result<Option<Vec<ModelAirline>>, AppError> {
-    let redis_key = RedisKey::Airline(airline);
+    /// Check redis cache for Option\<ModelAircraft>, else query postgres
+    async fn find_aircraft(
+        state: &ApplicationState,
+        aircraft_search: &AircraftSearch,
+    ) -> Result<Option<ModelAircraft>, AppError> {
+        let redis_key = RedisKey::from(aircraft_search);
 
-    if let Some(airline) = get_cache::<Vec<ModelAirline>>(&state.redis, &redis_key).await? {
-        airline.map_or(Err(AppError::UnknownInDb(UnknownAC::Airline)), |airline| {
-            Ok(Some(airline))
-        })
-    } else {
-        let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
-        insert_cache(&state.redis, airline.as_ref(), &redis_key).await?;
-        Ok(airline)
+        if let Some(aircraft) = get_cache::<ModelAircraft>(&state.redis, &redis_key).await? {
+            aircraft.map_or(Err(AppError::UnknownInDb(UnknownAC::Aircraft)), |craft| {
+                Ok(Some(craft))
+            })
+        } else {
+            let mut aircraft =
+                ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
+            if let Some(craft) = aircraft.as_ref() {
+                if craft.url_photo.is_none() {
+                    let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+                    if state
+                        .scraper_tx
+                        .send(crate::scraper::ScraperMsg::Photo((
+                            one_tx,
+                            craft.mode_s.clone(),
+                        )))
+                        .await
+                        .is_ok()
+                    {
+                        one_rx.await.ok();
+                    }
+                    aircraft =
+                        ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix)
+                            .await?;
+                }
+            }
+            insert_cache(&state.redis, aircraft.as_ref(), &redis_key).await?;
+            Ok(aircraft)
+        }
     }
-}
 
-// ************** //
-// Route Handlers //
-// ************** //
+    /// Check redis cache for Option\<ModelAircraft>, else query postgres
+    async fn find_airline(
+        state: ApplicationState,
+        airline: &AirlineCode,
+    ) -> Result<Option<Vec<ModelAirline>>, AppError> {
+        let redis_key = RedisKey::Airline(airline);
 
-/// Return an aircraft detail from a modes input
-/// optional query param of callsign, so can get both aircraft and flightroute in a single request
-/// /aircraft/[:REGISTRATION/:MODE-S] *or* /aircraft/[:REGISTRATION/:MODE-S]?callsign=[:CALLSIGN]
-pub async fn aircraft_get(
-    State(state): State<ApplicationState>,
-    aircraft_search: AircraftSearch,
-    axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
-) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    // Check if optional callsign query param
-    if let Some(query_param) = queries.get("callsign") {
-        let callsign = Callsign::validate(query_param)?;
-        let (aircraft, flightroute) = tokio::try_join!(
-            find_aircraft(&state, &aircraft_search),
-            find_flightroute(&state, &callsign),
-        )?;
-        aircraft.map_or(
-            Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
-            |aircraft| {
+        if let Some(airline) = get_cache::<Vec<ModelAirline>>(&state.redis, &redis_key).await? {
+            airline.map_or(Err(AppError::UnknownInDb(UnknownAC::Airline)), |airline| {
+                Ok(Some(airline))
+            })
+        } else {
+            let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
+            insert_cache(&state.redis, airline.as_ref(), &redis_key).await?;
+            Ok(airline)
+        }
+    }
+
+    /// Return an aircraft detail from a modes input
+    /// optional query param of callsign, so can get both aircraft and flightroute in a single request
+    /// /aircraft/[:REGISTRATION/:MODE-S] *or* /aircraft/[:REGISTRATION/:MODE-S]?callsign=[:CALLSIGN]
+    pub async fn aircraft_get(
+        State(state): State<ApplicationState>,
+        aircraft_search: AircraftSearch,
+        axum::extract::Query(queries): axum::extract::Query<HashMap<String, String>>,
+    ) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
+        // Check if optional callsign query param
+        if let Some(query_param) = queries.get("callsign") {
+            let callsign = Callsign::validate(query_param)?;
+            let (aircraft, flightroute) = tokio::try_join!(
+                Self::find_aircraft(&state, &aircraft_search),
+                Self::find_flightroute(&state, &callsign),
+            )?;
+            aircraft.map_or(
+                Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
+                |aircraft| {
+                    Ok((
+                        StatusCode::OK,
+                        ResponseJson::new(AircraftAndRoute {
+                            aircraft: Some(ResponseAircraft::from(aircraft)),
+                            flightroute: ResponseFlightRoute::from_model(flightroute.as_ref()),
+                        }),
+                    ))
+                },
+            )
+        } else {
+            Self::find_aircraft(&state, &aircraft_search).await?.map_or(
+                Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
+                |aircraft| {
+                    Ok((
+                        StatusCode::OK,
+                        ResponseJson::new(AircraftAndRoute {
+                            aircraft: Some(ResponseAircraft::from(aircraft)),
+                            flightroute: None,
+                        }),
+                    ))
+                },
+            )
+        }
+    }
+
+    /// Return an airline detail from a ICAO or IATA airline prefix
+    /// /airline/[:AIRLINE_CODE]
+    pub async fn airline_get(
+        State(state): State<ApplicationState>,
+        airline_code: AirlineCode,
+    ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
+        Self::find_airline(state, &airline_code).await?.map_or(
+            Err(AppError::UnknownInDb(UnknownAC::Airline)),
+            |a| {
+                Ok((
+                    StatusCode::OK,
+                    ResponseJson::new(a.into_iter().map(ResponseAirline::from).collect::<Vec<_>>()),
+                ))
+            },
+        )
+    }
+
+    /// Return a flightroute detail from a callsign input
+    /// /callsign/[:CALLSIGN]
+    pub async fn callsign_get(
+        State(state): State<ApplicationState>,
+        callsign: Callsign,
+    ) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
+        Self::find_flightroute(&state, &callsign).await?.map_or(
+            Err(AppError::UnknownInDb(UnknownAC::Callsign)),
+            |model| {
                 Ok((
                     StatusCode::OK,
                     ResponseJson::new(AircraftAndRoute {
-                        aircraft: Some(ResponseAircraft::from(aircraft)),
-                        flightroute: ResponseFlightRoute::from_model(flightroute.as_ref()),
+                        aircraft: None,
+                        flightroute: ResponseFlightRoute::from_model(Some(&model)),
                     }),
                 ))
             },
         )
-    } else {
-        find_aircraft(&state, &aircraft_search).await?.map_or(
-            Err(AppError::UnknownInDb(UnknownAC::Aircraft)),
-            |aircraft| {
-                Ok((
-                    StatusCode::OK,
-                    ResponseJson::new(AircraftAndRoute {
-                        aircraft: Some(ResponseAircraft::from(aircraft)),
-                        flightroute: None,
-                    }),
-                ))
-            },
+    }
+
+    /// Route to convert N-Number to Mode_S
+    /// /n-number/[:N-NUMBER]
+    #[allow(clippy::unused_async)]
+    pub async fn n_number_get(
+        n_number: NNumber,
+    ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
+        Ok((
+            StatusCode::OK,
+            ResponseJson::new(n_number_to_mode_s(&n_number).map_or(S!(), |f| f.to_string())),
+        ))
+    }
+
+    /// Route to convert Mode_S to N-Number
+    /// /mode-s/[:MODE-S]
+    #[allow(clippy::unused_async)]
+    pub async fn mode_s_get(
+        mode_s: ModeS,
+    ) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
+        Ok((
+            StatusCode::OK,
+            ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(S!(), |f| f.to_string())),
+        ))
+    }
+
+    /// Return a simple online status response
+    /// /online
+    #[allow(clippy::unused_async)]
+    pub async fn online_get(
+        State(state): State<ApplicationState>,
+    ) -> (axum::http::StatusCode, AsJsonRes<Online>) {
+        (
+            StatusCode::OK,
+            ResponseJson::new(Online {
+                uptime: state.uptime.elapsed().as_secs(),
+                api_version: env!("CARGO_PKG_VERSION").into(),
+            }),
+        )
+    }
+
+    /// return a unknown endpoint response
+    /// /*
+    #[allow(clippy::unused_async)]
+    pub async fn fallback(
+        OriginalUri(original_uri): OriginalUri,
+    ) -> (StatusCode, AsJsonRes<String>) {
+        (
+            StatusCode::NOT_FOUND,
+            ResponseJson::new(format!("unknown endpoint: {original_uri}")),
         )
     }
 }
-
-/// Return an airline detail from a ICAO or IATA airline prefix
-/// /airline/[:AIRLINE_CODE]
-pub async fn airline_get(
-    State(state): State<ApplicationState>,
-    airline_code: AirlineCode,
-) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
-    find_airline(state, &airline_code).await?.map_or(
-        Err(AppError::UnknownInDb(UnknownAC::Airline)),
-        |a| {
-            Ok((
-                StatusCode::OK,
-                ResponseJson::new(a.into_iter().map(ResponseAirline::from).collect::<Vec<_>>()),
-            ))
-        },
-    )
-}
-
-/// Return a flightroute detail from a callsign input
-/// /callsign/[:CALLSIGN]
-pub async fn callsign_get(
-    State(state): State<ApplicationState>,
-    callsign: Callsign,
-) -> Result<(axum::http::StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
-    find_flightroute(&state, &callsign).await?.map_or(
-        Err(AppError::UnknownInDb(UnknownAC::Callsign)),
-        |model| {
-            Ok((
-                StatusCode::OK,
-                ResponseJson::new(AircraftAndRoute {
-                    aircraft: None,
-                    flightroute: ResponseFlightRoute::from_model(Some(&model)),
-                }),
-            ))
-        },
-    )
-}
-
-/// Route to convert N-Number to Mode_S
-/// /n-number/[:N-NUMBER]
-pub async fn n_number_get(
-    n_number: NNumber,
-) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    Ok((
-        StatusCode::OK,
-        ResponseJson::new(n_number_to_mode_s(&n_number).map_or(S!(), |f| f.to_string())),
-    ))
-}
-
-/// Route to convert Mode_S to N-Number
-/// /mode-s/[:MODE-S]
-pub async fn mode_s_get(
-    mode_s: ModeS,
-) -> Result<(axum::http::StatusCode, AsJsonRes<String>), AppError> {
-    Ok((
-        StatusCode::OK,
-        ResponseJson::new(mode_s_to_n_number(&mode_s).map_or(S!(), |f| f.to_string())),
-    ))
-}
-
-/// Return a simple online status response
-/// /online
-pub async fn online_get(
-    State(state): State<ApplicationState>,
-) -> (axum::http::StatusCode, AsJsonRes<Online>) {
-    (
-        StatusCode::OK,
-        ResponseJson::new(Online {
-            uptime: state.uptime.elapsed().as_secs(),
-            api_version: env!("CARGO_PKG_VERSION").into(),
-        }),
-    )
-}
-
-/// return a unknown endpoint response
-/// /*
-pub async fn fallback(OriginalUri(original_uri): OriginalUri) -> (StatusCode, AsJsonRes<String>) {
-    (
-        StatusCode::NOT_FOUND,
-        ResponseJson::new(format!("unknown endpoint: {original_uri}")),
-    )
-}
-
 /// ApiRoutes tests
 /// cargo watch -q -c -w src/ -x 'test http_api -- --test-threads=1 --nocapture'
 #[cfg(test)]
@@ -280,7 +286,7 @@ mod tests {
     // basically a 404 handler
     async fn http_api_fallback_route() {
         let uri = "/test/uri".parse::<Uri>().unwrap();
-        let response = fallback(OriginalUri(uri.clone())).await;
+        let response = ApiRoutes::fallback(OriginalUri(uri.clone())).await;
         assert_eq!(response.0, axum::http::StatusCode::NOT_FOUND);
         assert_eq!(response.1.response, format!("unknown endpoint: {uri}"));
     }
@@ -290,7 +296,7 @@ mod tests {
         let application_state = get_application_state().await;
 
         sleep!();
-        let response = online_get(application_state).await;
+        let response = ApiRoutes::online_get(application_state).await;
 
         assert_eq!(response.0, axum::http::StatusCode::OK);
         assert_eq!(env!("CARGO_PKG_VERSION"), response.1.response.api_version);
@@ -300,7 +306,7 @@ mod tests {
     #[tokio::test]
     async fn http_api_n_number_route() {
         let n_number = NNumber::validate("N123AB").unwrap();
-        let response = n_number_get(n_number).await;
+        let response = ApiRoutes::n_number_get(n_number).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -314,7 +320,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -353,7 +359,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -392,7 +398,7 @@ mod tests {
         let path = AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -425,7 +431,7 @@ mod tests {
         let path = AircraftSearch::Registration(Registration::validate(registration).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -462,7 +468,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
 
@@ -488,7 +494,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
 
@@ -512,7 +518,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
 
@@ -536,7 +542,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap();
         let result: Result<String, fred::error::Error> =
@@ -566,7 +572,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path.clone(), hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path.clone(), hm)
             .await
             .unwrap_err();
 
@@ -591,7 +597,7 @@ mod tests {
 
         // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap_err();
 
@@ -619,7 +625,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path.clone(), hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path.clone(), hm)
             .await
             .unwrap_err();
 
@@ -639,7 +645,7 @@ mod tests {
 
         // make sure a second request to an unknown mode_s will extend cache ttl
         let hm = axum::extract::Query(HashMap::new());
-        let response = aircraft_get(application_state.clone(), path, hm)
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm)
             .await
             .unwrap_err();
 
@@ -662,7 +668,7 @@ mod tests {
         let callsign = "ACA959";
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
-        let response = callsign_get(application_state.clone(), path).await;
+        let response = ApiRoutes::callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -719,7 +725,7 @@ mod tests {
         let callsign = "AC959";
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
-        let response = callsign_get(application_state.clone(), path).await;
+        let response = ApiRoutes::callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response: (StatusCode, axum::Json<ResponseJson<AircraftAndRoute>>) = response.unwrap();
@@ -775,7 +781,7 @@ mod tests {
         let callsign = "QFA31";
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
-        let response = callsign_get(application_state.clone(), path).await;
+        let response = ApiRoutes::callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -841,7 +847,7 @@ mod tests {
         let callsign = "QF31";
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
-        let response = callsign_get(application_state.clone(), path).await;
+        let response = ApiRoutes::callsign_get(application_state.clone(), path).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -907,7 +913,9 @@ mod tests {
         let callsign = "AC959";
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
-        callsign_get(application_state.clone(), path).await.unwrap();
+        ApiRoutes::callsign_get(application_state.clone(), path)
+            .await
+            .unwrap();
 
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
@@ -977,7 +985,9 @@ mod tests {
         let callsign = "QFA31";
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
-        callsign_get(application_state.clone(), path).await.unwrap();
+        ApiRoutes::callsign_get(application_state.clone(), path)
+            .await
+            .unwrap();
         let tmp_callsign = Callsign::validate(callsign).unwrap();
         let key = RedisKey::Callsign(&tmp_callsign);
 
@@ -1045,7 +1055,7 @@ mod tests {
     async fn http_api_get_callsign_scraper() {
         let application_state = get_application_state().await;
         let path = Callsign::validate(TEST_CALLSIGN).unwrap();
-        let response = callsign_get(application_state.clone(), path).await;
+        let response = ApiRoutes::callsign_get(application_state.clone(), path).await;
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
@@ -1101,7 +1111,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = Callsign::validate(callsign).unwrap();
 
-        let response = callsign_get(application_state.clone(), path.clone())
+        let response = ApiRoutes::callsign_get(application_state.clone(), path.clone())
             .await
             .unwrap_err();
         match response {
@@ -1122,7 +1132,7 @@ mod tests {
         sleep!();
 
         // Check second request is also in redis, and cache ttl gets reset
-        let response = callsign_get(application_state.clone(), path)
+        let response = ApiRoutes::callsign_get(application_state.clone(), path)
             .await
             .unwrap_err();
 
@@ -1150,7 +1160,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1233,7 +1243,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1316,7 +1326,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1398,7 +1408,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1481,7 +1491,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1559,7 +1569,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1637,7 +1647,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1715,7 +1725,7 @@ mod tests {
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
         let hm = axum::extract::Query(hm);
-        let response = aircraft_get(application_state.clone(), path, hm).await;
+        let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1794,7 +1804,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AirlineCode::Iata(callsign.to_owned());
 
-        let response = airline_get(application_state.clone(), path.clone())
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone())
             .await
             .unwrap_err();
         match response {
@@ -1814,7 +1824,7 @@ mod tests {
         sleep!();
 
         // Check second request is also in redis, and cache ttl gets reset
-        let response = airline_get(application_state.clone(), path.clone())
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone())
             .await
             .unwrap_err();
 
@@ -1841,7 +1851,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AirlineCode::Icao(callsign.to_owned());
 
-        let response = airline_get(application_state.clone(), path.clone())
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone())
             .await
             .unwrap_err();
         match response {
@@ -1861,7 +1871,7 @@ mod tests {
         sleep!();
 
         // Check second request is also in redis, and cache ttl gets reset
-        let response = airline_get(application_state.clone(), path.clone())
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone())
             .await
             .unwrap_err();
 
@@ -1888,7 +1898,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AirlineCode::Icao(callsign.to_owned());
 
-        let response = airline_get(application_state.clone(), path.clone()).await;
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone()).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1923,7 +1933,7 @@ mod tests {
         assert_eq!(ttl, 604_800);
 
         sleep!();
-        let response = airline_get(application_state.clone(), path.clone()).await;
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone()).await;
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
@@ -1939,7 +1949,7 @@ mod tests {
         let application_state = get_application_state().await;
         let path = AirlineCode::Iata(callsign.to_owned());
 
-        let response = airline_get(application_state.clone(), path.clone()).await;
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone()).await;
 
         assert!(response.is_ok());
         let response = response.unwrap();
@@ -1992,7 +2002,7 @@ mod tests {
         assert_eq!(ttl, 604_800);
 
         sleep!();
-        let response = airline_get(application_state.clone(), path.clone()).await;
+        let response = ApiRoutes::airline_get(application_state.clone(), path.clone()).await;
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);

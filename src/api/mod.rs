@@ -1,3 +1,4 @@
+use router::ApiRoutes;
 use fred::clients::Pool;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
@@ -19,7 +20,7 @@ use tokio::signal;
 use tower::ServiceBuilder;
 use tracing::info;
 
-mod api_routes;
+mod router;
 mod app_error;
 mod input;
 mod response;
@@ -161,12 +162,12 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx);
 
     let mut api_router = Router::new()
-        .route(&Routes::Aircraft.addr(), get(api_routes::aircraft_get))
-        .route(&Routes::Airline.addr(), get(api_routes::airline_get))
-        .route(&Routes::Callsign.addr(), get(api_routes::callsign_get))
-        .route(&Routes::Online.addr(), get(api_routes::online_get))
-        .route(&Routes::NNumber.addr(), get(api_routes::n_number_get))
-        .route(&Routes::ModeS.addr(), get(api_routes::mode_s_get));
+        .route(&Routes::Aircraft.addr(), get(ApiRoutes::aircraft_get))
+        .route(&Routes::Airline.addr(), get(ApiRoutes::airline_get))
+        .route(&Routes::Callsign.addr(), get(ApiRoutes::callsign_get))
+        .route(&Routes::Online.addr(), get(ApiRoutes::online_get))
+        .route(&Routes::NNumber.addr(), get(ApiRoutes::n_number_get))
+        .route(&Routes::ModeS.addr(), get(ApiRoutes::mode_s_get));
 
     // If .env flag is set, enable update routes
     let mut allowed_methods = vec![axum::http::Method::GET];
@@ -197,7 +198,7 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
 
     let app = Router::new()
         .nest(API_VERSION.as_str(), api_router)
-        .fallback(api_routes::fallback)
+        .fallback(ApiRoutes::fallback)
         .with_state(application_state.clone())
         .layer(
             ServiceBuilder::new()
