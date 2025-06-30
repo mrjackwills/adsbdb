@@ -143,7 +143,7 @@ production_down() {
 }
 
 select_containers() {
-	cmd=(dialog --separate-output --backtitle "Dev containers selection" --checklist "select: postgres + redis +" 14 80 16)
+	cmd=(dialog --separate-output --backtitle "Dev containers selection" --keep-tite --checklist "select: postgres + redis +" 14 80 16)
 	options=(
 		1 "$API" off
 		2 "$BACKUP_CONTAINER" off
@@ -203,7 +203,7 @@ run_migrations() {
 
 main() {
 	echo "in main"
-	cmd=(dialog --backtitle "Start ${APP_NAME} containers" --radiolist "choose environment" 14 80 16)
+	cmd=(dialog --backtitle "Start ${APP_NAME} containers" --keep-tite --radiolist "choose environment" 14 80 16)
 	options=(
 		1 "${DEV} up" off
 		2 "${DEV} down" off
