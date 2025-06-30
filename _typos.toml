@@ -1,3 +1,6 @@
+[default]
+extend-ignore-words-re = ["[(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{40})]"]
+
 [default.extend-identifiers]
 # These are all from a postgres query
 alo_m = "alo_m"
