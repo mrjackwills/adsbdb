@@ -270,6 +270,7 @@ WHERE
     }
 
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     async fn update_transaction(
         &self,
         transaction: &mut Transaction<'_, Postgres>,

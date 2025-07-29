@@ -277,6 +277,7 @@ impl Scraper {
     }
 
     #[cfg(not(test))]
+    #[allow(clippy::cognitive_complexity)]
     async fn request_callsign(callsign: &Callsign, url: String) -> Result<String, AppError> {
         match Self::client_get(format!("{url}/{callsign}")).await {
             Ok(response) => match response.text().await {
@@ -296,6 +297,7 @@ impl Scraper {
     }
 
     /// This is spawned in a tokio thread, scrapes the flightroute, inserts into postgres, and sends back modelflightroute
+    #[allow(clippy::cognitive_complexity)]
     async fn spawn_callsign(
         postgres: PgPool,
         callsign: &Callsign,
@@ -386,6 +388,7 @@ impl Scraper {
 
     /// Request for photo from third party site
     #[cfg(not(test))]
+    #[allow(clippy::cognitive_complexity)]
     async fn request_photo(mode_s: &ModeS, url: String) -> Option<PhotoResponse> {
         match Self::client_get(format!("{url}ac_thumb.json?m={mode_s}&n=1")).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
