@@ -258,10 +258,10 @@ impl Validate for Callsign {
             {
                 Ok(Self::Icao((icao.0.to_owned(), icao.1.to_owned())))
             } else if iata.0.chars().all(|c| valid_char(c, 'z')) {
-                if let Ok(n_number) = NNumber::validate(&input) {
-                    if n_number_to_mode_s(&n_number).is_ok() {
-                        return Ok(Self::Other(input));
-                    }
+                if let Ok(n_number) = NNumber::validate(&input)
+                    && n_number_to_mode_s(&n_number).is_ok()
+                {
+                    return Ok(Self::Other(input));
                 }
                 Ok(Self::Iata((iata.0.to_owned(), iata.1.to_owned())))
             } else {

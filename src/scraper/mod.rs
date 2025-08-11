@@ -359,10 +359,10 @@ impl Scraper {
         let Some(photo) = photo else {
             return send_unit();
         };
-        if let Some([data_0, ..]) = photo.data {
-            if let Err(e) = ModelAircraft::insert_photo(&postgres, data_0, mode_s).await {
-                tracing::error!("{e}");
-            }
+        if let Some([data_0, ..]) = photo.data
+            && let Err(e) = ModelAircraft::insert_photo(&postgres, data_0, mode_s).await
+        {
+            tracing::error!("{e}");
         }
         send_unit();
     }
