@@ -68,24 +68,23 @@ impl ApiRoutes {
         } else {
             let mut aircraft =
                 ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
-            if let Some(craft) = aircraft.as_ref() {
-                if craft.url_photo.is_none() {
-                    let (one_tx, one_rx) = tokio::sync::oneshot::channel();
-                    if state
-                        .scraper_tx
-                        .send(crate::scraper::ScraperMsg::Photo((
-                            one_tx,
-                            craft.mode_s.clone(),
-                        )))
-                        .await
-                        .is_ok()
-                    {
-                        one_rx.await.ok();
-                    }
-                    aircraft =
-                        ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix)
-                            .await?;
+            if let Some(craft) = aircraft.as_ref()
+                && craft.url_photo.is_none()
+            {
+                let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+                if state
+                    .scraper_tx
+                    .send(crate::scraper::ScraperMsg::Photo((
+                        one_tx,
+                        craft.mode_s.clone(),
+                    )))
+                    .await
+                    .is_ok()
+                {
+                    one_rx.await.ok();
                 }
+                aircraft =
+                    ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
             insert_cache(&state.redis, aircraft.as_ref(), &redis_key).await?;
             Ok(aircraft)

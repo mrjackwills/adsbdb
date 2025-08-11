@@ -156,6 +156,7 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 }
 
 /// Serve the app!
+#[allow(clippy::cognitive_complexity)]
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
     let scraper_tx = Scraper::start(&app_env, &postgres);
 

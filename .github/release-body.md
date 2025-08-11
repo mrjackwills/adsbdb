@@ -1,19 +1,13 @@
-### 2025-05-21
+### 2025-08-11
 
 ### Chores
-+ .devcontainer updated, [e18b8d2402765a28bf943743bb084c4e7306f265]
-+ dependencies updated, [6f62c302aece6c99990c396b4bef14c963328e63], [83898cafc089cd7b92605ece8e10c83a25b63081]
-+ run.sh updated, [6912c600c65d5abc1fa232f5e5cc274d2ef64cfa]
-
-### Fixes
-+ postgres migrations & port, [0993fa66c3970fc23b9c7ec4fb4755b9cb696cde]
-
-### Refactors
-+ LazyStatic api version, [79d944936b680e747f74efebdfbc9ef9420767ae]
-+ dead code removed, [d13c292227613d7a091dfc9d71a336fa0798c67d]
-+ use ApiRoutes struct, [2fda148387f4253f33b13a45f291419bf3846bbb]
-
-### Tests
-+ tests updated with new flightroute data, [36d47d479cfc5b7fcbaa4265e04e87bac7c76294], [bb04dd5d4515463a3d73bbe6b6db78316e3f4a69]
++ cognitive_complexity lint ignore, [81a2d81eeebfc3c25b19d836e719a0b5182e67f3]
++ Alpine version bump, [0ec96ce308cba6ff28fb9e0edabd502a11539557]
++ run.sh updated, [84dc047f60e4072b795556b3cf54484a5e1c5109]
++ _typos.toml updated, [f1de091b023939507a1459edf835bcdf89e6d7dd]
++ dependencies updated, [84eb9d91dc78a8eb17f9d08cdf77d8200584b9a1]
++ dependencies updated, [0094ff77ccf51315a979b0125e1838196ae2f7d3]
++ Rust 1.89.0 linting, [dcbe6bbc2122edf124c4c8326168841009efa11f]
++ .devcontainer updated, [9c0100258d99c6d51ea49ad2fcae8e1f233aac7e]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
