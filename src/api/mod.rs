@@ -87,7 +87,7 @@ fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
     x_forwarded_for(headers)
         .or_else(|| x_real_ip(headers))
-        .map_or(addr.0.ip(), |ip_addr| ip_addr)
+        .map_or_else(||addr.0.ip(), |ip_addr| ip_addr)
 }
 
 /// Limit the users request based on ip address, using redis as mem store

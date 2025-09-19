@@ -62,7 +62,7 @@ impl ArgonHash {
         let password = password.to_owned();
         let argon_hash = self.clone();
         tokio::task::spawn_blocking(move || -> Result<bool, String> {
-            PasswordHash::new(&argon_hash.0).map_or(Err(S!("verify_password::new_hash")), |hash| {
+            PasswordHash::new(&argon_hash.0).map_or_else(|_|Err(S!("verify_password::new_hash")), |hash| {
                 match hash.verify_password(&[&get_hasher()], password) {
                     Ok(()) => Ok(true),
                     Err(e) => match e {
