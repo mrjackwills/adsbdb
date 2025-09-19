@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# rust create_release v0.6.2
-# 2025-01-17
+# rust create_release v0.6.3
+# 2025-09-19
 
 STAR_LINE='****************************************'
 CWD=$(pwd)
@@ -277,11 +277,13 @@ cross_build_aarch64() {
 
 # Build all releases that GitHub workflow would
 # This will download GB's of docker images
+# $1 is 0 or 1, if 1 won't run ask_continue
 cargo_build_all() {
+	skip_confirm=$1
 	cargo_build_x86
-	ask_continue
+	[ "$skip_confirm" -ne 1 ] && ask_continue
 	cross_build_aarch64
-	ask_continue
+	[ "$skip_confirm" -ne 1 ] && ask_continue
 }
 
 # build container for amd64 platform
@@ -298,11 +300,13 @@ build_container_arm64() {
 }
 
 # Build all the containers, this get executed in the github action
+# $1 is 0 or 1, if 1 won't run ask_continue
 build_container_all() {
+	skip_confirm=$1
 	build_container_amd64
-	ask_continue
+	[ "$skip_confirm" -ne 1 ] && ask_continue
 	build_container_arm64
-	ask_continue
+	[ "$skip_confirm" -ne 1 ] && ask_continue
 }
 
 # Select architectures to build Docker container for
@@ -312,6 +316,7 @@ build_container_choice() {
 		1 "x86 " off
 		2 "aarch64" off
 		3 "all" off
+		4 "all automatic" off
 	)
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 	exitStatus=$?
@@ -333,7 +338,11 @@ build_container_choice() {
 			exit
 			;;
 		3)
-			build_container_all
+			build_container_all 0
+			exit
+			;;
+		4)
+			build_container_all 1
 			exit
 			;;
 		esac
@@ -346,7 +355,8 @@ build_choice() {
 	options=(
 		1 "x86" off
 		2 "aarch64" off
-		5 "all" off
+		3 "all" off
+		4 "all automatic" off
 	)
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 	exitStatus=$?
@@ -367,8 +377,12 @@ build_choice() {
 			cross_build_aarch64
 			exit
 			;;
-		5)
-			cargo_build_all
+		3)
+			cargo_build_all 0
+			exit
+			;;
+		4)
+			cargo_build_all 1
 			exit
 			;;
 		esac
