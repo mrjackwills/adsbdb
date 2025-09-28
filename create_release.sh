@@ -259,7 +259,7 @@ check_cross() {
 }
 
 # build for x86, assume we're running on x86
-cargo_build_x86() {
+cargo_build() {
 	remove_db_env
 	echo -e "${YELLOW}cargo build --release${RESET}"
 	cargo build --release
@@ -275,12 +275,20 @@ cross_build_aarch64() {
 	add_db_env
 }
 
+cargo_clean() {
+	echo -e "${YELLOW}cargo clean${RESET}"
+	cargo clean
+}
+
 # Build all releases that GitHub workflow would
 # This will download GB's of docker images
 # $1 is 0 or 1, if 1 won't run ask_continue
-cargo_build_all() {
+cargo_cross_build_all() {
+	if ask_yn "cargo clean"; then
+		cargo_clean
+	fi
 	skip_confirm=$1
-	cargo_build_x86
+	cargo_build
 	[ "$skip_confirm" -ne 1 ] && ask_continue
 	cross_build_aarch64
 	[ "$skip_confirm" -ne 1 ] && ask_continue
@@ -378,11 +386,11 @@ build_choice() {
 			exit
 			;;
 		3)
-			cargo_build_all 0
+			cargo_cross_build_all 0
 			exit
 			;;
 		4)
-			cargo_build_all 1
+			cargo_cross_build_all 1
 			exit
 			;;
 		esac
@@ -400,7 +408,7 @@ release_flow() {
 	sqlx_prepare
 
 	cargo_test
-	cargo_build_all
+	cargo_cross_build_all 0
 	build_container_all
 
 	cd "${CWD}" || error_close "Can't find ${CWD}"
