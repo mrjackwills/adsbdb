@@ -1,8 +1,14 @@
 name: Release CI
+
+permissions:
+  contents: write
+  packages: write
+  
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+
 jobs:
   ##################################
   ## Build binary for release page #
