@@ -196,7 +196,7 @@ pull_branch() {
 }
 
 run_migrations() {
-	if ask_yn "run init_postgres.sh"; then
+	if ask_yn "run init_postgres.sh migrations"; then
 		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
 	fi
 }

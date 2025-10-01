@@ -28,13 +28,14 @@ mod update_routes;
 
 use crate::{
     S,
+    db_postgres::{ModelRequestStatistics, RequestStatMsg},
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
     scraper::{Scraper, ScraperMsg},
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
-pub use response::ResponseAircraft;
+pub use response::{ResponseAircraft, StatsEntry};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -45,6 +46,7 @@ pub struct ApplicationState {
     redis: Pool,
     uptime: Instant,
     scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
+    stats_tx: tokio::sync::mpsc::Sender<RequestStatMsg>,
     url_prefix: String,
 }
 
@@ -54,13 +56,15 @@ impl ApplicationState {
         postgres: PgPool,
         redis: Pool,
         scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
+        stats_tx: tokio::sync::mpsc::Sender<RequestStatMsg>,
     ) -> Self {
         Self {
             postgres,
             redis,
             uptime: Instant::now(),
-            url_prefix: app_env.url_photo_prefix.clone(),
             scraper_tx,
+            stats_tx,
+            url_prefix: app_env.url_photo_prefix.clone(),
         }
     }
 }
@@ -87,7 +91,7 @@ fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
     x_forwarded_for(headers)
         .or_else(|| x_real_ip(headers))
-        .map_or_else(||addr.0.ip(), |ip_addr| ip_addr)
+        .map_or_else(|| addr.0.ip(), |ip_addr| ip_addr)
 }
 
 /// Limit the users request based on ip address, using redis as mem store
@@ -139,7 +143,8 @@ define_routes!(
     Callsign => "callsign/{callsign}",
     Online => "online",
     NNumber => "n-number/{n-number}",
-    ModeS => "mode-s/{mode_s}"
+    ModeS => "mode-s/{mode_s}",
+    Stats => "stats"
 
 );
 
@@ -159,8 +164,9 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 #[allow(clippy::cognitive_complexity)]
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
     let scraper_tx = Scraper::start(&app_env, &postgres);
+    let stats_tx = ModelRequestStatistics::start(&postgres);
 
-    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx);
+    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx, stats_tx);
 
     let mut api_router = Router::new()
         .route(&Routes::Aircraft.addr(), get(ApiRoutes::aircraft_get))
@@ -168,7 +174,8 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
         .route(&Routes::Callsign.addr(), get(ApiRoutes::callsign_get))
         .route(&Routes::Online.addr(), get(ApiRoutes::online_get))
         .route(&Routes::NNumber.addr(), get(ApiRoutes::n_number_get))
-        .route(&Routes::ModeS.addr(), get(ApiRoutes::mode_s_get));
+        .route(&Routes::ModeS.addr(), get(ApiRoutes::mode_s_get))
+        .route(&Routes::Stats.addr(), get(ApiRoutes::stats_get));
 
     // If .env flag is set, enable update routes
     let mut allowed_methods = vec![axum::http::Method::GET];
@@ -278,6 +285,15 @@ pub mod tests {
     use serde_json::Value;
     use tokio::task::JoinHandle;
 
+    pub async fn delete_request_stats(db: &PgPool) {
+        sqlx::query!(
+                "DELETE FROM request_statistics WHERE timestamp >= NOW() - INTERVAL '1 hour'",
+            )
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
     pub struct TestSetup {
         pub _handle: Option<JoinHandle<()>>,
         pub app_env: AppEnv,
@@ -291,6 +307,7 @@ pub mod tests {
         let postgres = db_postgres::get_pool(&app_env).await.unwrap();
         let redis = db_redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
+        delete_request_stats(&postgres).await;
         TestSetup {
             _handle: None,
             app_env,
@@ -339,6 +356,187 @@ pub mod tests {
     #[test]
     fn http_mod_get_api_version() {
         assert_eq!(API_VERSION.as_str(), S!("/v0"));
+    }
+
+    #[tokio::test]
+    /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
+    async fn http_mod_get_stats() {
+        start_server().await;
+
+        let c_a_a = [
+            ("ACA959", "3DE5D5", "KHA"),
+            ("QFA31", "E80447", "TSP"),
+            ("DLH18Y", "473986", "SGY"),
+        ];
+        for (index, fma) in c_a_a.iter().enumerate() {
+            let flightroute_url = format!(
+                "http://127.0.0.1:8282{}/callsign/{}",
+                API_VERSION.as_str(),
+                fma.0
+            );
+            let mode_s_url = format!(
+                "http://127.0.0.1:8282{}/aircraft/{}",
+                API_VERSION.as_str(),
+                fma.1
+            );
+            let airline_url = format!(
+                "http://127.0.0.1:8282{}/airline/{}",
+                API_VERSION.as_str(),
+                fma.2
+            );
+            for i in 0..index + 1 {
+                reqwest::get(&mode_s_url).await.unwrap();
+                reqwest::get(&airline_url).await.unwrap();
+                reqwest::get(&flightroute_url).await.unwrap();
+            }
+        }
+
+        let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
+        let result = reqwest::get(&url)
+            .await
+            .unwrap()
+            .json::<TestResponse>()
+            .await
+            .unwrap()
+            .response;
+
+        // "total" values will use actual live data, so hard to test against
+
+        assert!(result.get("total").unwrap().is_object());
+        assert!(
+            result
+                .get("total")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("aircraft")
+                .unwrap()
+                .is_array()
+        );
+        assert!(
+            !result
+                .get("total")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("aircraft")
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            !result
+                .get("total")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("airline")
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+
+        assert!(
+            !result
+                .get("total")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("flightroute")
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            result
+                .get("total")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .get("requests")
+                .unwrap()
+                .is_i64()
+        );
+
+        // Daily stats
+
+        let airline = result
+            .get("daily")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("airline")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(airline[0].as_object().unwrap().get("count").unwrap(), 3);
+        assert_eq!(
+            airline[0].as_object().unwrap().get("entry").unwrap(),
+            "Skagway Air Service"
+        );
+        assert_eq!(airline[1].as_object().unwrap().get("count").unwrap(), 2);
+        assert_eq!(
+            airline[1].as_object().unwrap().get("entry").unwrap(),
+            "Transportes Aereos Inter"
+        );
+        assert_eq!(airline[2].as_object().unwrap().get("count").unwrap(), 1);
+        assert_eq!(
+            airline[2].as_object().unwrap().get("entry").unwrap(),
+            "Kitty Hawk Aircargo"
+        );
+
+        let aircraft = result
+            .get("daily")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("aircraft")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(aircraft[0].as_object().unwrap().get("count").unwrap(), 3);
+        assert_eq!(
+            aircraft[0].as_object().unwrap().get("entry").unwrap(),
+            "473986"
+        );
+        assert_eq!(aircraft[1].as_object().unwrap().get("count").unwrap(), 2);
+        assert_eq!(
+            aircraft[1].as_object().unwrap().get("entry").unwrap(),
+            "E80447"
+        );
+        assert_eq!(aircraft[2].as_object().unwrap().get("count").unwrap(), 1);
+        assert_eq!(
+            aircraft[2].as_object().unwrap().get("entry").unwrap(),
+            "3DE5D5"
+        );
+
+        let flightroute = result
+            .get("daily")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .get("flightroute")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(flightroute[0].as_object().unwrap().get("count").unwrap(), 3);
+        assert_eq!(
+            flightroute[0].as_object().unwrap().get("entry").unwrap(),
+            "DLH18Y"
+        );
+        assert_eq!(flightroute[1].as_object().unwrap().get("count").unwrap(), 2);
+        assert_eq!(
+            flightroute[1].as_object().unwrap().get("entry").unwrap(),
+            "QFA31"
+        );
+        assert_eq!(flightroute[2].as_object().unwrap().get("count").unwrap(), 1);
+        assert_eq!(
+            flightroute[2].as_object().unwrap().get("entry").unwrap(),
+            "ACA959"
+        );
     }
 
     #[tokio::test]

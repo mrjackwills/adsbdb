@@ -3,7 +3,7 @@ use sqlx::PgPool;
 
 use crate::{
     api::{AppError, Callsign},
-    redis_hash_to_struct,
+    generic_id, redis_hash_to_struct,
     scraper::ScrapedFlightroute,
 };
 
@@ -17,7 +17,7 @@ struct Id {
 
 #[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelFlightroute {
-    pub flightroute_id: i64,
+    pub flightroute_id: FlightrouteId,
     pub callsign: String,
     pub callsign_iata: Option<String>,
     pub callsign_icao: Option<String>,
@@ -61,6 +61,7 @@ pub struct ModelFlightroute {
     pub destination_airport_name: String,
 }
 redis_hash_to_struct!(ModelFlightroute);
+generic_id!(FlightrouteId);
 
 impl ModelFlightroute {
     /// Query a flightroute based on a callsign with is a valid N-Number
@@ -381,7 +382,7 @@ VALUES
     ($1, $2, $3)
 RETURNING
     flightroute_callsign_id AS id",
-                    airline_id.airline_id,
+                    airline_id.airline_id.get(),
                     iata_prefix.id,
                     icao_prefix.id
                 )
@@ -397,8 +398,8 @@ INSERT INTO
     )
 VALUES
     ($1, $2, $3)",
-                    origin.airport_id,
-                    destination.airport_id,
+                    origin.airport_id.get(),
+                    destination.airport_id.get(),
                     flighroute_callsign_id.id,
                 )
                 .execute(&mut *transaction)
@@ -416,7 +417,7 @@ VALUES
         destination: ModelAirport,
     ) -> Result<(), AppError> {
         sqlx::query!("UPDATE flightroute SET airport_origin_id = $1, airport_destination_id = $2 WHERE flightroute_id = $3",
-        origin.airport_id, destination.airport_id, self.flightroute_id)
+        origin.airport_id.get(), destination.airport_id.get(), self.flightroute_id.get())
         .execute(postgres)
         .await?;
 
@@ -445,7 +446,7 @@ mod tests {
 
         sqlx::query!(
             "DELETE FROM flightroute WHERE flightroute_id = $1",
-            flightroute.flightroute_id
+            flightroute.flightroute_id.get()
         )
         .execute(db)
         .await

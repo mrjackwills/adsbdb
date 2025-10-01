@@ -3,12 +3,12 @@ use sqlx::PgPool;
 
 use crate::{
     api::{AirlineCode, AppError, Callsign},
-    redis_hash_to_struct,
+    generic_id, redis_hash_to_struct,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAirline {
-    pub airline_id: i64,
+    pub airline_id: AirlineId,
     pub airline_name: String,
     pub country_name: String,
     pub country_iso_name: String,
@@ -16,6 +16,8 @@ pub struct ModelAirline {
     pub icao_prefix: String,
     pub airline_callsign: Option<String>,
 }
+
+generic_id!(AirlineId);
 
 redis_hash_to_struct!(ModelAirline);
 

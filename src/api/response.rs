@@ -1,7 +1,8 @@
 use axum::Json;
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute};
+use crate::db_postgres::{EntryCount, ModelAircraft, ModelAirline, ModelFlightroute};
 
 pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
@@ -88,6 +89,20 @@ pub struct Airline {
     pub country: String,
     pub country_iso: String,
     pub callsign: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct StatsEntry {
+    pub aircraft: Vec<EntryCount>,
+    pub airline: Vec<EntryCount>,
+    pub flightroute: Vec<EntryCount>,
+    pub requests: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct Stats {
+    pub daily: StatsEntry,
+    pub total: StatsEntry,
 }
 
 // should be option none

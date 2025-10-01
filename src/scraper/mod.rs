@@ -421,6 +421,7 @@ impl Scraper {
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
     use super::*;
+    use crate::api::tests::delete_request_stats;
     use crate::api::{AircraftSearch, ModeS, Validate};
     use crate::{S, db_postgres, db_redis};
     use fred::interfaces::ClientLike;
@@ -439,10 +440,11 @@ pub mod tests {
 
     pub async fn remove_scraped_data(db: &PgPool) {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
+        delete_request_stats(db).await;
         if let Some(flightroute) = ModelFlightroute::get(db, &callsign).await {
             sqlx::query!(
                 "DELETE FROM flightroute WHERE flightroute_id = $1",
-                flightroute.flightroute_id
+                flightroute.flightroute_id.get()
             )
             .execute(db)
             .await

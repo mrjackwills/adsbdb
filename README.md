@@ -231,6 +231,44 @@ Unknown airline return status 404 with
 ```
 ---
 
+Get adsbdb request statistics, "aircraft", "airline", and "flightroute" arrays will contain the ten most popular responses for the given item in the given time period, "requests" is the total successful responses served over the same time period
+```https://api.adsbdb.com/v[semver.major]/stats```
+```json
+{ "response": {
+	"daily": {
+			"entry": string,
+			"count": number
+			],
+		"airline": [
+			"entry": string,
+			"count": number
+			],
+		"flightroute": [
+			"entry": string,
+			"count": number
+			],
+		"requests": number
+	},
+	"total": {
+		"aircraft": [
+			"entry": string,
+			"count": number
+			],
+		"airline": [
+			"entry": string,
+			"count": number
+			],
+		"flightroute": [
+			"entry": string,
+			"count": number
+			],
+		"requests": number
+	},
+}
+
+```
+---
+
 Convert from MODE-S string to N-Number string
 ```https://api.adsbdb.com/v[semver.major]/mode-s/[MODE_S]```
 ```json

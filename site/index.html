@@ -56,13 +56,23 @@
 		</ul>
 		<hr>
 
-		<div id="stats" class="hd">
-			<h4>Stats</h4>
+		<div id="status" class="hd">
+			<h4>Status</h4>
 			current api version: <span id='api_version'></span>
 			<br>
 			uptime: <span id='uptime'></span>
 			<hr>
 		</div>
+
+
+		<!-- TODO show live stats -->
+		<!-- <div id="stats" class="hd">
+			<h4>Status</h4>
+			current api version: <span id='api_version'></span>
+			<br>
+			uptime: <span id='uptime'></span>
+			<hr>
+		</div> -->
 
 		<p>
 		<h4>Rate limits</h4>
@@ -97,6 +107,8 @@
 		<strong><a href="#href_n-number">/n-number</a></strong>
 		<br>
 		<strong><a href="#href_mode-s">/mode-s</a></strong>
+		<br>
+		<strong><a href="#href_stats">/stats</a></strong>
 		<br>
 		<strong><a href="#href_online">/online</a></strong>
 
@@ -399,6 +411,81 @@
 		<br>
 		<pre><code>{ response: string }</code></pre>
 		<hr>
+
+		<code id="href_stats">https://api.adsbdb.com/v0/stats</code>
+		<br>
+		Get daily and all-time request statistics. The "aircraft", "airline", and "flightroute" arrays will contain the ten most popular responses for the given item in the given time period, "requests" is the total successful responses served over the same time period
+		<br>
+		<pre><code>{ response: {...} }</code></pre>
+		<table>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"daily"</td>
+					<td><a href="#stats_value">Stats</a></td>
+				</tr>
+				<tr>
+					<td>"total"</td>
+					<td><a href="#stats_value">Stats</a></td>
+				</tr>
+			</tbody>
+		</table>
+
+		<table>
+			<span id="stats_value"><strong>Stats</strong></span>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"aircraft"</td>
+					<td>Array<<a href="#statsentry_value">Stats Entry</a>></td>
+				</tr>
+				<tr>
+					<td>"airline"</td>
+					<td>Array<<a href="#statsentry_value">Stats Entry</a>></td>
+				</tr>
+				<tr>
+					<td>"flightroute"</td>
+					<td>Array<<a href="#statsentry_value">Stats Entry</a>></td>
+				</tr>
+				<tr>
+					<td>"requests"</td>
+					<td>number</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<table>
+			<span id="statsentry_value"><strong>Stats Entry</strong></span>
+			<thead>
+				<tr>
+					<th>key</th>
+					<th>type</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>"entry"</td>
+					<td>string</td>
+				</tr>
+				<tr>
+					<td>"count"</td>
+					<td>number</td>
+				</tr>
+			</tbody>
+		</table>
+
+
+		<hr>
 		<code id="href_online">https://api.adsbdb.com/v0/online</code>
 		<br>
 		<pre><code>{ response: {...} }</code></pre>
@@ -443,7 +530,7 @@
 	"url_photo": string || null,
 	"url_photo_thumbnail": string || null
 }</code></pre>
-Warning: "mode_s", "url_photo", and "url_photo_thumbnail" cannot be modified.
+		Warning: "mode_s", "url_photo", and "url_photo_thumbnail" cannot be modified.
 		<hr>
 		<code id="href_patch_callsign">https://api.adsbdb.com/v0/callsign/[CALLSIGN]</code>
 		<br>
@@ -451,7 +538,7 @@ Warning: "mode_s", "url_photo", and "url_photo_thumbnail" cannot be modified.
 	"origin": string,
 	"destination": string
 }</code></pre>
-Warning: Both "origin" and "destination" need to be valid ICAO airport codes.
+		Warning: Both "origin" and "destination" need to be valid ICAO airport codes.
 
 		<hr>
 		<a class="masto" rel="me noopener" href="https://hachyderm.io/@adsbdb" target="_blank">@adsbdb Mastodon</a>

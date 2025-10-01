@@ -4,68 +4,10 @@ use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 use crate::{
     S,
     api::{AircraftSearch, AppError, ModeS, Registration, ResponseAircraft},
-    redis_hash_to_struct,
+    db_postgres::ID,
+    generic_id, redis_hash_to_struct,
     scraper::PhotoData,
 };
-
-/// Generic PostgreSQL ID
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize)]
-struct ID<T> {
-    id: T,
-}
-
-/// This macro generates a newtype wrapper around `i64`, providing useful trait implementations for custom specific ID types
-#[macro_export]
-macro_rules! generic_id {
-    ($struct_name:ident) => {
-        #[derive(
-            Debug,
-            Clone,
-            Copy,
-            Hash,
-            Eq,
-            PartialEq,
-            PartialOrd,
-            Ord,
-            sqlx::Decode,
-            serde::Deserialize,
-        )]
-        struct $struct_name(i64);
-
-        impl sqlx::Type<sqlx::Postgres> for $struct_name {
-            fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
-                <i64 as sqlx::Type<sqlx::Postgres>>::type_info()
-            }
-        }
-
-        impl From<i64> for $struct_name {
-            fn from(x: i64) -> Self {
-                Self(x)
-            }
-        }
-
-        impl fred::types::FromValue for $struct_name {
-            fn from_value(value: fred::prelude::Value) -> Result<Self, fred::prelude::Error> {
-                value.as_i64().map_or(
-                    Err(fred::error::Error::new(
-                        fred::error::ErrorKind::Parse,
-                        format!("FromRedis: {}", stringify!($struct_name)),
-                    )),
-                    |i| Ok(Self(i)),
-                )
-            }
-        }
-
-        impl serde::Serialize for $struct_name {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
-            {
-                serializer.serialize_newtype_struct(stringify!($struct_name), &self.0)
-            }
-        }
-    };
-}
 
 generic_id!(Country);
 generic_id!(AircraftType);
@@ -86,7 +28,7 @@ struct CountryRegistrationPrefix {
 // sqlx::FromRow,
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ModelAircraft {
-    aircraft_id: AircraftId,
+    pub aircraft_id: AircraftId,
     #[serde(rename = "type")]
     pub aircraft_type: String,
     pub icao_type: String,
