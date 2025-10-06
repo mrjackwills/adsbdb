@@ -1,5 +1,4 @@
 use axum::Json;
-use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::db_postgres::{EntryCount, ModelAircraft, ModelAirline, ModelFlightroute};
@@ -125,7 +124,7 @@ pub struct Airport {
     pub country_iso_name: String,
     pub country_name: String,
     pub elevation: i32,
-    pub iata_code: String,
+    pub iata_code: Option<String>,
     pub icao_code: String,
     pub latitude: f64,
     pub longitude: f64,
@@ -164,10 +163,7 @@ impl Airport {
                     .clone()
                     .unwrap_or_default(),
                 elevation: flightroute.midpoint_airport_elevation.unwrap_or_default(),
-                iata_code: flightroute
-                    .midpoint_airport_iata_code
-                    .clone()
-                    .unwrap_or_default(),
+                iata_code: flightroute.midpoint_airport_iata_code.clone(),
                 icao_code: flightroute
                     .midpoint_airport_icao_code
                     .clone()

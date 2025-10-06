@@ -10,7 +10,7 @@ pub use model_aircraft::ModelAircraft;
 pub use model_airline::ModelAirline;
 pub use model_airport::ModelAirport;
 pub use model_flightroute::ModelFlightroute;
-pub use model_request_stats::{EntryCount, ModelRequestStatistics, RequestStatMsg, StatsTime};
+pub use model_request_stats::{EntryCount, ModelRequestStatistics, RequestStatMsg};
 
 use crate::{api::AppError, parse_env::AppEnv};
 
@@ -90,6 +90,8 @@ macro_rules! generic_id {
             }
         }
 
+        /// False alert here
+        #[allow(dead_code)]
         impl $struct_name {
             pub const fn get(&self) -> i64 {
                 self.0

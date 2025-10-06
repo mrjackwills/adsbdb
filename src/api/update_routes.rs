@@ -276,16 +276,11 @@ pub mod tests {
     use crate::S;
     use crate::api::API_VERSION;
     use crate::api::serve;
-    use crate::db_postgres;
-    use crate::db_redis;
-    use crate::parse_env;
+    use crate::api::tests::test_setup;
     use crate::parse_env::AppEnv;
     use crate::sleep;
 
-    use fred::{
-        interfaces::ClientLike,
-        prelude::{HashesInterface, Pool},
-    };
+    use fred::prelude::{HashesInterface, Pool};
     use reqwest::{Client, StatusCode};
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
@@ -294,23 +289,9 @@ pub mod tests {
 
     pub struct TestSetup {
         pub _handle: Option<JoinHandle<()>>,
-        pub app_env: AppEnv,
-        pub postgres: PgPool,
+        pub _app_env: AppEnv,
+        pub _postgres: PgPool,
         pub redis: Pool,
-    }
-
-    // Get basic api params, also flushes all redis keys
-    pub async fn test_setup() -> TestSetup {
-        let app_env = parse_env::AppEnv::get_env();
-        let postgres = db_postgres::get_pool(&app_env).await.unwrap();
-        let redis = db_redis::get_pool(&app_env).await.unwrap();
-        redis.flushall::<()>(true).await.unwrap();
-        TestSetup {
-            _handle: None,
-            app_env,
-            postgres,
-            redis,
-        }
     }
 
     const AIRCRAFT: &str = "8880E1";
@@ -350,8 +331,8 @@ pub mod tests {
         sleep!(1);
         TestSetup {
             _handle: Some(handle),
-            app_env,
-            postgres: setup.postgres,
+            _app_env: app_env,
+            _postgres: setup.postgres,
             redis: setup.redis,
         }
     }

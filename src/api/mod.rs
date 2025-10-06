@@ -35,7 +35,7 @@ use crate::{
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
-pub use response::{ResponseAircraft, StatsEntry};
+pub use response::{ResponseAircraft, Stats, StatsEntry};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
@@ -138,8 +138,11 @@ macro_rules! define_routes {
 
 define_routes!(
     Routes,
+    AircraftRandom => "aircraft/random",
     Aircraft => "aircraft/{mode_s}",
+    AirlineRandom => "airline/random",
     Airline => "airline/{airline}",
+    CallsignRandom => "callsign/random",
     Callsign => "callsign/{callsign}",
     Online => "online",
     NNumber => "n-number/{n-number}",
@@ -164,13 +167,25 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 #[allow(clippy::cognitive_complexity)]
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
     let scraper_tx = Scraper::start(&app_env, &postgres);
-    let stats_tx = ModelRequestStatistics::start(&postgres);
+    let stats_tx = ModelRequestStatistics::start(&postgres, &redis);
 
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx, stats_tx);
 
     let mut api_router = Router::new()
+        .route(
+            &Routes::AircraftRandom.addr(),
+            get(ApiRoutes::aircraft_random_get),
+        )
         .route(&Routes::Aircraft.addr(), get(ApiRoutes::aircraft_get))
+        .route(
+            &Routes::AirlineRandom.addr(),
+            get(ApiRoutes::airline_random_get),
+        )
         .route(&Routes::Airline.addr(), get(ApiRoutes::airline_get))
+        .route(
+            &Routes::CallsignRandom.addr(),
+            get(ApiRoutes::callsign_random_get),
+        )
         .route(&Routes::Callsign.addr(), get(ApiRoutes::callsign_get))
         .route(&Routes::Online.addr(), get(ApiRoutes::online_get))
         .route(&Routes::NNumber.addr(), get(ApiRoutes::n_number_get))
@@ -198,9 +213,8 @@ pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(),
         allowed_methods.push(axum::http::Method::PATCH);
     }
 
-    // let prefix = API_VERSION.as_str(),;
-
     let cors = CorsLayer::new()
+        .allow_headers(Any)
         .allow_methods(allowed_methods)
         .allow_origin(Any);
 
@@ -280,6 +294,7 @@ pub mod tests {
 
     use fred::interfaces::ClientLike;
     use fred::interfaces::KeysInterface;
+    use fred::prelude::HashesInterface;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
@@ -301,19 +316,26 @@ pub mod tests {
         pub redis: Pool,
     }
 
+    impl TestSetup {
+        pub async fn flush_redis(&self) {
+            self.redis.flushall::<()>(true).await.unwrap();
+        }
+    }
+
     // Get basic api params, also flushes all redis keys
     pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::get_pool(&app_env).await.unwrap();
         let redis = db_redis::get_pool(&app_env).await.unwrap();
-        redis.flushall::<()>(true).await.unwrap();
         delete_request_stats(&postgres).await;
-        TestSetup {
+        let setup = TestSetup {
             _handle: None,
             app_env,
             postgres,
             redis,
-        }
+        };
+        setup.flush_redis().await;
+        setup
     }
 
     #[macro_export]
@@ -348,7 +370,7 @@ pub mod tests {
         }
     }
 
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
     struct TestResponse {
         response: Value,
     }
@@ -358,11 +380,7 @@ pub mod tests {
         assert_eq!(API_VERSION.as_str(), S!("/v0"));
     }
 
-    #[tokio::test]
-    /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
-    async fn http_mod_get_stats() {
-        start_server().await;
-
+    async fn seed_stats() {
         let c_a_a = [
             ("ACA959", "3DE5D5", "KHA"),
             ("QFA31", "E80447", "TSP"),
@@ -384,12 +402,23 @@ pub mod tests {
                 API_VERSION.as_str(),
                 fma.2
             );
-            for i in 0..index + 1 {
+            for _ in 0..index + 1 {
                 reqwest::get(&mode_s_url).await.unwrap();
                 reqwest::get(&airline_url).await.unwrap();
                 reqwest::get(&flightroute_url).await.unwrap();
             }
         }
+    }
+
+    #[tokio::test]
+    /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
+    /// Check that the stats cache is correctly populated and ttl/expire working as expected
+    async fn http_mod_get_stats() {
+        let setup = start_server().await;
+        seed_stats().await;
+
+        let stats_cache: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
+        assert!(stats_cache.is_none());
 
         let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
         let result = reqwest::get(&url)
@@ -399,8 +428,6 @@ pub mod tests {
             .await
             .unwrap()
             .response;
-
-        // "total" values will use actual live data, so hard to test against
 
         assert!(result.get("total").unwrap().is_object());
         assert!(
@@ -473,20 +500,11 @@ pub mod tests {
             .as_array()
             .unwrap();
         assert_eq!(airline[0].as_object().unwrap().get("count").unwrap(), 3);
-        assert_eq!(
-            airline[0].as_object().unwrap().get("entry").unwrap(),
-            "Skagway Air Service"
-        );
+        assert_eq!(airline[0].as_object().unwrap().get("entry").unwrap(), "SGY");
         assert_eq!(airline[1].as_object().unwrap().get("count").unwrap(), 2);
-        assert_eq!(
-            airline[1].as_object().unwrap().get("entry").unwrap(),
-            "Transportes Aereos Inter"
-        );
+        assert_eq!(airline[1].as_object().unwrap().get("entry").unwrap(), "TSP");
         assert_eq!(airline[2].as_object().unwrap().get("count").unwrap(), 1);
-        assert_eq!(
-            airline[2].as_object().unwrap().get("entry").unwrap(),
-            "Kitty Hawk Aircargo"
-        );
+        assert_eq!(airline[2].as_object().unwrap().get("entry").unwrap(), "KHA");
 
         let aircraft = result
             .get("daily")
@@ -537,6 +555,48 @@ pub mod tests {
             flightroute[2].as_object().unwrap().get("entry").unwrap(),
             "ACA959"
         );
+
+        let stats_cache_01: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
+        assert!(stats_cache_01.is_some());
+        let ttl_01: i64 = setup.redis.ttl("stats").await.unwrap();
+        assert!((598..601).contains(&ttl_01));
+
+        sleep!();
+
+        seed_stats().await;
+
+        reqwest::get(&url)
+            .await
+            .unwrap()
+            .json::<TestResponse>()
+            .await
+            .unwrap();
+
+        let stats_cache_02: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
+        assert!(stats_cache_02.is_some());
+
+        assert_eq!(stats_cache_01, stats_cache_02);
+
+        let ttl_02: i64 = setup.redis.ttl("stats").await.unwrap();
+        assert!(ttl_02 < ttl_01);
+
+        setup.flush_redis().await;
+        seed_stats().await;
+
+        reqwest::get(&url)
+            .await
+            .unwrap()
+            .json::<TestResponse>()
+            .await
+            .unwrap();
+
+        let stats_cache_03: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
+        assert!(stats_cache_03.is_some());
+
+        assert!(stats_cache_01 != stats_cache_03);
+
+        let ttl_03: i64 = setup.redis.ttl("stats").await.unwrap();
+        assert!(ttl_03 > ttl_02);
     }
 
     #[tokio::test]
@@ -762,6 +822,151 @@ pub mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let result = response.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
+    }
+
+    #[tokio::test]
+    /// /callsign/random, check response, check cache, clear cache then check against a /callsign/{callsign} response
+    async fn http_mod_get_callsign_random() {
+        let test_setup = start_server().await;
+        let url = format!(
+            "http://127.0.0.1:8282{}/callsign/random",
+            API_VERSION.as_str(),
+        );
+        let response = reqwest::get(url).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let random_test_response = response.json::<TestResponse>().await.unwrap();
+
+        let test_response = random_test_response.clone();
+
+        let result = random_test_response.response;
+        assert!(result.get("flightroute").is_some());
+        assert!(result.get("aircraft").is_none());
+        let result = result.get("flightroute").unwrap();
+
+        assert!(result["callsign"].is_string());
+        assert!(result["callsign_icao"].is_string());
+
+        if let Some(x) = result.get("callsign_iata") {
+            assert!(x.is_string())
+        }
+        assert!(result["origin"]["country_name"].is_string());
+        assert!(result["origin"]["elevation"].is_i64());
+        assert!(result["origin"]["country_iso_name"].is_string());
+        assert!(result["origin"]["iata_code"].is_string());
+        assert!(result["origin"]["icao_code"].is_string());
+        assert!(result["origin"]["latitude"].is_f64());
+        assert!(result["origin"]["longitude"].is_f64());
+        assert!(result["origin"]["municipality"].is_string());
+
+        assert!(result["destination"]["country_name"].is_string());
+        assert!(result["destination"]["elevation"].is_i64());
+        assert!(result["destination"]["country_iso_name"].is_string());
+        assert!(result["destination"]["iata_code"].is_string());
+        assert!(result["destination"]["icao_code"].is_string());
+        assert!(result["destination"]["latitude"].is_f64());
+        assert!(result["destination"]["longitude"].is_f64());
+        assert!(result["destination"]["municipality"].is_string());
+
+        let callsign = result["callsign"].as_str().unwrap().to_owned();
+        let callsign_icao = result["callsign_icao"].as_str().unwrap().to_owned();
+
+        let callsign_cache: Option<String> = test_setup
+            .redis
+            .hget(format!("callsign::{callsign}"), "data")
+            .await
+            .unwrap();
+        assert!(callsign_cache.is_some());
+        assert!(!callsign_cache.unwrap().is_empty());
+
+        let callsign_icao_cache: Option<String> = test_setup
+            .redis
+            .hget(format!("callsign::{callsign_icao}"), "data")
+            .await
+            .unwrap();
+        assert!(callsign_icao_cache.is_some());
+        assert!(!callsign_icao_cache.unwrap().is_empty());
+
+        if let Some(callsign_iata) = result.get("callsign_iata") {
+            let callsign_iata = callsign_iata.as_str().unwrap().to_owned();
+            let callsign_iata_cache: Option<String> = test_setup
+                .redis
+                .hget(format!("callsign::{callsign_iata}"), "data")
+                .await
+                .unwrap();
+            assert!(callsign_iata_cache.is_some());
+            assert!(!callsign_iata_cache.unwrap().is_empty());
+        }
+
+        test_setup.flush_redis().await;
+
+        let url = format!(
+            "http://127.0.0.1:8282{}/callsign/{}",
+            API_VERSION.as_str(),
+            callsign
+        );
+        let resp = reqwest::get(url)
+            .await
+            .unwrap()
+            .json::<TestResponse>()
+            .await
+            .unwrap();
+
+        assert_eq!(test_response, resp);
+
+        test_setup.flush_redis().await;
+
+        let url = format!(
+            "http://127.0.0.1:8282{}/callsign/{}",
+            API_VERSION.as_str(),
+            callsign_icao
+        );
+        let resp = reqwest::get(url)
+            .await
+            .unwrap()
+            .json::<TestResponse>()
+            .await
+            .unwrap();
+        assert_eq!(test_response, resp);
+
+        if let Some(callsign_iata) = result.get("callsign_iata") {
+            test_setup.flush_redis().await;
+
+            let url = format!(
+                "http://127.0.0.1:8282{}/callsign/{}",
+                API_VERSION.as_str(),
+                callsign_iata.as_str().unwrap()
+            );
+            let resp = reqwest::get(url)
+                .await
+                .unwrap()
+                .json::<TestResponse>()
+                .await
+                .unwrap();
+
+            let mut resp = resp
+                .response
+                .as_object()
+                .unwrap()
+                .get("flightroute")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .to_owned();
+            resp.remove("callsign");
+
+            let mut test_resp = test_response
+                .response
+                .as_object()
+                .unwrap()
+                .get("flightroute")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .to_owned();
+            test_resp.remove("callsign");
+
+            assert_eq!(test_resp, resp);
+        }
     }
 
     #[tokio::test]
@@ -1219,6 +1424,171 @@ pub mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let result = resp.json::<TestResponse>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
+    }
+
+    #[tokio::test]
+    /// /aircraft/random, check response, check cache, clear cache then check against a /aircraft/{mode_s/registration} response
+    async fn http_mod_get_aircraft_random() {
+        let test_setup = start_server().await;
+        let url = format!(
+            "http://127.0.0.1:8282{}/aircraft/random",
+            API_VERSION.as_str(),
+        );
+        let response = reqwest::get(url).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = response.json::<TestResponse>().await.unwrap();
+
+        let aircraft_result = response
+            .response
+            .as_object()
+            .unwrap()
+            .get("aircraft")
+            .unwrap();
+
+        assert!(aircraft_result.get("icao_type").unwrap().is_string());
+        assert!(aircraft_result.get("manufacturer").unwrap().is_string());
+        assert!(aircraft_result.get("mode_s").unwrap().is_string());
+        assert!(aircraft_result.get("registration").unwrap().is_string());
+        assert!(aircraft_result.get("registered_owner").unwrap().is_string());
+        assert!(
+            aircraft_result
+                .get("registered_owner_country_iso_name")
+                .unwrap()
+                .is_string()
+        );
+
+        assert!(
+            aircraft_result
+                .get("registered_owner_operator_flag_code")
+                .is_some()
+        );
+        assert!(aircraft_result.get("url_photo").is_some());
+        assert!(aircraft_result.get("url_photo_thumbnail").is_some());
+
+        let mode_s = aircraft_result["mode_s"].as_str().unwrap().to_owned();
+
+        let cache: Option<String> = test_setup
+            .redis
+            .hget(format!("mode_s::{mode_s}"), "data")
+            .await
+            .unwrap();
+        assert!(cache.is_some());
+        assert!(!cache.unwrap().is_empty());
+
+        let registration = aircraft_result["registration"].as_str().unwrap().to_owned();
+        let cache: Option<String> = test_setup
+            .redis
+            .hget(format!("registration::{registration}"), "data")
+            .await
+            .unwrap();
+        assert!(cache.is_some());
+        assert!(!cache.unwrap().is_empty());
+
+        test_setup.flush_redis().await;
+
+        let url = format!(
+            "http://127.0.0.1:8282{}/aircraft/{}",
+            API_VERSION.as_str(),
+            mode_s
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        let result = result.as_object().unwrap().get("aircraft").unwrap();
+
+        assert_eq!(aircraft_result, result);
+
+        test_setup.flush_redis().await;
+
+        let url = format!(
+            "http://127.0.0.1:8282{}/aircraft/{}",
+            API_VERSION.as_str(),
+            registration
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        let result = result.as_object().unwrap().get("aircraft").unwrap();
+
+        assert_eq!(aircraft_result, result);
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_airline_ok() {
+        start_server().await;
+        let airline = "ba";
+        let url = format!(
+            "http://127.0.0.1:8282{}/airline/{}",
+            API_VERSION.as_str(),
+            airline
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        assert!(result.is_array());
+        let result = result.as_array().unwrap();
+        assert!(result.len() == 1);
+        let result = result.first().unwrap();
+
+        assert_eq!(
+            result.get("name").unwrap().as_str().unwrap(),
+            "British Airways"
+        );
+        assert_eq!(result.get("icao").unwrap().as_str().unwrap(), "BAW");
+        assert_eq!(result.get("iata").unwrap().as_str().unwrap(), "BA");
+        assert_eq!(
+            result.get("country").unwrap().as_str().unwrap(),
+            "United Kingdom"
+        );
+        assert_eq!(result.get("country_iso").unwrap().as_str().unwrap(), "GB");
+        assert_eq!(
+            result.get("callsign").unwrap().as_str().unwrap(),
+            "SPEEDBIRD"
+        );
+    }
+
+    #[tokio::test]
+    // /airline/random, no cache
+    async fn http_mod_get_airline_random() {
+        start_server().await;
+        let url = format!(
+            "http://127.0.0.1:8282{}/airline/random",
+            API_VERSION.as_str(),
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+
+        assert!(result.is_array());
+        let result = result.as_array().unwrap();
+        assert!(result.len() == 1);
+        let result = result.first().unwrap();
+
+        assert!(result.get("name").unwrap().is_string());
+        assert!(result.get("icao").unwrap().is_string());
+        assert!(result.get("country").unwrap().is_string());
+        assert!(result.get("country_iso").unwrap().is_string());
+        assert!(result.get("iata").is_some());
+        assert!(result.get("callsign").is_some());
+    }
+
+    #[tokio::test]
+    async fn http_mod_get_airline_err() {
+        start_server().await;
+        let airline = "kn";
+        let url = format!(
+            "http://127.0.0.1:8282{}/airline/{}",
+            API_VERSION.as_str(),
+            airline
+        );
+        let resp = reqwest::get(url).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let result = resp.json::<TestResponse>().await.unwrap().response;
+        assert_eq!(result, "unknown airline");
     }
 
     #[tokio::test]

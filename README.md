@@ -40,6 +40,8 @@
 ## GET Routes
 
 ```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S || REGISTRATION]```
+<br>or<br>
+```https://api.adsbdb.com/v[semver.major]/aircraft/random```
 ```json
 {
 	"response":{
@@ -67,8 +69,9 @@ Unknown aircraft return status 404 with
 ```
 ---
 
-
 ```https://api.adsbdb.com/v[semver.major]/callsign/[CALLSIGN]```
+<br>or<br>
+```https://api.adsbdb.com/v[semver.major]/aircraft/random```
 ```json
 {
 	"response": {
@@ -206,6 +209,8 @@ If an unknown callsign is provided as a query param, but the aircraft is known, 
 ---
 
 ```https://api.adsbdb.com/v[semver.major]/airline/[AIRLINE_ICAO || AIRLINE_IATA ]```
+<br>or<br>
+```https://api.adsbdb.com/v[semver.major]/airline/random```
 ```json
 {
 	"response":{

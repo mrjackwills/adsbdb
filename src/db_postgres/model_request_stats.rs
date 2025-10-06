@@ -1,15 +1,17 @@
+use fred::prelude::Pool;
 use jiff_sqlx::Timestamp;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
-    S,
-    api::{AppError, StatsEntry},
+    api::{AppError, Stats, StatsEntry},
     db_postgres::{
         ModelAircraft, ModelAirline, ModelFlightroute, model_aircraft::AircraftId,
         model_airline::AirlineId, model_flightroute::FlightrouteId,
     },
+    db_redis::{RedisKey, TEN_MINUTES_AS_SEC, get_cache, insert_cache},
+    redis_hash_to_struct,
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -61,13 +63,11 @@ impl From<(&ModelAircraft, &Option<ModelFlightroute>)> for RequestStatMsg {
 
 #[derive(Debug, Clone, FromRow, PartialEq, Eq)]
 pub struct ModelRequestStatistics {
-    // pub request_statistics_id: StatsId,
     pub airline_id: Option<AirlineId>,
     pub aircraft_id: Option<AircraftId>,
     pub flightroute_id: Option<FlightrouteId>,
     pub timestamp: Timestamp,
 }
-// generic_id!(StatsId);
 
 #[derive(Debug, Serialize, Deserialize, FromRow, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntryCount {
@@ -80,20 +80,16 @@ struct Count {
     count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StatsTime {
-    Daily,
-    All,
-}
+redis_hash_to_struct!(Stats);
 
 impl ModelRequestStatistics {
-    /// Get the request stats
-    pub async fn get(db: &PgPool, time: StatsTime) -> Result<StatsEntry, AppError> {
-        match time {
-            StatsTime::All => Self::get_all(db).await,
-            StatsTime::Daily => Self::get_daily(db).await,
-        }
+    async fn _get(db: &PgPool) -> Result<Stats, AppError> {
+        Ok(Stats {
+            total: Self::get_total(db).await?,
+            daily: Self::get_daily(db).await?,
+        })
     }
+
     /// Return stats for aircraft & flightroutes for previous 24 hours
     async fn get_daily(db: &PgPool) -> Result<StatsEntry, AppError> {
         let flightroute = sqlx::query_as!(
@@ -125,7 +121,7 @@ LIMIT 10"#
         let airline = sqlx::query_as!(
             EntryCount,
             r#"SELECT
-    al.airline_name AS "entry!",
+    al.icao_prefix AS "entry!",
     COUNT(*) AS "count!"
 FROM
     request_statistics rs
@@ -134,10 +130,10 @@ JOIN
 WHERE
     rs.timestamp >= NOW() - INTERVAL '24 hours'
 GROUP BY
-    al.airline_name
+    al.icao_prefix
 ORDER BY
     "count!" DESC
-LIMIT 10;"#
+LIMIT 10"#
         )
         .fetch_all(db)
         .await?;
@@ -159,7 +155,7 @@ GROUP BY
     ams.mode_s
 ORDER BY
     "count!" DESC
-LIMIT 10;"#
+LIMIT 10"#
         )
         .fetch_all(db)
         .await?;
@@ -179,7 +175,7 @@ LIMIT 10;"#
     }
 
     /// Return stats for aircraft & flightroutes since the begining of time
-    async fn get_all(db: &PgPool) -> Result<StatsEntry, AppError> {
+    async fn get_total(db: &PgPool) -> Result<StatsEntry, AppError> {
         let flightroute = sqlx::query_as!(
             EntryCount,
             r#"SELECT
@@ -207,17 +203,17 @@ LIMIT 10"#
         let airline = sqlx::query_as!(
             EntryCount,
             r#"SELECT
-    al.airline_name AS "entry!",
+    al.icao_prefix AS "entry!",
     COUNT(*) AS "count!"
 FROM
     request_statistics rs
 JOIN
     airline al ON rs.airline_id = al.airline_id
 GROUP BY
-    al.airline_name
+    al.icao_prefix
 ORDER BY
     "count!" DESC
-LIMIT 10;"#
+LIMIT 10"#
         )
         .fetch_all(db)
         .await?;
@@ -237,7 +233,7 @@ GROUP BY
     ams.mode_s
 ORDER BY
     "count!" DESC
-LIMIT 10;"#
+LIMIT 10"#
         )
         .fetch_all(db)
         .await?;
@@ -274,167 +270,39 @@ LIMIT 10;"#
         Ok(())
     }
 
+    /// Get stats, first check cache, then try postgres
+    pub async fn get(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+        let redis_key = RedisKey::Stats;
+        if let Some(Some(cache_stats)) = get_cache::<Stats>(redis, &redis_key).await? {
+            Ok(cache_stats)
+        } else {
+            let statistics = Self::_get(postgres).await?;
+            insert_cache(redis, Some(&statistics), &redis_key).await?;
+            Ok(statistics)
+        }
+    }
+
     /// Create a message handler on it's own tokio thread, and return it's message sender
     /// Will insert request_statistics on each message received
-    pub fn start(db: &PgPool) -> Sender<RequestStatMsg> {
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
-        let db = db.clone();
+    /// Will insert cache stats every ten minutes - assuming it has recieved any messages at all in that time period
+    pub fn start(postgres: &PgPool, redis: &Pool) -> Sender<RequestStatMsg> {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(8192);
+        let mut now = std::time::Instant::now();
+        let postgres = postgres.clone();
+        let redis = redis.clone();
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                if let Err(e) = Self::insert(&db, msg).await {
+                if let Err(e) = Self::insert(&postgres, msg).await {
                     tracing::error!("{e:?}");
+                }
+                if now.elapsed().as_secs() > u64::try_from(TEN_MINUTES_AS_SEC).unwrap_or_default() {
+                    if let Err(e) = Self::get(&postgres, &redis).await {
+                        tracing::error!("{e:?}");
+                    }
+                    now = std::time::Instant::now();
                 }
             }
         });
         tx
     }
 }
-
-// // Run tests with
-// //
-// // cargo watch -q -c -w src/ -x 'test model_airline '
-// #[cfg(test)]
-// #[allow(clippy::pedantic, clippy::unwrap_used)]
-// mod tests {
-//     use super::*;
-//     use crate::{S, api::tests::test_setup};
-
-//     #[tokio::test]
-//     async fn model_airline_get_icao_iata_none() {
-//         let test_setup = test_setup().await;
-//         let callsign = &&Callsign::Iata((S!("EZ"), S!("123")));
-
-//         let result = ModelStats::get_by_icao_callsign(&test_setup.postgres, callsign).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_none());
-//     }
-
-//     #[tokio::test]
-//     async fn model_airline_get_icao_unknown() {
-//         let test_setup = test_setup().await;
-//         let callsign = &Callsign::Icao((S!("DDD"), S!("123")));
-
-//         let result = ModelStats::get_by_icao_callsign(&test_setup.postgres, callsign).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_none());
-//     }
-
-//     #[tokio::test]
-//     async fn model_airline_get_icao_ok() {
-//         let test_setup = test_setup().await;
-//         let callsign = &Callsign::Icao((S!("EZY"), S!("123")));
-
-//         let result = ModelStats::get_by_icao_callsign(&test_setup.postgres, callsign).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_some());
-//         let result = result.unwrap();
-
-//         let expected = ModelStats {
-//             airline_id: result.airline_id,
-//             airline_name: S!("easyJet"),
-//             country_name: S!("United Kingdom"),
-//             country_iso_name: S!("GB"),
-//             iata_prefix: Some(S!("U2")),
-//             icao_prefix: S!("EZY"),
-//             airline_callsign: Some(S!("EASY")),
-//         };
-
-//         assert_eq!(result, expected)
-//     }
-
-//     #[tokio::test]
-//     async fn model_airline_get_airlinecode_icao_none() {
-//         let test_setup = test_setup().await;
-//         let airline_code = &AirlineCode::Icao(S!("DDD"));
-
-//         let result =
-//             ModelStats::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_none());
-//     }
-
-//     #[tokio::test]
-//     async fn model_airline_get_airlinecode_icao_ok() {
-//         let test_setup = test_setup().await;
-//         let airline_code = &AirlineCode::Icao(S!("EZY"));
-
-//         let result =
-//             ModelStats::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_some());
-//         let result = result.unwrap();
-//         assert_eq!(result.len(), 1);
-
-//         let expected = [ModelStats {
-//             airline_id: result[0].airline_id,
-//             airline_name: S!("easyJet"),
-//             country_name: S!("United Kingdom"),
-//             country_iso_name: S!("GB"),
-//             iata_prefix: Some(S!("U2")),
-//             icao_prefix: S!("EZY"),
-//             airline_callsign: Some(S!("EASY")),
-//         }];
-
-//         assert_eq!(result, expected)
-//     }
-
-//     #[tokio::test]
-//     async fn model_airline_get_airlinecode_iata_none() {
-//         let test_setup = test_setup().await;
-//         let airline_code = &&AirlineCode::Iata(S!("33"));
-
-//         let result =
-//             ModelStats::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_none());
-//     }
-
-//     #[tokio::test]
-//     async fn model_airline_get_airlinecode_iata_ok() {
-//         let test_setup = test_setup().await;
-//         let airline_code = &AirlineCode::Iata(S!("ZY"));
-
-//         let result =
-//             ModelStats::get_all_by_airline_code(&test_setup.postgres, airline_code).await;
-
-//         assert!(result.is_ok());
-//         let result = result.unwrap();
-//         assert!(result.is_some());
-//         let result = result.unwrap();
-//         assert_eq!(result.len(), 2);
-
-//         let expected = [
-//             ModelStats {
-//                 airline_id: result[0].airline_id,
-//                 airline_name: S!("Ada Air"),
-//                 country_name: S!("Albania"),
-//                 country_iso_name: S!("AL"),
-//                 iata_prefix: Some(S!("ZY")),
-//                 icao_prefix: S!("ADE"),
-//                 airline_callsign: Some(S!("ADA AIR")),
-//             },
-//             ModelStats {
-//                 airline_id: result[1].airline_id,
-//                 airline_name: S!("Eznis Airways"),
-//                 country_name: S!("Mongolia"),
-//                 country_iso_name: S!("MN"),
-//                 iata_prefix: Some(S!("ZY")),
-//                 icao_prefix: S!("EZA"),
-//                 airline_callsign: Some(S!("EZNIS")),
-//             },
-//         ];
-//         assert_eq!(result, expected)
-//     }
-// }

@@ -46,6 +46,62 @@ pub struct ModelAircraft {
 redis_hash_to_struct!(ModelAircraft);
 
 impl ModelAircraft {
+    pub async fn get_random(db: &PgPool, photo_prefix: &str) -> Result<Self, AppError> {
+        Ok(sqlx::query_as!(
+            Self,
+            r#"
+WITH random_aircraft AS (
+    SELECT
+        aircraft_id
+    FROM
+        aircraft
+    OFFSET FLOOR(
+        RANDOM() * (
+            SELECT
+                count(*)
+            FROM
+                aircraft
+            )
+        )
+    LIMIT 1
+)
+
+SELECT
+    aa.aircraft_id,
+    ams.mode_s,
+    ar.registration AS "registration!: _",
+    aro.registered_owner,
+    aof.operator_flag_code AS "registered_owner_operator_flag_code?",
+    co.country_name AS registered_owner_country_name,
+    co.country_iso_name AS registered_owner_country_iso_name,
+    am.manufacturer,
+    at.type AS aircraft_type,
+    ait.icao_type,
+    CASE 
+        WHEN ap.url_photo IS NOT NULL
+        THEN CONCAT($1::TEXT, ap.url_photo)
+    END AS url_photo,
+    CASE 
+        WHEN ap.url_photo IS NOT NULL 
+        THEN CONCAT($1::TEXT, 'thumbnails/', ap.url_photo) 
+    END AS url_photo_thumbnail
+FROM aircraft aa
+JOIN random_aircraft ra ON ra.aircraft_id = aa.aircraft_id
+JOIN aircraft_mode_s ams USING (aircraft_mode_s_id)
+JOIN country co USING (country_id)
+JOIN aircraft_registration ar USING (aircraft_registration_id)
+JOIN aircraft_type at USING (aircraft_type_id)
+JOIN aircraft_registered_owner aro USING (aircraft_registered_owner_id)
+JOIN aircraft_icao_type ait USING (aircraft_icao_type_id)
+JOIN aircraft_manufacturer am USING (aircraft_manufacturer_id)
+LEFT JOIN aircraft_operator_flag_code aof USING (aircraft_operator_flag_code_id)
+LEFT JOIN aircraft_photo ap USING (aircraft_photo_id)"#,
+            photo_prefix
+        )
+        .fetch_one(db)
+        .await?)
+    }
+
     /// Search for an aircraft by mode_s
     async fn query_by_mode_s(
         db: impl PgExecutor<'_>,
@@ -125,7 +181,7 @@ SELECT
 FROM
     aircraft aa
     JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)
-	JOIN country co USING(country_id)
+    JOIN country co USING(country_id)
     JOIN aircraft_registration ar USING(aircraft_registration_id)
     JOIN aircraft_type at USING(aircraft_type_id)
     JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)
@@ -473,6 +529,17 @@ WHERE aircraft_registered_owner_id IN (
 mod tests {
     use super::*;
     use crate::{S, api::tests::test_setup};
+
+    #[tokio::test]
+    /// Return a random aircraft, run 1000 time, probaly not enough to check for errors but so far it's passed every time
+    async fn aircraft_get_random() {
+        let test_setup = test_setup().await;
+
+        for _ in 0..=1000 {
+            let result = ModelAircraft::get_random(&test_setup.postgres, "a").await;
+            assert!(result.is_ok());
+        }
+    }
 
     #[tokio::test]
     async fn model_aircraft_photo_transaction_mode_s() {

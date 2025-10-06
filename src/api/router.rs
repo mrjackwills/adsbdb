@@ -16,7 +16,6 @@ use crate::{
     api::response::Stats,
     db_postgres::{
         ModelAircraft, ModelAirline, ModelFlightroute, ModelRequestStatistics, RequestStatMsg,
-        StatsTime,
     },
     db_redis::{RedisKey, get_cache, insert_cache},
     n_number::{mode_s_to_n_number, n_number_to_mode_s},
@@ -58,6 +57,98 @@ impl RouterHelper {
         }
     }
 
+    /// Get random aircraft, and insert into cache using mode_s
+    async fn find_random_flightroute(
+        state: &ApplicationState,
+    ) -> Result<ModelFlightroute, AppError> {
+        let flightroute = ModelFlightroute::get_random(&state.postgres).await?;
+
+        if let Ok(callsign) = Callsign::validate(flightroute.callsign.as_ref()) {
+            insert_cache(
+                &state.redis,
+                Some(&flightroute),
+                &RedisKey::Callsign(&callsign),
+            )
+            .await?;
+        }
+
+        if let Some(callsign_iata) = flightroute.callsign_iata.as_ref()
+            && let Ok(callsign) = Callsign::validate(callsign_iata)
+        {
+            insert_cache(
+                &state.redis,
+                Some(&flightroute),
+                &RedisKey::Callsign(&callsign),
+            )
+            .await?;
+        }
+        if let Some(callsign) = flightroute.callsign_icao.as_ref()
+            && let Ok(c) = Callsign::validate(callsign)
+        {
+            insert_cache(&state.redis, Some(&flightroute), &RedisKey::Callsign(&c)).await?;
+        }
+
+        Ok(flightroute)
+    }
+
+    /// Get random aircraft, and insert into cache using mode_s
+    async fn find_random_aircraft(state: &ApplicationState) -> Result<ModelAircraft, AppError> {
+        let aircraft = ModelAircraft::get_random(&state.postgres, &state.url_prefix).await?;
+        insert_cache(
+            &state.redis,
+            Some(&aircraft),
+            &RedisKey::ModeS(&aircraft.mode_s),
+        )
+        .await?;
+        insert_cache(
+            &state.redis,
+            Some(&aircraft),
+            &RedisKey::Registration(&aircraft.registration),
+        )
+        .await?;
+
+        // TODO work out how to test this
+        // let thread_craft = aircraft.clone();
+        // let thread_state = state.clone();
+        // tokio::spawn(async move {
+        //     if thread_craft.url_photo.is_none() {
+        //         let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+        //         if thread_state
+        //             .scraper_tx
+        //             .send(crate::scraper::ScraperMsg::Photo((
+        //                 one_tx,
+        //                 thread_craft.mode_s.clone(),
+        //             )))
+        //             .await
+        //             .is_ok()
+        //         {
+        //             one_rx.await.ok();
+        //         }
+
+        //         if let Ok(Some(ac)) = ModelAircraft::get(
+        //             &thread_state.postgres,
+        //             &AircraftSearch::ModeS(thread_craft.mode_s.clone()),
+        //             &thread_state.url_prefix,
+        //         )
+        //         .await
+        //             && (insert_cache(&thread_state.redis, Some(&ac), &RedisKey::ModeS(&ac.mode_s))
+        //                 .await
+        //                 .is_err()
+        //                 || insert_cache(
+        //                     &thread_state.redis,
+        //                     Some(&ac),
+        //                     &RedisKey::Registration(&ac.registration),
+        //                 )
+        //                 .await
+        //                 .is_err())
+        //         {
+        //             tracing::error!("random  spawn err");
+        //         }
+        //     }
+        // });
+        Ok(aircraft)
+    }
+
     /// Check redis cache for Option\<ModelAircraft>, else query postgres
     async fn find_aircraft(
         state: &ApplicationState,
@@ -95,6 +186,22 @@ impl RouterHelper {
         }
     }
 
+    // async fn find_stats(state: &ApplicationState) -> Result<Stats, AppError> {
+    //     let redis_key = RedisKey::Stats;
+    //     if let Some(Some(cache_stats)) = get_cache::<Stats>(&state.redis, &redis_key).await? {
+    //         Ok(cache_stats)
+    //     } else {
+    //         let statistics = ModelRequestStatistics::get(&state.postgres).await?;
+    //         insert_cache(&state.redis, Some(&statistics), &redis_key).await?;
+    //         Ok(statistics)
+    //     }
+    // }
+
+    // Return a random airline - not caching at the moment
+    async fn find_random_airline(state: &ApplicationState) -> Result<ModelAirline, AppError> {
+        ModelAirline::get_random(&state.postgres).await
+    }
+
     /// Check redis cache for Option\<ModelAircraft>, else query postgres
     async fn find_airline(
         state: &ApplicationState,
@@ -116,6 +223,21 @@ impl RouterHelper {
 pub struct ApiRoutes;
 
 impl ApiRoutes {
+    /// Return random aircraft, /aircraft/random
+    pub async fn aircraft_random_get(
+        State(state): State<ApplicationState>,
+    ) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
+        Ok((
+            StatusCode::OK,
+            ResponseJson::new(AircraftAndRoute {
+                aircraft: Some(ResponseAircraft::from(
+                    RouterHelper::find_random_aircraft(&state).await?,
+                )),
+                flightroute: None,
+            }),
+        ))
+    }
+
     /// Return an aircraft detail from a modes input
     /// optional query param of callsign, so can get both aircraft and flightroute in a single request
     /// /aircraft/[:REGISTRATION/:MODE-S] *or* /aircraft/[:REGISTRATION/:MODE-S]?callsign=[:CALLSIGN]
@@ -167,6 +289,19 @@ impl ApiRoutes {
         }
     }
 
+    /// Return a vec random airline, vec will be len 1
+    /// /airline/random
+    pub async fn airline_random_get(
+        State(state): State<ApplicationState>,
+    ) -> Result<(axum::http::StatusCode, AsJsonRes<Vec<ResponseAirline>>), AppError> {
+        Ok((
+            StatusCode::OK,
+            ResponseJson::new(vec![ResponseAirline::from(
+                RouterHelper::find_random_airline(&state).await?,
+            )]),
+        ))
+    }
+
     /// Return an airline detail from a ICAO or IATA airline prefix
     /// /airline/[:AIRLINE_CODE]
     pub async fn airline_get(
@@ -188,6 +323,22 @@ impl ApiRoutes {
                     .map(ResponseAirline::from)
                     .collect::<Vec<_>>(),
             ),
+        ))
+    }
+
+    /// Return an flightroute
+    /// /callsign/random
+    pub async fn callsign_random_get(
+        State(state): State<ApplicationState>,
+    ) -> Result<(StatusCode, AsJsonRes<AircraftAndRoute>), AppError> {
+        Ok((
+            StatusCode::OK,
+            ResponseJson::new(AircraftAndRoute {
+                aircraft: None,
+                flightroute: ResponseFlightRoute::from_model(Some(
+                    &RouterHelper::find_random_flightroute(&state).await?,
+                )),
+            }),
         ))
     }
 
@@ -229,16 +380,12 @@ impl ApiRoutes {
 
     /// Get adsbdb request stats
     /// /stats
-    /// TODO test me
     pub async fn stats_get(
         State(state): State<ApplicationState>,
     ) -> Result<(axum::http::StatusCode, AsJsonRes<Stats>), AppError> {
         Ok((
             StatusCode::OK,
-            ResponseJson::new(Stats {
-                daily: ModelRequestStatistics::get(&state.postgres, StatsTime::Daily).await?,
-                total: ModelRequestStatistics::get(&state.postgres, StatsTime::All).await?,
-            }),
+            ResponseJson::new(ModelRequestStatistics::get(&state.postgres, &state.redis).await?),
         ))
     }
 
@@ -321,7 +468,7 @@ mod tests {
         redis.flushall::<()>(true).await.unwrap();
 
         let scraper_tx = scraper::Scraper::start(&app_env, &postgres);
-        let stats_tx = ModelRequestStatistics::start(&postgres);
+        let stats_tx = ModelRequestStatistics::start(&postgres, &redis);
         delete_request_stats(&postgres).await;
 
         State(ApplicationState::new(
@@ -811,7 +958,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -823,7 +970,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -875,7 +1022,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -887,7 +1034,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -938,7 +1085,7 @@ mod tests {
                 country_iso_name: S!("AU"),
                 country_name: S!("Australia"),
                 elevation: 21,
-                iata_code: S!("SYD"),
+                iata_code: Some(S!("SYD")),
                 icao_code: S!("YSSY"),
                 latitude: -33.946_098_327_636_72,
                 longitude: 151.177_001_953_125,
@@ -949,7 +1096,7 @@ mod tests {
                 country_iso_name: S!("SG"),
                 country_name: S!("Singapore"),
                 elevation: 22,
-                iata_code: S!("SIN"),
+                iata_code: Some(S!("SIN")),
                 icao_code: S!("WSSS"),
                 latitude: 1.35019,
                 longitude: 103.994_003,
@@ -960,7 +1107,7 @@ mod tests {
                 country_iso_name: S!("GB"),
                 country_name: S!("United Kingdom"),
                 elevation: 83,
-                iata_code: S!("LHR"),
+                iata_code: Some(S!("LHR")),
                 icao_code: S!("EGLL"),
                 latitude: 51.4706,
                 longitude: -0.461_941,
@@ -1012,7 +1159,7 @@ mod tests {
                 country_iso_name: S!("AU"),
                 country_name: S!("Australia"),
                 elevation: 21,
-                iata_code: S!("SYD"),
+                iata_code: Some(S!("SYD")),
                 icao_code: S!("YSSY"),
                 latitude: -33.946_098_327_636_72,
                 longitude: 151.177_001_953_125,
@@ -1023,7 +1170,7 @@ mod tests {
                 country_iso_name: S!("SG"),
                 country_name: S!("Singapore"),
                 elevation: 22,
-                iata_code: S!("SIN"),
+                iata_code: Some(S!("SIN")),
                 icao_code: S!("WSSS"),
                 latitude: 1.35019,
                 longitude: 103.994_003,
@@ -1034,7 +1181,7 @@ mod tests {
                 country_iso_name: S!("GB"),
                 country_name: S!("United Kingdom"),
                 elevation: 83,
-                iata_code: S!("LHR"),
+                iata_code: Some(S!("LHR")),
                 icao_code: S!("EGLL"),
                 latitude: 51.4706,
                 longitude: -0.461_941,
@@ -1087,7 +1234,7 @@ mod tests {
         assert_eq!(result.origin_airport_country_iso_name, "CA");
         assert_eq!(result.origin_airport_country_name, "Canada");
         assert_eq!(result.origin_airport_elevation, 118);
-        assert_eq!(result.origin_airport_iata_code, "YUL");
+        assert_eq!(result.origin_airport_iata_code, Some(S!("YUL")));
         assert_eq!(result.origin_airport_icao_code, "CYUL");
         assert_eq!(result.origin_airport_latitude, 45.470_600_128_2);
         assert_eq!(result.origin_airport_longitude, -73.740_798_950_2);
@@ -1108,7 +1255,7 @@ mod tests {
         assert_eq!(result.destination_airport_country_iso_name, "CR");
         assert_eq!(result.destination_airport_country_name, "Costa Rica");
         assert_eq!(result.destination_airport_elevation, 3021);
-        assert_eq!(result.destination_airport_iata_code, "SJO");
+        assert_eq!(result.destination_airport_iata_code, Some(S!("SJO")));
         assert_eq!(result.destination_airport_icao_code, "MROC");
         assert_eq!(result.destination_airport_latitude, 9.993_86);
         assert_eq!(result.destination_airport_longitude, -84.208_801);
@@ -1167,7 +1314,7 @@ mod tests {
         assert_eq!(result.origin_airport_country_iso_name, "AU");
         assert_eq!(result.origin_airport_country_name, "Australia");
         assert_eq!(result.origin_airport_elevation, 21);
-        assert_eq!(result.origin_airport_iata_code, "SYD");
+        assert_eq!(result.origin_airport_iata_code, Some(S!("SYD")));
         assert_eq!(result.origin_airport_icao_code, "YSSY");
         assert_eq!(result.origin_airport_latitude, -33.946_098_327_636_72);
         assert_eq!(result.origin_airport_longitude, 151.177_001_953_125);
@@ -1193,7 +1340,7 @@ mod tests {
         assert_eq!(result.destination_airport_country_iso_name, "GB");
         assert_eq!(result.destination_airport_country_name, "United Kingdom");
         assert_eq!(result.destination_airport_elevation, 83);
-        assert_eq!(result.destination_airport_iata_code, "LHR");
+        assert_eq!(result.destination_airport_iata_code, Some(S!("LHR")));
         assert_eq!(result.destination_airport_icao_code, "EGLL");
         assert_eq!(result.destination_airport_latitude, 51.4706);
         assert_eq!(result.destination_airport_longitude, -0.461_941);
@@ -1243,7 +1390,7 @@ mod tests {
                 country_iso_name: S!("JP"),
                 country_name: S!("Japan"),
                 elevation: 12,
-                iata_code: S!("OKA"),
+                iata_code: Some(S!("OKA")),
                 icao_code: S!("ROAH"),
                 latitude: 26.195_801,
                 longitude: 127.646_004,
@@ -1255,7 +1402,7 @@ mod tests {
                 country_iso_name: S!("JP"),
                 country_name: S!("Japan"),
                 elevation: 35,
-                iata_code: S!("HND"),
+                iata_code: Some(S!("HND")),
                 icao_code: S!("RJTT"),
                 latitude: 35.552_299,
                 longitude: 139.779_999,
@@ -1360,7 +1507,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1372,7 +1519,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1451,7 +1598,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1463,7 +1610,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1541,7 +1688,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1553,7 +1700,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1630,7 +1777,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1642,7 +1789,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1720,7 +1867,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1732,7 +1879,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1806,7 +1953,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1818,7 +1965,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1891,7 +2038,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1903,7 +2050,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,
@@ -1976,7 +2123,7 @@ mod tests {
                 country_iso_name: S!("CA"),
                 country_name: S!("Canada"),
                 elevation: 118,
-                iata_code: S!("YUL"),
+                iata_code: Some(S!("YUL")),
                 icao_code: S!("CYUL"),
                 latitude: 45.4706001282,
                 longitude: -73.7407989502,
@@ -1988,7 +2135,7 @@ mod tests {
                 country_iso_name: S!("CR"),
                 country_name: S!("Costa Rica"),
                 elevation: 3021,
-                iata_code: S!("SJO"),
+                iata_code: Some(S!("SJO")),
                 icao_code: S!("MROC"),
                 latitude: 9.99386,
                 longitude: -84.208801,

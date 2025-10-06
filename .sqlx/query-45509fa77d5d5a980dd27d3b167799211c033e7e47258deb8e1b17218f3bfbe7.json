@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO request_statistics(aircraft_id, airline_id, flightroute_id) VALUES($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "45509fa77d5d5a980dd27d3b167799211c033e7e47258deb8e1b17218f3bfbe7"
+}

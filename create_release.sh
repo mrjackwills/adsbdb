@@ -472,9 +472,10 @@ main() {
 	cmd=(dialog --backtitle "Choose option" --keep-tite --radiolist "choose" 14 80 16)
 	options=(
 		1 "test" off
-		2 "release" off
-		3 "build" off
-		4 "docker builds" off
+		2 "sqlx_prepare" off
+		3 "release" off
+		4 "build" off
+		5 "docker builds" off
 	)
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 	exitStatus=$?
@@ -493,15 +494,20 @@ main() {
 			break
 			;;
 		2)
-			release_flow
+			sqlx_prepare
+			main
 			break
 			;;
 		3)
+			release_flow
+			break
+			;;
+		4)
 			build_choice
 			main
 			break
 			;;
-		4)
+		5)
 			build_container_choice
 			main
 			break

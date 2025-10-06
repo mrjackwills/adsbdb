@@ -85,13 +85,52 @@ GRANT ALL ON request_statistics TO adsbdb;
 \echo "Grant sequence on request_statistics"
 GRANT USAGE, SELECT ON SEQUENCE request_statistics_request_statistics_id_seq TO adsbdb;
 
--- Potentially
-	-- ,  CONSTRAINT only_one_id
-    --     CHECK (
-    --         (aircraft_id IS NOT NULL AND flightroute_id IS NULL AND airline_id IS NULL) OR
-    --         (aircraft_id IS NULL AND flightroute_id IS NOT NULL AND airline_id IS NULL) OR
-    --         (aircraft_id IS NULL AND flightroute_id IS NULL AND airline_id IS NOT NULL)
-    --     )
--- );
+\echo "Create index for request_statistics timestamp"
+CREATE INDEX IF NOT EXISTS index_request_statistics_timestamp_aircraft_id ON request_statistics (timestamp, aircraft_id);
+CREATE INDEX IF NOT EXISTS index_request_statistics_timestamp_airline_id ON request_statistics (timestamp, airline_id);
+CREATE INDEX IF NOT EXISTS index_request_statistics_timestamp_flightroute_id ON request_statistics (timestamp, flightroute_id);
 
+\echo "Create index for flightroute table"
+CREATE INDEX IF NOT EXISTS index_flightroute_airport_destination_id ON flightroute (airport_destination_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_airport_midpoint_id ON flightroute (airport_midpoint_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_airport_origin_id ON flightroute (airport_origin_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_id ON flightroute (flightroute_callsign_id);
 
+\echo "Create index for flightroute_callsign table"
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_airline_id ON flightroute_callsign (airline_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_airline_id_iata_prefix_id ON flightroute_callsign (airline_id, iata_prefix_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_airline_id_icao_prefix_id ON flightroute_callsign (airline_id, icao_prefix_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_callsign_id ON flightroute_callsign (callsign_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_icao_prefix_id ON flightroute_callsign (icao_prefix_id);
+
+\echo "Create indexes for aircraft table"
+CREATE INDEX IF NOT EXISTS index_aircraft_country_id ON aircraft (country_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_icao_type_id ON aircraft (aircraft_icao_type_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_manufacturer_id ON aircraft (aircraft_manufacturer_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_mode_s_id ON aircraft (aircraft_mode_s_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_operator_flag_id ON aircraft (aircraft_operator_flag_code_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_photo_id ON aircraft (aircraft_photo_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_registered_owner_id ON aircraft (aircraft_registered_owner_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_registration_id ON aircraft (aircraft_registration_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_type_id ON aircraft (aircraft_type_id);
+
+\echo "Create indexes for aircraft_registration table"
+CREATE INDEX IF NOT EXISTS index_aircraft_registration_registration ON aircraft_registration (registration);
+
+\echo "Create indexes for airline table"
+CREATE INDEX IF NOT EXISTS index_airline_country_id ON airline (country_id);
+CREATE INDEX IF NOT EXISTS index_airline_iata_prefix ON airline (iata_prefix);
+CREATE INDEX IF NOT EXISTS index_airline_icao_prefix ON airline (icao_prefix);
+
+\echo "Create indexes for flightroute_callsign_inner table"
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_inner_callsign ON flightroute_callsign_inner (callsign);
+
+\echo "Create indexes for airport table"
+CREATE INDEX IF NOT EXISTS index_airport_country_id ON airport (country_id);
+CREATE INDEX IF NOT EXISTS index_airport_elevation_id ON airport (airport_elevation_id);
+CREATE INDEX IF NOT EXISTS index_airport_iata_code_id ON airport (airport_iata_code_id);
+CREATE INDEX IF NOT EXISTS index_airport_icao_code_id ON airport (airport_icao_code_id);
+CREATE INDEX IF NOT EXISTS index_airport_latitude_id ON airport (airport_latitude_id);
+CREATE INDEX IF NOT EXISTS index_airport_longitude_id ON airport (airport_longitude_id);
+CREATE INDEX IF NOT EXISTS index_airport_municipality_id ON airport (airport_municipality_id);
+CREATE INDEX IF NOT EXISTS index_airport_name_id ON airport (airport_name_id);
