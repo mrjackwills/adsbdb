@@ -59,7 +59,7 @@ tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 
 [dev-dependencies]
-regex = "1.11"
+regex = "1.12"
 
 [profile.release]
 lto = true
