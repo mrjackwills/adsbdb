@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COUNT(*) AS \"count!\" FROM request_statistics WHERE timestamp >= NOW() - INTERVAL '24 hours'",
+  "query": "SELECT COALESCE(SUM(count), 0) AS \"count!\" FROM temp_incoming_request",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       null
     ]
   },
-  "hash": "b9a6b68a666f4c1c1efa107c7ba158f83b2b0bca150c4f0cbaf1871a90b9556c"
+  "hash": "7e030147ddeba13bddc583390f6aa93ee239b2e99b001d437ed4a5bd7cb25fbf"
 }

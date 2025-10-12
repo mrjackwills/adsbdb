@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COUNT(*) AS \"count!\" FROM request_statistics",
+  "query": "SELECT COALESCE(SUM(count), 0) AS \"count!\" FROM incoming_request",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       null
     ]
   },
-  "hash": "9e53e2536422a5e4e9d5eacf56b8da577d4aca7331a7f5d7cdfb321f55b205fc"
+  "hash": "23b4fa16118bd8cc9d810067225c5bc1a571be030871ac584b3318c0755fc5a1"
 }

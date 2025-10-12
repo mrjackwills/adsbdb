@@ -28,7 +28,7 @@ mod update_routes;
 
 use crate::{
     S,
-    db_postgres::{ModelRequestStatistics, RequestStatMsg},
+    db_postgres::{ModelIncomingRequest, MsgIncomingRequest, UriMethod},
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
     scraper::{Scraper, ScraperMsg},
@@ -46,7 +46,7 @@ pub struct ApplicationState {
     redis: Pool,
     uptime: Instant,
     scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
-    stats_tx: tokio::sync::mpsc::Sender<RequestStatMsg>,
+    stats_tx: tokio::sync::mpsc::Sender<MsgIncomingRequest>,
     url_prefix: String,
 }
 
@@ -56,7 +56,7 @@ impl ApplicationState {
         postgres: PgPool,
         redis: Pool,
         scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
-        stats_tx: tokio::sync::mpsc::Sender<RequestStatMsg>,
+        stats_tx: tokio::sync::mpsc::Sender<MsgIncomingRequest>,
     ) -> Self {
         Self {
             postgres,
@@ -102,6 +102,12 @@ async fn rate_limiting(
 ) -> Result<Response, AppError> {
     let (mut parts, body) = req.into_parts();
     let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
+
+    state
+        .stats_tx
+        .send(MsgIncomingRequest::Url(UriMethod::from(&parts)))
+        .await
+        .ok();
     let ip = get_ip(&parts.headers, addr);
     RateLimit::new(ip).check(&state.redis).await?;
     Ok(next.run(Request::from_parts(parts, body)).await)
@@ -167,7 +173,7 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 #[allow(clippy::cognitive_complexity)]
 pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
     let scraper_tx = Scraper::start(&app_env, &postgres);
-    let stats_tx = ModelRequestStatistics::start(&postgres, &redis);
+    let stats_tx = ModelIncomingRequest::start(&postgres, &redis).await?;
 
     let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx, stats_tx);
 
@@ -286,6 +292,8 @@ async fn shutdown_signal() {
 #[cfg(test)]
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
+    use std::thread::sleep;
+
     use super::*;
 
     use crate::db_postgres;
@@ -300,10 +308,16 @@ pub mod tests {
     use serde_json::Value;
     use tokio::task::JoinHandle;
 
-    pub async fn delete_request_stats(db: &PgPool) {
-        sqlx::query!(
-                "DELETE FROM request_statistics WHERE timestamp >= NOW() - INTERVAL '1 hour'",
-            )
+    pub async fn delete_incoming_request(db: &PgPool) {
+        sqlx::query("DELETE FROM incoming_request")
+            .execute(db)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM temp_incoming_request")
+            .execute(db)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM incoming_request_url")
             .execute(db)
             .await
             .unwrap();
@@ -327,7 +341,7 @@ pub mod tests {
         let app_env = parse_env::AppEnv::get_env();
         let postgres = db_postgres::get_pool(&app_env).await.unwrap();
         let redis = db_redis::get_pool(&app_env).await.unwrap();
-        delete_request_stats(&postgres).await;
+        delete_incoming_request(&postgres).await;
         let setup = TestSetup {
             _handle: None,
             app_env,
@@ -361,7 +375,8 @@ pub mod tests {
             serve(app_env, postgres, redis).await.unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
-        sleep!(1);
+        // Will seed that stats in redis, so now need 100ms
+        sleep!(100);
         TestSetup {
             _handle: Some(handle),
             app_env: setup.app_env,
@@ -371,8 +386,13 @@ pub mod tests {
     }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
-    struct TestResponse {
+    struct TestResponseValue {
         response: Value,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+    struct TestResponseT<T> {
+        response: T,
     }
 
     #[test]
@@ -410,193 +430,77 @@ pub mod tests {
         }
     }
 
+    async fn assert_empty_cache(redis: &Pool) {
+        let stats_cache: Option<String> = redis.hget("stats", "data").await.unwrap();
+        assert!(stats_cache.is_some());
+        let cache = serde_json::from_str::<Stats>(&stats_cache.unwrap()).unwrap();
+
+        assert_eq!(cache.daily.aircraft, vec![]);
+        assert_eq!(cache.daily.aircraft, vec![]);
+        assert_eq!(cache.daily.callsign, vec![]);
+        assert_eq!(cache.daily.n_number, vec![]);
+        assert_eq!(cache.daily.mode_s, vec![]);
+        assert_eq!(cache.daily.online, vec![]);
+        assert_eq!(cache.daily.stats, vec![]);
+        assert_eq!(cache.daily.aggregate, 0);
+    }
+
     #[tokio::test]
     /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
     /// Check that the stats cache is correctly populated and ttl/expire working as expected
     async fn http_mod_get_stats() {
         let setup = start_server().await;
-        seed_stats().await;
-
-        let stats_cache: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
-        assert!(stats_cache.is_none());
+        assert_empty_cache(&setup.redis).await;
 
         let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
         let result = reqwest::get(&url)
             .await
             .unwrap()
-            .json::<TestResponse>()
-            .await
-            .unwrap()
-            .response;
-
-        assert!(result.get("total").unwrap().is_object());
-        assert!(
-            result
-                .get("total")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("aircraft")
-                .unwrap()
-                .is_array()
-        );
-        assert!(
-            !result
-                .get("total")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("aircraft")
-                .unwrap()
-                .as_array()
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            !result
-                .get("total")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("airline")
-                .unwrap()
-                .as_array()
-                .unwrap()
-                .is_empty()
-        );
-
-        assert!(
-            !result
-                .get("total")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("flightroute")
-                .unwrap()
-                .as_array()
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            result
-                .get("total")
-                .unwrap()
-                .as_object()
-                .unwrap()
-                .get("requests")
-                .unwrap()
-                .is_i64()
-        );
-
-        // Daily stats
-
-        let airline = result
-            .get("daily")
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .get("airline")
-            .unwrap()
-            .as_array()
-            .unwrap();
-        assert_eq!(airline[0].as_object().unwrap().get("count").unwrap(), 3);
-        assert_eq!(airline[0].as_object().unwrap().get("entry").unwrap(), "SGY");
-        assert_eq!(airline[1].as_object().unwrap().get("count").unwrap(), 2);
-        assert_eq!(airline[1].as_object().unwrap().get("entry").unwrap(), "TSP");
-        assert_eq!(airline[2].as_object().unwrap().get("count").unwrap(), 1);
-        assert_eq!(airline[2].as_object().unwrap().get("entry").unwrap(), "KHA");
-
-        let aircraft = result
-            .get("daily")
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .get("aircraft")
-            .unwrap()
-            .as_array()
-            .unwrap();
-        assert_eq!(aircraft[0].as_object().unwrap().get("count").unwrap(), 3);
-        assert_eq!(
-            aircraft[0].as_object().unwrap().get("entry").unwrap(),
-            "473986"
-        );
-        assert_eq!(aircraft[1].as_object().unwrap().get("count").unwrap(), 2);
-        assert_eq!(
-            aircraft[1].as_object().unwrap().get("entry").unwrap(),
-            "E80447"
-        );
-        assert_eq!(aircraft[2].as_object().unwrap().get("count").unwrap(), 1);
-        assert_eq!(
-            aircraft[2].as_object().unwrap().get("entry").unwrap(),
-            "3DE5D5"
-        );
-
-        let flightroute = result
-            .get("daily")
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .get("flightroute")
-            .unwrap()
-            .as_array()
-            .unwrap();
-        assert_eq!(flightroute[0].as_object().unwrap().get("count").unwrap(), 3);
-        assert_eq!(
-            flightroute[0].as_object().unwrap().get("entry").unwrap(),
-            "DLH18Y"
-        );
-        assert_eq!(flightroute[1].as_object().unwrap().get("count").unwrap(), 2);
-        assert_eq!(
-            flightroute[1].as_object().unwrap().get("entry").unwrap(),
-            "QFA31"
-        );
-        assert_eq!(flightroute[2].as_object().unwrap().get("count").unwrap(), 1);
-        assert_eq!(
-            flightroute[2].as_object().unwrap().get("entry").unwrap(),
-            "ACA959"
-        );
-
-        let stats_cache_01: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
-        assert!(stats_cache_01.is_some());
-        let ttl_01: i64 = setup.redis.ttl("stats").await.unwrap();
-        assert!((598..601).contains(&ttl_01));
-
-        sleep!();
-
-        seed_stats().await;
-
-        reqwest::get(&url)
-            .await
-            .unwrap()
-            .json::<TestResponse>()
+            .json::<TestResponseT<Stats>>()
             .await
             .unwrap();
 
-        let stats_cache_02: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
-        assert!(stats_cache_02.is_some());
+        assert_eq!(result.response.daily.aircraft, vec![]);
+        assert_eq!(result.response.daily.aircraft, vec![]);
+        assert_eq!(result.response.daily.callsign, vec![]);
+        assert_eq!(result.response.daily.mode_s, vec![]);
+        assert_eq!(result.response.daily.n_number, vec![]);
+        assert_eq!(result.response.daily.online, vec![]);
+        assert_eq!(result.response.daily.stats, vec![]);
+        assert_eq!(result.response.daily.aggregate, 0);
 
-        assert_eq!(stats_cache_01, stats_cache_02);
-
-        let ttl_02: i64 = setup.redis.ttl("stats").await.unwrap();
-        assert!(ttl_02 < ttl_01);
-
+        let urls = [
+            "/aircraft/test",
+            "/airline/test",
+            "/callsign/test",
+            "/mode-s/test",
+            "/n-number/test",
+            "/online",
+        ];
+        for i in urls.iter().enumerate() {
+            let url = format!("http://127.0.0.1:8282{}{}", API_VERSION.as_str(), i.1);
+            for x in 0..=i.0 {
+                reqwest::get(&url).await.unwrap();
+            }
+        }
+        /// Sleep to allow the insert_request thread to correctly insert/update entries
+        sleep!(300);
+        /// Cache only gets update every ten minutes, so should still be empty here
+        assert_empty_cache(&setup.redis).await;
         setup.flush_redis().await;
-        seed_stats().await;
-
-        reqwest::get(&url)
+        let result = reqwest::get(&url)
             .await
             .unwrap()
-            .json::<TestResponse>()
+            .json::<TestResponseT<Stats>>()
             .await
             .unwrap();
 
-        let stats_cache_03: Option<String> = setup.redis.hget("stats", "data").await.unwrap();
-        assert!(stats_cache_03.is_some());
-
-        assert!(stats_cache_01 != stats_cache_03);
-
-        let ttl_03: i64 = setup.redis.ttl("stats").await.unwrap();
-        assert!(ttl_03 > ttl_02);
+        assert_eq!(
+            serde_json::to_string(&result.response.daily).unwrap(),
+            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":2}],"aggregate":23}"#
+        );
+        let ttl: i64 = setup.redis.ttl("stats").await.unwrap();
+        assert!((59..=60).contains(&ttl));
     }
 
     #[tokio::test]
@@ -612,7 +516,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         let result = result.get("flightroute").unwrap();
 
         assert!(result.get("aircraft").is_none());
@@ -662,7 +566,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         let result = result.get("flightroute").unwrap();
 
         assert!(result.get("aircraft").is_none());
@@ -712,7 +616,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         let result = result.get("flightroute").unwrap();
 
         assert!(result.get("aircraft").is_none());
@@ -767,7 +671,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         let result = result.get("flightroute").unwrap();
 
         assert!(result.get("aircraft").is_none());
@@ -820,7 +724,7 @@ pub mod tests {
         );
         let response = reqwest::get(url).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        let result = response.json::<TestResponse>().await.unwrap().response;
+        let result = response.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
     }
 
@@ -834,7 +738,7 @@ pub mod tests {
         );
         let response = reqwest::get(url).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        let random_test_response = response.json::<TestResponse>().await.unwrap();
+        let random_test_response = response.json::<TestResponseValue>().await.unwrap();
 
         let test_response = random_test_response.clone();
 
@@ -907,7 +811,7 @@ pub mod tests {
         let resp = reqwest::get(url)
             .await
             .unwrap()
-            .json::<TestResponse>()
+            .json::<TestResponseValue>()
             .await
             .unwrap();
 
@@ -923,7 +827,7 @@ pub mod tests {
         let resp = reqwest::get(url)
             .await
             .unwrap()
-            .json::<TestResponse>()
+            .json::<TestResponseValue>()
             .await
             .unwrap();
         assert_eq!(test_response, resp);
@@ -939,7 +843,7 @@ pub mod tests {
             let resp = reqwest::get(url)
                 .await
                 .unwrap()
-                .json::<TestResponse>()
+                .json::<TestResponseValue>()
                 .await
                 .unwrap();
 
@@ -982,7 +886,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         assert!(result.get("flightroute").is_none());
         let result = result.get("aircraft").unwrap();
@@ -1014,7 +918,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         assert!(result.get("flightroute").is_none());
         let result = result.get("aircraft").unwrap();
@@ -1050,7 +954,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         let aircraft_result = result.get("aircraft").unwrap();
 
@@ -1134,7 +1038,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         let aircraft_result = result.get("aircraft").unwrap();
 
@@ -1218,7 +1122,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         let aircraft_result = result.get("aircraft").unwrap();
 
@@ -1322,7 +1226,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         let aircraft_result = result.get("aircraft").unwrap();
 
@@ -1422,7 +1326,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
     }
 
@@ -1437,7 +1341,7 @@ pub mod tests {
         let response = reqwest::get(url).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        let response = response.json::<TestResponse>().await.unwrap();
+        let response = response.json::<TestResponseValue>().await.unwrap();
 
         let aircraft_result = response
             .response
@@ -1494,7 +1398,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         let result = result.as_object().unwrap().get("aircraft").unwrap();
 
@@ -1509,7 +1413,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         let result = result.as_object().unwrap().get("aircraft").unwrap();
 
@@ -1527,7 +1431,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         assert!(result.is_array());
         let result = result.as_array().unwrap();
@@ -1561,7 +1465,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         assert!(result.is_array());
         let result = result.as_array().unwrap();
@@ -1587,7 +1491,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "unknown airline");
     }
 
@@ -1602,7 +1506,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "A061E4");
     }
 
@@ -1617,7 +1521,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "invalid n_number: A1235F");
     }
 
@@ -1632,7 +1536,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "N925XJ");
     }
 
@@ -1647,7 +1551,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "");
     }
 
@@ -1662,7 +1566,7 @@ pub mod tests {
         );
         let resp = reqwest::get(url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "invalid modeS: JCD2D3");
     }
 
@@ -1674,7 +1578,7 @@ pub mod tests {
         let resp = reqwest::get(url).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(result["uptime"], 1);
     }
@@ -1691,7 +1595,7 @@ pub mod tests {
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
         assert_eq!(result, format!("unknown endpoint: {version}/{rand_route}"));
     }
@@ -1724,14 +1628,14 @@ pub mod tests {
         // 512th request is fine
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert!(result.get("uptime").is_some());
 
         // 512th+ request is rate limited
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
 
         let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
@@ -1747,7 +1651,7 @@ pub mod tests {
         // TTL doesn't get reset on further requwest
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 58 seconds");
         let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 58);
@@ -1769,14 +1673,14 @@ pub mod tests {
         // 1023rd request is rate limited
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         let ans = ["rate limited for 60 seconds", "rate limited for 59 seconds"];
         assert!(ans.contains(&result.as_str().unwrap()));
 
         // 1024th + request is rate limited for 300 seconds
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
 
         let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
@@ -1791,7 +1695,7 @@ pub mod tests {
         // TTL is reset to 300 on one more request
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-        let result = resp.json::<TestResponse>().await.unwrap().response;
+        let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
         let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(ttl, 300);

@@ -14,9 +14,7 @@ use super::{AppError, ApplicationState, app_error::UnknownAC};
 use crate::{
     S,
     api::response::Stats,
-    db_postgres::{
-        ModelAircraft, ModelAirline, ModelFlightroute, ModelRequestStatistics, RequestStatMsg,
-    },
+    db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute, ModelIncomingRequest},
     db_redis::{RedisKey, get_cache, insert_cache},
     n_number::{mode_s_to_n_number, n_number_to_mode_s},
 };
@@ -107,45 +105,6 @@ impl RouterHelper {
         )
         .await?;
 
-        // TODO work out how to test this
-        // let thread_craft = aircraft.clone();
-        // let thread_state = state.clone();
-        // tokio::spawn(async move {
-        //     if thread_craft.url_photo.is_none() {
-        //         let (one_tx, one_rx) = tokio::sync::oneshot::channel();
-        //         if thread_state
-        //             .scraper_tx
-        //             .send(crate::scraper::ScraperMsg::Photo((
-        //                 one_tx,
-        //                 thread_craft.mode_s.clone(),
-        //             )))
-        //             .await
-        //             .is_ok()
-        //         {
-        //             one_rx.await.ok();
-        //         }
-
-        //         if let Ok(Some(ac)) = ModelAircraft::get(
-        //             &thread_state.postgres,
-        //             &AircraftSearch::ModeS(thread_craft.mode_s.clone()),
-        //             &thread_state.url_prefix,
-        //         )
-        //         .await
-        //             && (insert_cache(&thread_state.redis, Some(&ac), &RedisKey::ModeS(&ac.mode_s))
-        //                 .await
-        //                 .is_err()
-        //                 || insert_cache(
-        //                     &thread_state.redis,
-        //                     Some(&ac),
-        //                     &RedisKey::Registration(&ac.registration),
-        //                 )
-        //                 .await
-        //                 .is_err())
-        //         {
-        //             tracing::error!("random  spawn err");
-        //         }
-        //     }
-        // });
         Ok(aircraft)
     }
 
@@ -256,11 +215,6 @@ impl ApiRoutes {
             };
             let flightroute = RouterHelper::find_flightroute(&state, &callsign).await?;
 
-            state
-                .stats_tx
-                .send(RequestStatMsg::from((&aircraft, &flightroute)))
-                .await
-                .ok();
             Ok((
                 StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
@@ -273,12 +227,6 @@ impl ApiRoutes {
             else {
                 return Err(AppError::UnknownInDb(UnknownAC::Aircraft));
             };
-
-            state
-                .stats_tx
-                .send(RequestStatMsg::from(&aircraft))
-                .await
-                .ok();
             Ok((
                 StatusCode::OK,
                 ResponseJson::new(AircraftAndRoute {
@@ -312,9 +260,6 @@ impl ApiRoutes {
             return Err(AppError::UnknownInDb(UnknownAC::Airline));
         };
 
-        for i in &airline {
-            state.stats_tx.send(RequestStatMsg::from(i)).await.ok();
-        }
         Ok((
             StatusCode::OK,
             ResponseJson::new(
@@ -352,11 +297,6 @@ impl ApiRoutes {
             return Err(AppError::UnknownInDb(UnknownAC::Callsign));
         };
 
-        state
-            .stats_tx
-            .send(RequestStatMsg::from(&flightroute))
-            .await
-            .ok();
         Ok((
             StatusCode::OK,
             ResponseJson::new(AircraftAndRoute {
@@ -385,7 +325,9 @@ impl ApiRoutes {
     ) -> Result<(axum::http::StatusCode, AsJsonRes<Stats>), AppError> {
         Ok((
             StatusCode::OK,
-            ResponseJson::new(ModelRequestStatistics::get(&state.postgres, &state.redis).await?),
+            ResponseJson::new(
+                ModelIncomingRequest::get_stats(&state.postgres, &state.redis).await?,
+            ),
         ))
     }
 
@@ -450,10 +392,9 @@ mod tests {
         Registration,
         input::Validate,
         response::{Airline, Airport},
-        tests::delete_request_stats,
+        tests::delete_incoming_request,
     };
     use crate::db_postgres;
-    use crate::db_postgres::ModelRequestStatistics;
     use crate::db_redis;
     use crate::parse_env;
     use crate::scraper;
@@ -468,8 +409,10 @@ mod tests {
         redis.flushall::<()>(true).await.unwrap();
 
         let scraper_tx = scraper::Scraper::start(&app_env, &postgres);
-        let stats_tx = ModelRequestStatistics::start(&postgres, &redis);
-        delete_request_stats(&postgres).await;
+        let stats_tx = ModelIncomingRequest::start(&postgres, &redis)
+            .await
+            .unwrap();
+        delete_incoming_request(&postgres).await;
 
         State(ApplicationState::new(
             &app_env, postgres, redis, scraper_tx, stats_tx,
@@ -508,13 +451,6 @@ mod tests {
         assert_eq!(response.1.response, "A05ED9");
     }
 
-    async fn check_stats(db: &PgPool) -> Vec<ModelRequestStatistics> {
-        sqlx::query_as::<_, ModelRequestStatistics>("SELECT * FROM request_statistics")
-            .fetch_all(db)
-            .await
-            .unwrap()
-    }
-
     #[tokio::test]
     async fn http_api_get_mode_s_ok_with_photo() {
         let mode_s = S!("A44F3B");
@@ -551,14 +487,6 @@ mod tests {
             None => unreachable!(),
         }
         assert!(response.1.response.flightroute.is_none());
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -598,13 +526,6 @@ mod tests {
         }
 
         assert!(response.1.response.flightroute.is_none());
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -638,14 +559,6 @@ mod tests {
         }
 
         assert!(response.1.response.flightroute.is_none());
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -679,13 +592,6 @@ mod tests {
         }
 
         assert!(response.1.response.flightroute.is_none());
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -712,13 +618,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -745,13 +644,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -776,14 +668,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -812,13 +696,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(ttl, 604_800);
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
     }
 
     #[tokio::test]
@@ -872,10 +749,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(stats.is_empty());
     }
 
     #[tokio::test]
@@ -924,10 +797,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(stats.is_empty());
     }
 
     #[tokio::test]
@@ -985,14 +854,6 @@ mod tests {
         }
 
         assert!(response.1.response.aircraft.is_none());
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1049,13 +910,6 @@ mod tests {
         }
 
         assert!(response.1.response.aircraft.is_none());
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1122,14 +976,6 @@ mod tests {
         }
 
         assert!(response.1.response.aircraft.is_none());
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1195,14 +1041,6 @@ mod tests {
         }
 
         assert!(response.1.response.aircraft.is_none());
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1275,14 +1113,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1354,14 +1184,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1414,13 +1236,6 @@ mod tests {
         assert!(response.1.response.flightroute.is_some());
         let result = response.1.response.flightroute.clone().unwrap();
         assert_eq!(result, expected);
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_some());
         remove_scraped_data(&application_state.postgres).await;
     }
 
@@ -1470,10 +1285,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(stats.is_empty());
     }
 
     #[tokio::test]
@@ -1557,14 +1368,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1648,13 +1451,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1737,13 +1533,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1826,13 +1615,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1911,14 +1693,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -1997,13 +1771,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -2082,13 +1849,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     #[tokio::test]
@@ -2167,13 +1927,6 @@ mod tests {
             Some(d) => assert_eq!(d, &aircraft),
             None => unreachable!(),
         }
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 1);
-        assert!(stats[0].airline_id.is_none());
-        assert!(stats[0].aircraft_id.is_some());
-        assert!(stats[0].flightroute_id.is_some());
     }
 
     /// Airline Route
@@ -2224,10 +1977,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(stats.is_empty());
     }
 
     #[tokio::test]
@@ -2275,9 +2024,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(stats.is_empty());
     }
 
     #[tokio::test]
@@ -2321,27 +2067,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!();
-        let response = ApiRoutes::airline_get(application_state.clone(), path.clone()).await;
-        assert!(response.is_ok());
-        let response = response.unwrap();
-        assert_eq!(response.0, axum::http::StatusCode::OK);
-        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
-        assert_eq!(ttl, 604_800);
-        sleep!(50);
-        let stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-        assert!(stats.len() == 2);
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].airline_id.is_some());
-
-        assert!(stats[1].aircraft_id.is_none());
-        assert!(stats[1].flightroute_id.is_none());
-        assert!(stats[1].airline_id.is_some());
-
-        assert_eq!(stats[0].airline_id, stats[1].airline_id);
     }
 
     #[tokio::test]
@@ -2403,38 +2128,6 @@ mod tests {
 
         let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
         assert_eq!(ttl, 604_800);
-
-        sleep!();
-        let response = ApiRoutes::airline_get(application_state.clone(), path.clone()).await;
-        assert!(response.is_ok());
-        let response = response.unwrap();
-        assert_eq!(response.0, axum::http::StatusCode::OK);
-        let ttl: usize = application_state.redis.ttl(key.to_string()).await.unwrap();
-        assert_eq!(ttl, 604_800);
-        sleep!(50);
-        let mut stats = check_stats(&application_state.postgres).await;
-        assert!(!stats.is_empty());
-
-        assert!(stats.len() == 4);
-        stats.sort_by(|a, b| a.airline_id.cmp(&b.airline_id));
-
-        assert!(stats[0].aircraft_id.is_none());
-        assert!(stats[0].flightroute_id.is_none());
-        assert!(stats[0].airline_id.is_some());
-
-        assert!(stats[1].aircraft_id.is_none());
-        assert!(stats[1].flightroute_id.is_none());
-        assert!(stats[1].airline_id.is_some());
-        assert_eq!(stats[1].airline_id, stats[0].airline_id);
-
-        assert!(stats[2].aircraft_id.is_none());
-        assert!(stats[2].flightroute_id.is_none());
-        assert!(stats[2].airline_id.is_some());
-
-        assert!(stats[3].aircraft_id.is_none());
-        assert!(stats[3].flightroute_id.is_none());
-        assert!(stats[3].airline_id.is_some());
-        assert_eq!(stats[3].airline_id, stats[2].airline_id);
     }
 
     // Stats

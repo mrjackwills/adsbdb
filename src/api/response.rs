@@ -94,8 +94,12 @@ pub struct Airline {
 pub struct StatsEntry {
     pub aircraft: Vec<EntryCount>,
     pub airline: Vec<EntryCount>,
-    pub flightroute: Vec<EntryCount>,
-    pub requests: i64,
+    pub callsign: Vec<EntryCount>,
+    pub mode_s: Vec<EntryCount>,
+    pub n_number: Vec<EntryCount>,
+    pub online: Vec<EntryCount>,
+    pub stats: Vec<EntryCount>,
+    pub aggregate: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

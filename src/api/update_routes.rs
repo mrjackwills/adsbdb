@@ -328,7 +328,7 @@ pub mod tests {
             serve(spawn_env, postgres, redis).await.unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
-        sleep!(1);
+        sleep!(100);
         TestSetup {
             _handle: Some(handle),
             _app_env: app_env,

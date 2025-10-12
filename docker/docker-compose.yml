@@ -24,7 +24,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1024MB
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m

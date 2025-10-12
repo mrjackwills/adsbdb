@@ -13,8 +13,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashMap, fmt, net::IpAddr};
 pub mod ratelimit;
 
-pub const ONE_WEEK_AS_SEC: i64 = 60 * 60 * 24 * 7;
-pub const TEN_MINUTES_AS_SEC: i64 = 60 * 10;
+pub const ONE_MINUTE_AS_SEC: i64 = 60;
+pub const ONE_WEEK_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 60 * 24 * 7;
+pub const TEN_MINUTES_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 10;
 pub const HASH_FIELD: &str = "data";
 
 /// Macro to convert a stringified struct back into the struct
@@ -46,7 +47,7 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     key: &RedisKey<'_>,
 ) -> Result<(), AppError> {
     let ttl = match key {
-        RedisKey::Stats => TEN_MINUTES_AS_SEC,
+        RedisKey::Stats => ONE_MINUTE_AS_SEC,
         _ => ONE_WEEK_AS_SEC,
     };
     let key = key.to_string();
@@ -115,7 +116,6 @@ pub enum RedisKey<'a> {
 
 impl fmt::Display for RedisKey<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO should they be cache::x?
         match self {
             Self::Airline(airline) => write!(f, "airline::{airline}"),
             Self::Callsign(callsign) => write!(f, "callsign::{callsign}"),
