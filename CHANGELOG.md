@@ -11,8 +11,8 @@
 + readme updated, [b381ff6ef277d41ca57d06a6273a2641e03536ee]
 
 ### Features
-+ `/stats` route, lists some basic usage statistics of api.adbsbd.com service. Only the URL of a request is stored, no other details are recorded. Handling an average of 1 million requests a day, all with ease, [72b11ef5bdaca48a661413983ae153ff7029cd13], [29eb19b46846b5a5c8ab35e30988c29754dda1d1]
-+ `/aircraft/random`, `/callsign/random`, `/airline/random` endpoints added. Get a randomised value from these endpoints, [8f78f7c50b333969e543f419c5cfeafeae35f035]
++ `/stats` route, lists some basic usage statistics of the `api.adbsbd.com` service. Only the URL of a request is stored, no other details are recorded. Handling an average of 1 million requests a day, all with ease, [72b11ef5bdaca48a661413983ae153ff7029cd13], [29eb19b46846b5a5c8ab35e30988c29754dda1d1]
++ `/aircraft/random`, `/airline/random`, `/callsign/random`, endpoints added. Get a randomised value at these addresses, [8f78f7c50b333969e543f419c5cfeafeae35f035]
 + see the new [adsbdb.com](https://www.adsbdb.com) website for a more detailed descriptions of all the endpoints.
 
 ### Refactors
