@@ -124,6 +124,7 @@ impl ModelIncomingRequest {
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
     #[allow(clippy::too_many_lines)]
+    // MAYBE should start /v0/aircraft?
     async fn get_daily(postgres: &mut Transaction<'_, Postgres>) -> Result<StatsEntry, AppError> {
         let aircraft = sqlx::query_as!(
             EntryCount,
@@ -136,7 +137,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/aircraft/%'
+    iru.request_url ILIKE '/v%/aircraft/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -158,7 +159,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/airline/%'
+    iru.request_url ILIKE '/v%/airline/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -180,7 +181,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/callsign/%'
+    iru.request_url ILIKE '/v%/callsign/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -202,7 +203,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/mode_s/%'
+    iru.request_url ILIKE '/v%/mode-s/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -224,7 +225,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/n-number/%'
+    iru.request_url ILIKE '/v%/n-number/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -246,7 +247,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/stats'
+    iru.request_url ILIKE '/v%/stats%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -268,7 +269,7 @@ FROM
 JOIN
     incoming_request_url iru ON tir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/online'
+    iru.request_url ILIKE '/v%/online%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -313,7 +314,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/aircraft/%'
+    iru.request_url ILIKE '/v%/aircraft/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -335,7 +336,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/airline/%'
+    iru.request_url ILIKE '/v%/airline/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -357,7 +358,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/callsign/%'
+    iru.request_url ILIKE '/v%/callsign/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -379,7 +380,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/mode-s/%'
+    iru.request_url ILIKE '/v%/mode-s/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -401,7 +402,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/n-number/%'
+    iru.request_url ILIKE '/v%/n-number/%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -423,7 +424,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/stats'
+    iru.request_url ILIKE '/v%/stats%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
@@ -445,7 +446,7 @@ FROM
 JOIN
     incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id
 WHERE
-    iru.request_url ILIKE '%/online'
+    iru.request_url ILIKE '/v%/online%'
 GROUP BY
     iru.incoming_request_url_id, iru.request_url
 ORDER BY
