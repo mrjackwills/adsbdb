@@ -124,7 +124,6 @@ impl ModelIncomingRequest {
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
     #[allow(clippy::too_many_lines)]
-    // MAYBE should start /v0/aircraft?
     async fn get_daily(postgres: &mut Transaction<'_, Postgres>) -> Result<StatsEntry, AppError> {
         let aircraft = sqlx::query_as!(
             EntryCount,
