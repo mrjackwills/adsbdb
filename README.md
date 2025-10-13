@@ -73,7 +73,7 @@ Unknown aircraft return status 404 with
 
 ```https://api.adsbdb.com/v[semver.major]/callsign/[CALLSIGN]```
 <br>or<br>
-```https://api.adsbdb.com/v[semver.major]/aircraft/random```
+```https://api.adsbdb.com/v[semver.major]/callsign/random```
 ```json
 {
 	"response": {
@@ -243,34 +243,95 @@ Get adsbdb request statistics, "aircraft", "airline", and "flightroute" arrays w
 ```json
 { "response": {
 	"daily": {
-			"entry": string,
-			"count": number
-			],
+		"aircraft": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
 		"airline": [
-			"entry": string,
-			"count": number
-			],
-		"flightroute": [
-			"entry": string,
-			"count": number
-			],
-		"requests": number
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"callsign": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"mode_s": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"n_number": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"online": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"stats": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"aggregate": number
 	},
 	"total": {
-		"aircraft": [
-			"entry": string,
-			"count": number
-			],
+			"aircraft": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
 		"airline": [
-			"entry": string,
-			"count": number
-			],
-		"flightroute": [
-			"entry": string,
-			"count": number
-			],
-		"requests": number
-	},
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"callsign": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"mode_s": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"n_number": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"online": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"stats": [
+			{
+				"url": string,
+				"count": number
+			}
+		],
+		"aggregate": number
+	}
 }
 
 ```
