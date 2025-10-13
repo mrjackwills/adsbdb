@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    iru.request_url AS url,\n    SUM(ir.count) AS \"count!\"\nFROM\n    incoming_request ir\nJOIN\n    incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id\nWHERE\n    iru.request_url ILIKE '/v%/n-number/%'\nGROUP BY\n    iru.incoming_request_url_id, iru.request_url\nORDER BY\n    \"count!\" DESC, url\nLIMIT\n    10",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "1364d75cc5d10aee8a099267480defa51332a7ea935e9145b4b62798db795ae3"
+}

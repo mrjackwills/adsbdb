@@ -118,10 +118,13 @@ CREATE INDEX IF NOT EXISTS index_airport_municipality_id ON airport (airport_mun
 CREATE INDEX IF NOT EXISTS index_airport_name_id ON airport (airport_name_id);
 
 
+\echo "update work meme"
 ALTER DATABASE adsbdb SET work_mem = '32MB';
 
+\echo "Add extension pg_trgm"
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+\echo "Add method enum, use a DO as can't use IF NOT EXISTS for this"
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -144,6 +147,7 @@ BEGIN
 END
 $$;
 
+\echo "Create incoming request url table"
 CREATE TABLE incoming_request_url (
     incoming_request_url_id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -153,9 +157,11 @@ CREATE TABLE incoming_request_url (
 GRANT ALL ON incoming_request_url TO adsbdb;
 GRANT USAGE, SELECT ON SEQUENCE incoming_request_url_incoming_request_url_id_seq TO adsbdb;
 
+\echo "Create incoming request url indexes"
 CREATE INDEX IF NOT EXISTS index_incoming_request_url_trgm ON incoming_request_url USING gin (request_url gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS index_incoming_request_url_request_url ON incoming_request_url (request_url);
 
+\echo "Create temp incoming request table"
 CREATE TABLE temp_incoming_request (
     temp_incoming_request_id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -167,11 +173,14 @@ CREATE TABLE temp_incoming_request (
 GRANT ALL ON temp_incoming_request TO adsbdb;
 GRANT USAGE, SELECT ON SEQUENCE temp_incoming_request_temp_incoming_request_id_seq TO adsbdb;
 
+\echo "Create temp incoming request indexes"
 CREATE UNIQUE INDEX IF NOT EXISTS index_temp_incoming_request_unique_method_minute_url ON temp_incoming_request (request_method, incoming_request_url_id);
 CREATE INDEX IF NOT EXISTS index_temp_incoming_request_url ON temp_incoming_request (incoming_request_url_id);
 CREATE INDEX IF NOT EXISTS index_temp_incoming_request_timestamp ON temp_incoming_request (timestamp);
 CREATE INDEX IF NOT EXISTS index_temp_incoming_request_comp ON temp_incoming_request (incoming_request_url_id, count);
 
+
+\echo "Create incoming request table"
 CREATE TABLE incoming_request (
     incoming_request_id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -181,9 +190,11 @@ CREATE TABLE incoming_request (
     count INTEGER NOT NULL DEFAULT 1
 );
 
+
 GRANT ALL ON incoming_request TO adsbdb;
 GRANT USAGE, SELECT ON SEQUENCE incoming_request_incoming_request_id_seq TO adsbdb;
 
+\echo "Create incoming request indexes"
 CREATE UNIQUE INDEX IF NOT EXISTS index_incoming_request_unique_method_minute_url ON incoming_request ( request_method, incoming_request_url_id);
 CREATE INDEX IF NOT EXISTS index_incoming_request_url ON incoming_request (incoming_request_url_id);
 CREATE INDEX IF NOT EXISTS index_incoming_request_comp ON incoming_request (incoming_request_url_id, count);

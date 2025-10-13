@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    iru.request_url AS url,\n    SUM(ir.count) AS \"count!\"\nFROM\n    incoming_request ir\nJOIN\n    incoming_request_url iru ON ir.incoming_request_url_id = iru.incoming_request_url_id\nWHERE\n    iru.request_url ILIKE '/v%/callsign/%'\nGROUP BY\n    iru.incoming_request_url_id, iru.request_url\nORDER BY\n    \"count!\" DESC, url\nLIMIT\n    10",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "d16258ca937681e1857424b5b3d90af0b3053d65a8c2a4578a55fe70786f050a"
+}
