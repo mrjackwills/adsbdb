@@ -65,7 +65,7 @@ generic_id!(FlightrouteId);
 
 impl ModelFlightroute {
     /// Get a random flightroute
-    /// Fingers-crossed this can't fail - if so increase the 100 limit of random flight ids?
+    /// Fingers-crossed this can't fail - if so increase the limit to 500
     /// TODO try to convert to a query_as! macro
     #[allow(clippy::too_many_lines)]
     pub async fn get_random(db: &PgPool) -> Result<Self, AppError> {
@@ -82,7 +82,7 @@ WITH random_flightroute AS (
             flightroute
         )
     )
-  LIMIT 100
+  LIMIT 250
 )
   
 SELECT

@@ -120,10 +120,6 @@ CREATE INDEX IF NOT EXISTS index_airport_name_id ON airport (airport_name_id);
 
 ALTER DATABASE adsbdb SET work_mem = '32MB';
 
--- HERE v1
--- ALL WORKING PERFECTLY
--- CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DO $$
@@ -178,7 +174,7 @@ CREATE INDEX IF NOT EXISTS index_temp_incoming_request_comp ON temp_incoming_req
 
 CREATE TABLE incoming_request (
     incoming_request_id BIGSERIAL PRIMARY KEY,
-    -- timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     -- minute_ts TIMESTAMPTZ NOT NULL,
     incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
     request_method request_method NOT NULL,

@@ -308,8 +308,9 @@ pub mod tests {
     use serde_json::Value;
     use tokio::task::JoinHandle;
 
+    /// Delete all entites in temp_incoming_request table, and incoming_request & incoming_rewuest_url which are younger than 12 hours old
     pub async fn delete_incoming_request(db: &PgPool) {
-        sqlx::query("DELETE FROM incoming_request")
+        sqlx::query("DELETE FROM incoming_request WHERE timestamp >= (CURRENT_TIMESTAMP - INTERVAL '12 hours')")
             .execute(db)
             .await
             .unwrap();
@@ -317,7 +318,7 @@ pub mod tests {
             .execute(db)
             .await
             .unwrap();
-        sqlx::query("DELETE FROM incoming_request_url")
+        sqlx::query("DELETE FROM incoming_request_url WHERE timestamp >= (CURRENT_TIMESTAMP - INTERVAL '12 hours')")
             .execute(db)
             .await
             .unwrap();
@@ -400,37 +401,27 @@ pub mod tests {
         assert_eq!(API_VERSION.as_str(), S!("/v0"));
     }
 
+    /// Make request to all endpoints to seed incoming_request entries
     async fn seed_stats() {
-        let c_a_a = [
-            ("ACA959", "3DE5D5", "KHA"),
-            ("QFA31", "E80447", "TSP"),
-            ("DLH18Y", "473986", "SGY"),
+        let urls = [
+            "/aircraft/test",
+            "/airline/test",
+            "/callsign/test",
+            "/mode-s/test",
+            "/n-number/test",
+            "/online",
         ];
-        for (index, fma) in c_a_a.iter().enumerate() {
-            let flightroute_url = format!(
-                "http://127.0.0.1:8282{}/callsign/{}",
-                API_VERSION.as_str(),
-                fma.0
-            );
-            let mode_s_url = format!(
-                "http://127.0.0.1:8282{}/aircraft/{}",
-                API_VERSION.as_str(),
-                fma.1
-            );
-            let airline_url = format!(
-                "http://127.0.0.1:8282{}/airline/{}",
-                API_VERSION.as_str(),
-                fma.2
-            );
-            for _ in 0..index + 1 {
-                reqwest::get(&mode_s_url).await.unwrap();
-                reqwest::get(&airline_url).await.unwrap();
-                reqwest::get(&flightroute_url).await.unwrap();
+        for i in urls.iter().enumerate() {
+            let url = format!("http://127.0.0.1:8282{}{}", API_VERSION.as_str(), i.1);
+            for x in 0..=i.0 {
+                reqwest::get(&url).await.unwrap();
             }
         }
+        /// Sleep to allow the insert_request thread to correctly insert/update entries
+        sleep!(300);
     }
 
-    async fn assert_empty_cache(redis: &Pool) {
+    async fn assert_empty_stats_cache(redis: &Pool) {
         let stats_cache: Option<String> = redis.hget("stats", "data").await.unwrap();
         assert!(stats_cache.is_some());
         let cache = serde_json::from_str::<Stats>(&stats_cache.unwrap()).unwrap();
@@ -450,7 +441,7 @@ pub mod tests {
     /// Check that the stats cache is correctly populated and ttl/expire working as expected
     async fn http_mod_get_stats() {
         let setup = start_server().await;
-        assert_empty_cache(&setup.redis).await;
+        assert_empty_stats_cache(&setup.redis).await;
 
         let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
         let result = reqwest::get(&url)
@@ -469,24 +460,10 @@ pub mod tests {
         assert_eq!(result.response.daily.stats, vec![]);
         assert_eq!(result.response.daily.aggregate, 0);
 
-        let urls = [
-            "/aircraft/test",
-            "/airline/test",
-            "/callsign/test",
-            "/mode-s/test",
-            "/n-number/test",
-            "/online",
-        ];
-        for i in urls.iter().enumerate() {
-            let url = format!("http://127.0.0.1:8282{}{}", API_VERSION.as_str(), i.1);
-            for x in 0..=i.0 {
-                reqwest::get(&url).await.unwrap();
-            }
-        }
-        /// Sleep to allow the insert_request thread to correctly insert/update entries
-        sleep!(300);
+        seed_stats().await;
+
         /// Cache only gets update every ten minutes, so should still be empty here
-        assert_empty_cache(&setup.redis).await;
+        assert_empty_stats_cache(&setup.redis).await;
         setup.flush_redis().await;
         let result = reqwest::get(&url)
             .await
@@ -501,6 +478,45 @@ pub mod tests {
         );
         let ttl: i64 = setup.redis.ttl("stats").await.unwrap();
         assert!((59..=60).contains(&ttl));
+    }
+
+    #[tokio::test]
+    /// Check that stats older than 1 day get removed on any interaction with the api
+    async fn http_mod_get_stats_old_removed() {
+        let setup = start_server().await;
+        let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
+        assert_empty_stats_cache(&setup.redis).await;
+        seed_stats().await;
+        setup.flush_redis().await;
+
+        let result = reqwest::get(&url)
+            .await
+            .unwrap()
+            .json::<TestResponseT<Stats>>()
+            .await
+            .unwrap();
+
+        sqlx::query!(
+            "UPDATE temp_incoming_request SET timestamp = (CURRENT_TIMESTAMP - INTERVAL '25 hours')"
+        )
+        .execute(&setup.postgres)
+        .await;
+
+        setup.flush_redis().await;
+        let result = reqwest::get(&url)
+            .await
+            .unwrap()
+            .json::<TestResponseT<Stats>>()
+            .await
+            .unwrap();
+
+        assert_eq!(result.response.daily.aircraft, vec![]);
+        assert_eq!(result.response.daily.aircraft, vec![]);
+        assert_eq!(result.response.daily.callsign, vec![]);
+        assert_eq!(result.response.daily.mode_s, vec![]);
+        assert_eq!(result.response.daily.n_number, vec![]);
+        assert_eq!(result.response.daily.online, vec![]);
+        assert_eq!(result.response.daily.aggregate, 1);
     }
 
     #[tokio::test]
