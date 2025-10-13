@@ -1,4 +1,3 @@
-
 ### Chores
 + create_release.sh updated, [17bbef124551caa50db703038263901796aad0ea], [c2a24e8392493a099edd245c0e893aa816600911]
 + dependencies updated, [3a709dffc3ade45f1e5b73756d74fd8c63535952], [598bb3a3d4acca4ae2ff546659799e08f8a26dab], [8faa4c0f17127c430c6ded8bf2c45319b80558a5], [9ae4031e3f7c64a01ba0e8de9815c3ba7d236cd3]
@@ -12,9 +11,9 @@
 + readme updated, [b381ff6ef277d41ca57d06a6273a2641e03536ee]
 
 ### Features
-+ `/stats` route, publicising statistics about adbsbd.com requests. Only the URL of a request is stored, no other details are recorded. Surpsingly handling an average of 1 million requests a day, all with ease, [72b11ef5bdaca48a661413983ae153ff7029cd13], [29eb19b46846b5a5c8ab35e30988c29754dda1d1]
++ `/stats` route, lists some basic usage statistics of api.adbsbd.com service. Only the URL of a request is stored, no other details are recorded. Handling an average of 1 million requests a day, all with ease, [72b11ef5bdaca48a661413983ae153ff7029cd13], [29eb19b46846b5a5c8ab35e30988c29754dda1d1]
 + `/aircraft/random`, `/callsign/random`, `/airline/random` endpoints added. Get a randomised value from these endpoints, [8f78f7c50b333969e543f419c5cfeafeae35f035]
-+ see the new [adsbdb.com](https://www.adsbdb.com) website for more detailed descriptions of the added endpoints.
++ see the new [adsbdb.com](https://www.adsbdb.com) website for a more detailed descriptions of all the endpoints.
 
 ### Refactors
 + `site` dir removed, new [adsbdb_site](https://www.github.com/mrjackwills/adsbdb_site), now live at [adsbdb.com](https://www.adsbdb.com), [e95b9f174f06a99454d4f676f296315b0058d0b5]
