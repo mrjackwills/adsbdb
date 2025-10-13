@@ -237,100 +237,101 @@ Unknown airline return status 404 with
 { "response": "unknown airline"}
 ```
 ---
-
-Get adsbdb request statistics, "aircraft", "airline", and "flightroute" arrays will contain the ten most popular responses for the given item in the given time period, "requests" is the total successful responses served over the same time period
 ```https://api.adsbdb.com/v[semver.major]/stats```
+
 ```json
-{ "response": {
-	"daily": {
-		"aircraft": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"airline": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"callsign": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"mode_s": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"n_number": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"online": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"stats": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"aggregate": number
-	},
-	"total": {
+{
+	"response": {
+		"daily": {
 			"aircraft": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"airline": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"callsign": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"mode_s": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"n_number": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"online": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"stats": [
-			{
-				"url": string,
-				"count": number
-			}
-		],
-		"aggregate": number
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"airline": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"callsign": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"mode_s": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"n_number": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"online": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"stats": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"aggregate": number
+		},
+		"total": {
+				"aircraft": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"airline": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"callsign": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"mode_s": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"n_number": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"online": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"stats": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"aggregate": number
+		}
 	}
 }
 
