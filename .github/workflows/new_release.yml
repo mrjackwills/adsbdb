@@ -1,8 +1,14 @@
 name: Release CI
+
+permissions:
+  contents: write
+  packages: write
+  
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+
 jobs:
   ##################################
   ## Build binary for release page #
@@ -21,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Install stable rust, and associated tools
       - name: install rust
@@ -58,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup | Artifacts
         uses: actions/download-artifact@v4

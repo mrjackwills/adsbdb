@@ -1,3 +1,4 @@
+#![allow(unused)]
 use mimalloc::MiMalloc;
 
 #[global_allocator]
@@ -60,5 +61,11 @@ async fn start() -> Result<(), AppError> {
 
 #[tokio::main]
 async fn main() {
-    tokio::spawn(start()).await.ok();
+    tokio::spawn(async move {
+        if let Err(e) = start().await {
+            tracing::error!("{e}");
+        }
+    })
+    .await
+    .ok();
 }

@@ -1,7 +1,7 @@
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute};
+use crate::db_postgres::{EntryCount, ModelAircraft, ModelAirline, ModelFlightroute};
 
 pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
@@ -90,6 +90,24 @@ pub struct Airline {
     pub callsign: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct StatsEntry {
+    pub aircraft: Vec<EntryCount>,
+    pub airline: Vec<EntryCount>,
+    pub callsign: Vec<EntryCount>,
+    pub mode_s: Vec<EntryCount>,
+    pub n_number: Vec<EntryCount>,
+    pub online: Vec<EntryCount>,
+    pub stats: Vec<EntryCount>,
+    pub aggregate: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct Stats {
+    pub daily: StatsEntry,
+    pub total: StatsEntry,
+}
+
 // should be option none
 // impl From<&ModelFlightroute> for Option<Airline> {
 impl Airline {
@@ -110,7 +128,7 @@ pub struct Airport {
     pub country_iso_name: String,
     pub country_name: String,
     pub elevation: i32,
-    pub iata_code: String,
+    pub iata_code: Option<String>,
     pub icao_code: String,
     pub latitude: f64,
     pub longitude: f64,
@@ -149,10 +167,7 @@ impl Airport {
                     .clone()
                     .unwrap_or_default(),
                 elevation: flightroute.midpoint_airport_elevation.unwrap_or_default(),
-                iata_code: flightroute
-                    .midpoint_airport_iata_code
-                    .clone()
-                    .unwrap_or_default(),
+                iata_code: flightroute.midpoint_airport_iata_code.clone(),
                 icao_code: flightroute
                     .midpoint_airport_icao_code
                     .clone()

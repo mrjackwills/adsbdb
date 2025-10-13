@@ -72,3 +72,133 @@ ALTER TABLE aircraft ALTER COLUMN aircraft_type_id SET NOT NULL;
 \echo "aircraft.country_id NOT NULL"
 ALTER TABLE aircraft ALTER COLUMN country_id SET NOT NULL;
 
+\echo "Create index for flightroute table"
+CREATE INDEX IF NOT EXISTS index_flightroute_airport_destination_id ON flightroute (airport_destination_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_airport_midpoint_id ON flightroute (airport_midpoint_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_airport_origin_id ON flightroute (airport_origin_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_id ON flightroute (flightroute_callsign_id);
+
+\echo "Create index for flightroute_callsign table"
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_airline_id ON flightroute_callsign (airline_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_airline_id_iata_prefix_id ON flightroute_callsign (airline_id, iata_prefix_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_airline_id_icao_prefix_id ON flightroute_callsign (airline_id, icao_prefix_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_callsign_id ON flightroute_callsign (callsign_id);
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_icao_prefix_id ON flightroute_callsign (icao_prefix_id);
+
+\echo "Create indexes for aircraft table"
+CREATE INDEX IF NOT EXISTS index_aircraft_country_id ON aircraft (country_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_icao_type_id ON aircraft (aircraft_icao_type_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_manufacturer_id ON aircraft (aircraft_manufacturer_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_mode_s_id ON aircraft (aircraft_mode_s_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_operator_flag_id ON aircraft (aircraft_operator_flag_code_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_photo_id ON aircraft (aircraft_photo_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_registered_owner_id ON aircraft (aircraft_registered_owner_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_registration_id ON aircraft (aircraft_registration_id);
+CREATE INDEX IF NOT EXISTS index_aircraft_type_id ON aircraft (aircraft_type_id);
+
+\echo "Create indexes for aircraft_registration table"
+CREATE INDEX IF NOT EXISTS index_aircraft_registration_registration ON aircraft_registration (registration);
+
+\echo "Create indexes for airline table"
+CREATE INDEX IF NOT EXISTS index_airline_country_id ON airline (country_id);
+CREATE INDEX IF NOT EXISTS index_airline_iata_prefix ON airline (iata_prefix);
+CREATE INDEX IF NOT EXISTS index_airline_icao_prefix ON airline (icao_prefix);
+
+\echo "Create indexes for flightroute_callsign_inner table"
+CREATE INDEX IF NOT EXISTS index_flightroute_callsign_inner_callsign ON flightroute_callsign_inner (callsign);
+
+\echo "Create indexes for airport table"
+CREATE INDEX IF NOT EXISTS index_airport_country_id ON airport (country_id);
+CREATE INDEX IF NOT EXISTS index_airport_elevation_id ON airport (airport_elevation_id);
+CREATE INDEX IF NOT EXISTS index_airport_iata_code_id ON airport (airport_iata_code_id);
+CREATE INDEX IF NOT EXISTS index_airport_icao_code_id ON airport (airport_icao_code_id);
+CREATE INDEX IF NOT EXISTS index_airport_latitude_id ON airport (airport_latitude_id);
+CREATE INDEX IF NOT EXISTS index_airport_longitude_id ON airport (airport_longitude_id);
+CREATE INDEX IF NOT EXISTS index_airport_municipality_id ON airport (airport_municipality_id);
+CREATE INDEX IF NOT EXISTS index_airport_name_id ON airport (airport_name_id);
+
+
+\echo "update work meme"
+ALTER DATABASE adsbdb SET work_mem = '32MB';
+
+\echo "Add extension pg_trgm"
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+\echo "Add method enum, use a DO as can't use IF NOT EXISTS for this"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM pg_type 
+        WHERE typname = 'request_method'
+    ) THEN
+        CREATE TYPE request_method AS ENUM (
+            'CONNECT',
+            'DELETE',
+            'GET',
+            'HEAD',
+            'OPTIONS',
+            'PATCH',
+            'POST',
+            'PUT',
+            'TRACE'
+        );
+    END IF;
+END
+$$;
+
+\echo "Create incoming request url table"
+CREATE TABLE incoming_request_url (
+    incoming_request_url_id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    request_url TEXT NOT NULL UNIQUE
+);
+
+GRANT ALL ON incoming_request_url TO adsbdb;
+GRANT USAGE, SELECT ON SEQUENCE incoming_request_url_incoming_request_url_id_seq TO adsbdb;
+
+\echo "Create incoming request url indexes"
+CREATE INDEX IF NOT EXISTS index_incoming_request_url_trgm ON incoming_request_url USING gin (request_url gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS index_incoming_request_url_request_url ON incoming_request_url (request_url);
+
+\echo "Create temp incoming request table"
+CREATE TABLE temp_incoming_request (
+    temp_incoming_request_id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
+    request_method request_method NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1
+);
+
+GRANT ALL ON temp_incoming_request TO adsbdb;
+GRANT USAGE, SELECT ON SEQUENCE temp_incoming_request_temp_incoming_request_id_seq TO adsbdb;
+
+\echo "Create temp incoming request indexes"
+CREATE UNIQUE INDEX IF NOT EXISTS index_temp_incoming_request_unique_method_minute_url ON temp_incoming_request (request_method, incoming_request_url_id);
+CREATE INDEX IF NOT EXISTS index_temp_incoming_request_url ON temp_incoming_request (incoming_request_url_id);
+CREATE INDEX IF NOT EXISTS index_temp_incoming_request_timestamp ON temp_incoming_request (timestamp);
+CREATE INDEX IF NOT EXISTS index_temp_incoming_request_comp ON temp_incoming_request (incoming_request_url_id, count);
+
+
+\echo "Create incoming request table"
+CREATE TABLE incoming_request (
+    incoming_request_id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    -- minute_ts TIMESTAMPTZ NOT NULL,
+    incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
+    request_method request_method NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1
+);
+
+
+GRANT ALL ON incoming_request TO adsbdb;
+GRANT USAGE, SELECT ON SEQUENCE incoming_request_incoming_request_id_seq TO adsbdb;
+
+\echo "Create incoming request indexes"
+CREATE UNIQUE INDEX IF NOT EXISTS index_incoming_request_unique_method_minute_url ON incoming_request ( request_method, incoming_request_url_id);
+CREATE INDEX IF NOT EXISTS index_incoming_request_url ON incoming_request (incoming_request_url_id);
+CREATE INDEX IF NOT EXISTS index_incoming_request_comp ON incoming_request (incoming_request_url_id, count);
+
+-- CREATE INDEX IF NOT EXISTS index_incoming_request_minute_ts ON incoming_request (minute_ts);
+-- CREATE INDEX IF NOT EXISTS index_incoming_request_url_time ON incoming_request (incoming_request_url_id, minute_ts);
+-- CREATE INDEX IF NOT EXISTS index_incoming_request_timestamp ON incoming_request (timestamp);

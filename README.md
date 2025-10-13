@@ -11,6 +11,8 @@
 	using <a href='https://www.postgresql.org/' target='_blank' rel='noopener noreferrer'>PostgreSQL</a>
 	& <a href='https://www.redis.io/' target='_blank' rel='noopener noreferrer'>Redis</a> 
 	<br>
+	See the <a href='https://www.github.com/mrjackwills/adsbdb_site/' target='_blank' rel='noopener noreferrer'>frontend source code for here</a> 
+	<br>
 	<sub> See typescript branch for original typescript version</sub>
 </p>
 
@@ -40,6 +42,8 @@
 ## GET Routes
 
 ```https://api.adsbdb.com/v[semver.major]/aircraft/[MODE_S || REGISTRATION]```
+<br>or<br>
+```https://api.adsbdb.com/v[semver.major]/aircraft/random```
 ```json
 {
 	"response":{
@@ -67,8 +71,9 @@ Unknown aircraft return status 404 with
 ```
 ---
 
-
 ```https://api.adsbdb.com/v[semver.major]/callsign/[CALLSIGN]```
+<br>or<br>
+```https://api.adsbdb.com/v[semver.major]/callsign/random```
 ```json
 {
 	"response": {
@@ -206,6 +211,8 @@ If an unknown callsign is provided as a query param, but the aircraft is known, 
 ---
 
 ```https://api.adsbdb.com/v[semver.major]/airline/[AIRLINE_ICAO || AIRLINE_IATA ]```
+<br>or<br>
+```https://api.adsbdb.com/v[semver.major]/airline/random```
 ```json
 {
 	"response":{
@@ -228,6 +235,106 @@ If an unknown callsign is provided as a query param, but the aircraft is known, 
 Unknown airline return status 404 with
 ```json
 { "response": "unknown airline"}
+```
+---
+```https://api.adsbdb.com/v[semver.major]/stats```
+
+```json
+{
+	"response": {
+		"daily": {
+			"aircraft": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"airline": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"callsign": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"mode_s": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"n_number": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"online": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"stats": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"aggregate": number
+		},
+		"total": {
+				"aircraft": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"airline": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"callsign": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"mode_s": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"n_number": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"online": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"stats": [
+				{
+					"url": string,
+					"count": number
+				}
+			],
+			"aggregate": number
+		}
+	}
+}
+
 ```
 ---
 

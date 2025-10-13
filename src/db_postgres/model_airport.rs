@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgExecutor;
 
-use crate::api::AppError;
+use crate::{api::AppError, generic_id};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelAirport {
-    pub airport_id: i64,
+    pub airport_id: AirportId,
 }
+
+generic_id!(AirportId);
 
 impl ModelAirport {
     /// Used for checking that a scraped airport is in db

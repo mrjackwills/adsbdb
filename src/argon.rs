@@ -62,16 +62,19 @@ impl ArgonHash {
         let password = password.to_owned();
         let argon_hash = self.clone();
         tokio::task::spawn_blocking(move || -> Result<bool, String> {
-            PasswordHash::new(&argon_hash.0).map_or(Err(S!("verify_password::new_hash")), |hash| {
-                match hash.verify_password(&[&get_hasher()], password) {
-                    Ok(()) => Ok(true),
-                    Err(e) => match e {
-                        // Could always just return false, no need to worry about internal errors?
-                        argon2::password_hash::Error::Password => Ok(false),
-                        _ => Err(S!("verify_password")),
-                    },
-                }
-            })
+            PasswordHash::new(&argon_hash.0).map_or_else(
+                |_| Err(S!("verify_password::new_hash")),
+                |hash| {
+                    match hash.verify_password(&[&get_hasher()], password) {
+                        Ok(()) => Ok(true),
+                        Err(e) => match e {
+                            // Could always just return false, no need to worry about internal errors?
+                            argon2::password_hash::Error::Password => Ok(false),
+                            _ => Err(S!("verify_password")),
+                        },
+                    }
+                },
+            )
         })
         .await
         .map_err(|_| S!("Join error"))?

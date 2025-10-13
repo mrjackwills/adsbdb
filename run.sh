@@ -196,7 +196,7 @@ pull_branch() {
 }
 
 run_migrations() {
-	if ask_yn "run init_postgres.sh"; then
+	if ask_yn "run init_postgres.sh migrations"; then
 		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
 	fi
 }
@@ -210,7 +210,8 @@ main() {
 		3 "${PRO} up" off
 		4 "${PRO} down" off
 		5 "${PRO} rebuild" off
-		6 "pull & branch" off
+		6 "pull branch" off
+		7 "run migrations" off
 	)
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 	exitStatus=$?
@@ -243,9 +244,12 @@ main() {
 		5)
 			production_rebuild
 			break
-			;;
+			;;		
 		6)
 			pull_branch
+			;;
+		7)
+			run_migrations
 			;;
 		esac
 	done

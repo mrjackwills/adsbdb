@@ -13,8 +13,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashMap, fmt, net::IpAddr};
 pub mod ratelimit;
 
-const ONE_WEEK_AS_SEC: i64 = 60 * 60 * 24 * 7;
-const HASH_FIELD: &str = "data";
+pub const ONE_MINUTE_AS_SEC: i64 = 60;
+pub const ONE_WEEK_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 60 * 24 * 7;
+pub const TEN_MINUTES_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 10;
+pub const HASH_FIELD: &str = "data";
 
 /// Macro to convert a stringified struct back into the struct
 #[macro_export]
@@ -44,6 +46,10 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     to_insert: Option<&T>,
     key: &RedisKey<'_>,
 ) -> Result<(), AppError> {
+    let ttl = match key {
+        RedisKey::Stats => ONE_MINUTE_AS_SEC,
+        _ => ONE_WEEK_AS_SEC,
+    };
     let key = key.to_string();
     let serialized = to_insert
         .as_ref()
@@ -51,7 +57,8 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     redis
         .hset::<(), _, _>(&key, HashMap::from([(HASH_FIELD, serialized)]))
         .await?;
-    Ok(redis.expire(&key, ONE_WEEK_AS_SEC, None).await?)
+
+    Ok(redis.expire(&key, ttl, None).await?)
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
@@ -59,14 +66,17 @@ pub async fn get_cache<T: DeserializeOwned + Send + FromValue>(
     redis: &Pool,
     key: &RedisKey<'_>,
 ) -> Result<Option<Option<T>>, AppError> {
+    let set_expire = key != &RedisKey::Stats;
     let key = key.to_string();
     if let Some(value) = redis
         .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
         .await?
     {
-        redis
-            .expire::<(), &str>(&key, ONE_WEEK_AS_SEC, None)
-            .await?;
+        if set_expire {
+            redis
+                .expire::<(), &str>(&key, ONE_WEEK_AS_SEC, None)
+                .await?;
+        }
         if value.is_empty() {
             return Ok(Some(None));
         }
@@ -94,13 +104,14 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<Pool, AppError> {
     Ok(pool)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RedisKey<'a> {
     Airline(&'a AirlineCode),
     Callsign(&'a Callsign),
     Registration(&'a Registration),
     ModeS(&'a ModeS),
     RateLimit(IpAddr),
+    Stats,
 }
 
 impl fmt::Display for RedisKey<'_> {
@@ -111,6 +122,7 @@ impl fmt::Display for RedisKey<'_> {
             Self::ModeS(mode_s) => write!(f, "mode_s::{mode_s}"),
             Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
             Self::Registration(registration) => write!(f, "registration::{registration}"),
+            Self::Stats => write!(f, "stats"),
         }
     }
 }

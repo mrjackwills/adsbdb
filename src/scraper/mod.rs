@@ -421,6 +421,7 @@ impl Scraper {
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
     use super::*;
+    use crate::api::tests::delete_incoming_request;
     use crate::api::{AircraftSearch, ModeS, Validate};
     use crate::{S, db_postgres, db_redis};
     use fred::interfaces::ClientLike;
@@ -439,10 +440,11 @@ pub mod tests {
 
     pub async fn remove_scraped_data(db: &PgPool) {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
+        delete_incoming_request(db).await;
         if let Some(flightroute) = ModelFlightroute::get(db, &callsign).await {
             sqlx::query!(
                 "DELETE FROM flightroute WHERE flightroute_id = $1",
-                flightroute.flightroute_id
+                flightroute.flightroute_id.get()
             )
             .execute(db)
             .await
@@ -566,7 +568,7 @@ pub mod tests {
             origin_airport_country_iso_name: S!("JP"),
             origin_airport_country_name: S!("Japan"),
             origin_airport_elevation: 12,
-            origin_airport_iata_code: S!("OKA"),
+            origin_airport_iata_code: Some(S!("OKA")),
             origin_airport_icao_code: S!("ROAH"),
             origin_airport_latitude: 26.195_801,
             origin_airport_longitude: 127.646_004,
@@ -584,7 +586,7 @@ pub mod tests {
             destination_airport_country_iso_name: S!("JP"),
             destination_airport_country_name: S!("Japan"),
             destination_airport_elevation: 35,
-            destination_airport_iata_code: S!("HND"),
+            destination_airport_iata_code: Some(S!("HND")),
             destination_airport_icao_code: S!("RJTT"),
             destination_airport_latitude: 35.552_299,
             destination_airport_longitude: 139.779_999,
