@@ -769,10 +769,11 @@ mod tests {
 
     #[tokio::test]
     /// Just check that a large sample of random flightroutes can be found correctly
+	/// This can still fail:(
     async fn flightroute_get_random() {
         let setup = setup().await;
 
-        for _ in 0..=1000 {
+        for _ in 0..=2000 {
             let result = ModelFlightroute::get_random(&setup.1).await;
             assert!(result.is_ok());
             // for each, do a icao and iata search, make sure they match?
