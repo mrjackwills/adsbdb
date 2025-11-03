@@ -8,7 +8,7 @@ use tokio::sync::mpsc::Sender;
 use crate::{
     api::{AppError, Stats, StatsEntry},
     db_postgres::ID,
-    db_redis::{ONE_MINUTE_AS_SEC, RedisKey, TEN_MINUTES_AS_SEC, get_cache, insert_cache},
+    db_redis::{ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache},
     generic_id, redis_hash_to_struct,
 };
 
@@ -493,21 +493,17 @@ LIMIT
     /// Will insert request_statistics on each message received
     /// Will insert cache stats every ten minutes - assuming it has recieved any messages at all in that time period
     pub async fn start(
-        postgres: &PgPool,
-        redis: &Pool,
+        postgres: PgPool,
+        redis: Pool,
     ) -> Result<Sender<MsgIncomingRequest>, AppError> {
-        Self::get_stats(postgres, redis).await?;
+        Self::get_stats(&postgres, &redis).await?;
 
         let (tx, mut rx) = tokio::sync::mpsc::channel(8192);
         let mut now = std::time::Instant::now();
-        let postgres = postgres.clone();
-        let redis = redis.clone();
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 if let Err(e) = match msg {
                     MsgIncomingRequest::Url(i) => Self::insert_request(&postgres, i).await,
-                    // todo add extra logging features here, maybe success responses / rate limited?
-                    _ => Ok(()),
                 } {
                     tracing::error!("{e:?}");
                 }

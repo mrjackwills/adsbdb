@@ -279,6 +279,8 @@ pub mod tests {
     use crate::api::tests::test_setup;
     use crate::parse_env::AppEnv;
     use crate::sleep;
+    use crate::start_incoming_requests;
+    use crate::start_scraper;
 
     use fred::prelude::{HashesInterface, Pool};
     use reqwest::{Client, StatusCode};
@@ -324,8 +326,14 @@ pub mod tests {
         let postgres = setup.postgres.clone();
 
         let redis = setup.redis.clone();
+
+        let tx_scraper = start_scraper(&app_env).await.unwrap();
+        let tx_stats = start_incoming_requests(&app_env).await.unwrap();
+
         let handle = tokio::spawn(async move {
-            serve(spawn_env, postgres, redis).await.unwrap();
+            serve(spawn_env, postgres, redis, tx_scraper, tx_stats)
+                .await
+                .unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
         sleep!(100);

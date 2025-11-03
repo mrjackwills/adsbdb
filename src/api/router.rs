@@ -40,7 +40,7 @@ impl RouterHelper {
 
                 if state
                     .scraper_tx
-                    .send(crate::scraper::ScraperMsg::CallSign((
+                    .send(crate::scraper::MsgScraper::CallSign((
                         one_tx,
                         callsign.clone(),
                     )))
@@ -128,7 +128,7 @@ impl RouterHelper {
                 let (one_tx, one_rx) = tokio::sync::oneshot::channel();
                 if state
                     .scraper_tx
-                    .send(crate::scraper::ScraperMsg::Photo((
+                    .send(crate::scraper::MsgScraper::Photo((
                         one_tx,
                         craft.mode_s.clone(),
                     )))
@@ -385,9 +385,7 @@ mod tests {
 
     use axum::http::Uri;
     use fred::interfaces::{ClientLike, HashesInterface, KeysInterface};
-    use sqlx::PgPool;
 
-    use crate::S;
     use crate::api::{
         Registration,
         input::Validate,
@@ -397,9 +395,9 @@ mod tests {
     use crate::db_postgres;
     use crate::db_redis;
     use crate::parse_env;
-    use crate::scraper;
     use crate::scraper::tests::{TEST_CALLSIGN, remove_scraped_data};
     use crate::sleep;
+    use crate::{S, start_incoming_requests, start_scraper};
 
     /// Get application state for test, also delete recent request stats
     async fn get_application_state() -> State<ApplicationState> {
@@ -408,14 +406,13 @@ mod tests {
         let redis = db_redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
 
-        let scraper_tx = scraper::Scraper::start(&app_env, &postgres);
-        let stats_tx = ModelIncomingRequest::start(&postgres, &redis)
-            .await
-            .unwrap();
+        let tx_scraper = start_scraper(&app_env).await.unwrap();
+        let tx_stats = start_incoming_requests(&app_env).await.unwrap();
+
         delete_incoming_request(&postgres).await;
 
         State(ApplicationState::new(
-            &app_env, postgres, redis, scraper_tx, stats_tx,
+            &app_env, postgres, redis, tx_scraper, tx_stats,
         ))
     }
 
