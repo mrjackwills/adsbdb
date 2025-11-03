@@ -56,15 +56,17 @@ pub enum AppError {
     ParseInt(#[from] ParseIntError),
     #[error("rate limited for")]
     RateLimited(i64),
-    #[error("redis error")]
+    #[error(transparent)]
     RedisError(#[from] fred::error::Error),
     #[error("invalid registration:")]
     Registration(String),
     #[error("Reqwest")]
     Reqwest(#[from] reqwest::Error),
-    #[error("internal error")]
+    // #[error("internal error")]
+    #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
-    #[error("not found")]
+    // #[error("not found")]
+    #[error(transparent)]
     SqlxError(#[from] sqlx::Error),
     #[error("unknown")]
     UnknownInDb(UnknownAC),
