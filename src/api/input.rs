@@ -182,7 +182,7 @@ impl Validate for Registration {
         let input = input.to_uppercase();
         if !input.is_empty()
             && input.len() <= 16
-            && input.chars().all(|c| valid_char(c, 'z') || c == '-')
+            && input.chars().all(|c| valid_char(c, 'z') || c == '-' || c =='+')
         {
             Ok(Self(input))
         } else {
