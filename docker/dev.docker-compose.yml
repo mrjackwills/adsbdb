@@ -55,7 +55,7 @@ services:
     ipc: private
     restart: always
     ports:
-      - 127.0.0.1:6380:6380
+      - 127.0.0.1:6379:6379
     networks:
       - dev-adsbdb-net
     logging:
