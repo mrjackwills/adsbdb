@@ -3,7 +3,7 @@
 #############
 
 # TODO make sure to update me when Rust gets updated
-FROM --platform=$BUILDPLATFORM rust:1.90.0-slim-bookworm AS builder
+FROM --platform=$BUILDPLATFORM rust:1.91.0-slim-bookworm AS builder
 
 WORKDIR /usr/src
 
