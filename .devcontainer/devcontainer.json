@@ -46,7 +46,7 @@
 		}
 	},
 	"postCreateCommand": "cargo install cargo-expand cargo-watch cross sqlx-cli typos-cli",
-	"postStartCommand": "sudo mkdir -p /ramdrive/adsbdb/pg_data /ramdrive/adsbdb/redis_data /ramdrive/adsbdb/logs /ramdrive/adsbdb/backups && sudo chown -R vscode:vscode /ramdrive/adsbdb",
+	"postStartCommand": "sudo mkdir -p /data/adsbdb/pg_data /data/adsbdb/redis_data /data/adsbdb/logs /data/adsbdb/backups && sudo chown -R vscode:vscode /data/adsbdb",
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {
