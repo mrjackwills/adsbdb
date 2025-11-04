@@ -277,6 +277,7 @@ LIMIT
     }
 
     /// Start of IATA and ICAO query
+	/// TODO fix me, only work where iata is not null
     const fn get_query_selects() -> &'static str {
         r"
 SELECT
@@ -327,6 +328,7 @@ SELECT
     }
 
     /// Query for flightroute based on IATA callsign
+	/// TODO where iata prefix is not null?
     fn get_query_iata() -> String {
         format!(
             r"

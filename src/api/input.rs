@@ -182,7 +182,9 @@ impl Validate for Registration {
         let input = input.to_uppercase();
         if !input.is_empty()
             && input.len() <= 16
-            && input.chars().all(|c| valid_char(c, 'z') || c == '-' || c =='+')
+            && input
+                .chars()
+                .all(|c| valid_char(c, 'z') || c == '-' || c == '+')
         {
             Ok(Self(input))
         } else {
@@ -438,6 +440,7 @@ mod tests {
 
         test("n1245");
         test("b-818-f");
+        test("h1+23");
     }
 
     #[test]
@@ -456,5 +459,8 @@ mod tests {
         test("ababababababababab");
         // contains an invalid char
         test("abhyuio$pa");
+        test("abc?/");
+        test(r"!abc\");
+        test("[cbd]");
     }
 }
