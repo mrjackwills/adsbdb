@@ -108,8 +108,7 @@ impl Scraper {
         if let Some(int_tx) = self.callsign_requests.get(&callsign) {
             let mut int_rx = int_tx.subscribe();
             tokio::spawn(async move {
-                let t = int_rx.recv().await.unwrap_or(None);
-                oneshot.send(t).ok();
+                oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
                 tx.send(MsgScraper::Remove(ToRemove::Callsign(callsign)))
                     .await
                     .ok();

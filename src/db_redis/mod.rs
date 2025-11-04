@@ -43,7 +43,7 @@ macro_rules! redis_hash_to_struct {
 pub async fn insert_cache<T: Serialize + Send + Sync>(
     redis: &Pool,
     to_insert: Option<&T>,
-    key: &RedisKey<'_>,
+    key: RedisKey<'_>,
 ) -> Result<(), AppError> {
     let ttl = match key {
         RedisKey::Stats => ONE_MINUTE_AS_SEC,

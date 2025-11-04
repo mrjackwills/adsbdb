@@ -484,7 +484,7 @@ LIMIT
             Ok(cache_stats)
         } else {
             let statistics = Self::_get(postgres).await?;
-            insert_cache(redis, Some(&statistics), &redis_key).await?;
+            insert_cache(redis, Some(&statistics), redis_key).await?;
             Ok(statistics)
         }
     }

@@ -50,7 +50,7 @@ impl RouterHelper {
                     flightroute = one_rx.await.unwrap_or(None);
                 }
             }
-            insert_cache(&state.redis, flightroute.as_ref(), &redis_key).await?;
+            insert_cache(&state.redis, flightroute.as_ref(), redis_key).await?;
             Ok(flightroute)
         }
     }
@@ -65,7 +65,7 @@ impl RouterHelper {
             insert_cache(
                 &state.redis,
                 Some(&flightroute),
-                &RedisKey::Callsign(&callsign),
+                RedisKey::Callsign(&callsign),
             )
             .await?;
         }
@@ -76,14 +76,14 @@ impl RouterHelper {
             insert_cache(
                 &state.redis,
                 Some(&flightroute),
-                &RedisKey::Callsign(&callsign),
+                RedisKey::Callsign(&callsign),
             )
             .await?;
         }
         if let Some(callsign) = flightroute.callsign_icao.as_ref()
             && let Ok(c) = Callsign::validate(callsign)
         {
-            insert_cache(&state.redis, Some(&flightroute), &RedisKey::Callsign(&c)).await?;
+            insert_cache(&state.redis, Some(&flightroute), RedisKey::Callsign(&c)).await?;
         }
 
         Ok(flightroute)
@@ -92,18 +92,19 @@ impl RouterHelper {
     /// Get random aircraft, and insert into cache using mode_s
     async fn find_random_aircraft(state: &ApplicationState) -> Result<ModelAircraft, AppError> {
         let aircraft = ModelAircraft::get_random(&state.postgres, &state.url_prefix).await?;
-        insert_cache(
-            &state.redis,
-            Some(&aircraft),
-            &RedisKey::ModeS(&aircraft.mode_s),
-        )
-        .await?;
-        insert_cache(
-            &state.redis,
-            Some(&aircraft),
-            &RedisKey::Registration(&aircraft.registration),
-        )
-        .await?;
+
+        tokio::try_join!(
+            insert_cache(
+                &state.redis,
+                Some(&aircraft),
+                RedisKey::ModeS(&aircraft.mode_s),
+            ),
+            insert_cache(
+                &state.redis,
+                Some(&aircraft),
+                RedisKey::Registration(&aircraft.registration),
+            )
+        )?;
 
         Ok(aircraft)
     }
@@ -140,21 +141,10 @@ impl RouterHelper {
                 aircraft =
                     ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
             }
-            insert_cache(&state.redis, aircraft.as_ref(), &redis_key).await?;
+            insert_cache(&state.redis, aircraft.as_ref(), redis_key).await?;
             Ok(aircraft)
         }
     }
-
-    // async fn find_stats(state: &ApplicationState) -> Result<Stats, AppError> {
-    //     let redis_key = RedisKey::Stats;
-    //     if let Some(Some(cache_stats)) = get_cache::<Stats>(&state.redis, &redis_key).await? {
-    //         Ok(cache_stats)
-    //     } else {
-    //         let statistics = ModelRequestStatistics::get(&state.postgres).await?;
-    //         insert_cache(&state.redis, Some(&statistics), &redis_key).await?;
-    //         Ok(statistics)
-    //     }
-    // }
 
     // Return a random airline - not caching at the moment
     async fn find_random_airline(state: &ApplicationState) -> Result<ModelAirline, AppError> {
@@ -174,7 +164,7 @@ impl RouterHelper {
             })
         } else {
             let airline = ModelAirline::get_all_by_airline_code(&state.postgres, airline).await?;
-            insert_cache(&state.redis, airline.as_ref(), &redis_key).await?;
+            insert_cache(&state.redis, airline.as_ref(), redis_key).await?;
             Ok(airline)
         }
     }

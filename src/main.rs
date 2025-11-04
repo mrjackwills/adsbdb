@@ -62,19 +62,20 @@ async fn start_scraper(app_env: &AppEnv) -> Result<Sender<MsgScraper>, AppError>
 }
 
 async fn start_incoming_requests(app_env: &AppEnv) -> Result<Sender<MsgIncomingRequest>, AppError> {
-    let postgres = db_postgres::get_pool(app_env).await?;
-    let redis = db_redis::get_pool(app_env).await?;
-    ModelIncomingRequest::start(postgres, redis).await
+    let db = tokio::try_join!(db_postgres::get_pool(app_env), db_redis::get_pool(app_env))?;
+    ModelIncomingRequest::start(db.0, db.1).await
 }
 
 async fn start() -> Result<(), AppError> {
     let app_env = parse_env::AppEnv::get_env();
     setup_tracing(&app_env)?;
-    let postgres = db_postgres::get_pool(&app_env).await?;
-    let redis = db_redis::get_pool(&app_env).await?;
 
-    let tx_scraper = start_scraper(&app_env).await?;
-    let tx_stats = start_incoming_requests(&app_env).await?;
+    let (postgres, redis, tx_scraper, tx_stats) = tokio::try_join!(
+        db_postgres::get_pool(&app_env),
+        db_redis::get_pool(&app_env),
+        start_scraper(&app_env),
+        start_incoming_requests(&app_env)
+    )?;
 
     api::serve(app_env, postgres, redis, tx_scraper, tx_stats).await
 }

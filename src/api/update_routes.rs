@@ -249,19 +249,18 @@ pub async fn aircraft_patch(
 
     current_aircraft.update(state.postgres, &body).await?;
 
-    // Delete cache
-    state
-        .redis
-        .del::<(), String>(format!("mode_s::{}", current_aircraft.mode_s))
-        .await?;
-    state
-        .redis
-        .del::<(), String>(format!("registration::{}", current_aircraft.registration))
-        .await?;
-    state
-        .redis
-        .del::<(), String>(format!("registration::{}", body.registration))
-        .await?;
+	// Delete caches
+    tokio::try_join!(
+        state
+            .redis
+            .del::<(), String>(format!("mode_s::{}", current_aircraft.mode_s)),
+        state
+            .redis
+            .del::<(), String>(format!("registration::{}", current_aircraft.registration)),
+        state
+            .redis
+            .del::<(), String>(format!("registration::{}", body.registration))
+    )?;
 
     Ok(StatusCode::OK)
 }

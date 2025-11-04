@@ -277,7 +277,7 @@ LIMIT
     }
 
     /// Start of IATA and ICAO query
-	/// TODO fix me, only work where iata is not null
+    /// TODO fix me, only work where iata is not null
     const fn get_query_selects() -> &'static str {
         r"
 SELECT
@@ -328,7 +328,7 @@ SELECT
     }
 
     /// Query for flightroute based on IATA callsign
-	/// TODO where iata prefix is not null?
+    /// TODO where iata prefix is not null?
     fn get_query_iata() -> String {
         format!(
             r"
@@ -771,7 +771,7 @@ mod tests {
 
     #[tokio::test]
     /// Just check that a large sample of random flightroutes can be found correctly
-	/// This can still fail:(
+    /// This can still fail:(
     async fn flightroute_get_random() {
         let setup = setup().await;
 
