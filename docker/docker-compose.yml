@@ -17,6 +17,7 @@ services:
     ipc: private
     restart: always
     shm_size: 512MB
+    command: -c max_wal_size=4GB
     volumes:
       - $HOME/databases.d/adsbdb/pg_data:/pg_data
     networks:
@@ -24,7 +25,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024MB
+          memory: 2048MB
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
@@ -87,7 +88,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1024MB
   adsbdb_api:
     image: adsbdb_api:0.5.0
     container_name: adsbdb_api

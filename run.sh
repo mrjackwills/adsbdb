@@ -108,6 +108,7 @@ dev_up() {
 	echo "starting containers: ${TO_RUN[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
 	run_migrations
+	
 }
 
 dev_down() {
@@ -250,6 +251,7 @@ main() {
 			;;
 		7)
 			run_migrations
+			
 			;;
 		esac
 	done
