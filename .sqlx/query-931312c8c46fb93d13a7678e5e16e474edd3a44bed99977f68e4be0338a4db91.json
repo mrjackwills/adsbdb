@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO incoming_request_url_query(url_query) VALUES ($1) ON CONFLICT (url_query)\n\t\tDO UPDATE SET url_query = EXCLUDED.url_query\n\t\tRETURNING incoming_request_url_query_id AS id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "931312c8c46fb93d13a7678e5e16e474edd3a44bed99977f68e4be0338a4db91"
+}
