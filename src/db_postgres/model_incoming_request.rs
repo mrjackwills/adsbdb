@@ -2,14 +2,14 @@ use axum::http::{Uri, request::Parts};
 use fred::prelude::Pool;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgExecutor, PgPool, Postgres, Transaction};
+use sqlx::{FromRow, PgExecutor, PgPool};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
     api::{AppError, Stats, StatsEntry},
     db_postgres::ID,
     db_redis::{ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache},
-    generic_id, redis_hash_to_struct,
+    redis_hash_to_struct,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -66,24 +66,79 @@ redis_hash_to_struct!(Stats);
 
 pub struct ModelIncomingRequest;
 
-generic_id!(IncomingRequestUrlId);
-
-// query_as! doesn't like ID<IncomingRequestUrlId>
-type UrlId = ID<IncomingRequestUrlId>;
-
 type GenI64 = ID<i64>;
+
+/// postgres, column, uses "temp_incoming_request" table
+macro_rules! fetch_temp_stats {
+    ($pg:expr, $path:expr) => {
+        sqlx::query_as!(
+            EntryCount,
+            r#"
+SELECT
+    '/' || CONCAT_WS(
+        '/',
+        NULLIF(iruv.url_version, ''),
+        NULLIF(irup.url_path, ''),
+        NULLIF(iruq.url_query, '')
+    ) AS "url!",
+    SUM(COALESCE(tir.count, 0)) AS "count!"
+FROM temp_incoming_request tir
+LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
+LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
+LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
+LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
+WHERE irup.url_path = $1
+GROUP BY
+    '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
+ORDER BY "count!" DESC, "url!"
+LIMIT 10
+"#,$path
+        )
+        .fetch_all($pg)
+    };
+}
+
+/// postgres, column, uses "incoming_request" table
+macro_rules! fetch_stats {
+    ($pg:expr, $path:expr) => {
+        sqlx::query_as!(
+            EntryCount,
+            r#"
+SELECT
+    '/' || CONCAT_WS(
+        '/',
+        NULLIF(iruv.url_version, ''),
+        NULLIF(irup.url_path, ''),
+        NULLIF(iruq.url_query, '')
+    ) AS "url!",
+    SUM(COALESCE(ir.count, 0)) AS "count!"
+FROM incoming_request ir
+LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
+LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
+LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
+LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
+WHERE irup.url_path = $1
+GROUP BY
+    '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
+ORDER BY "count!" DESC, "url!"
+LIMIT 10
+"#,$path
+        )
+        .fetch_all($pg)
+    };
+}
 
 impl ModelIncomingRequest {
     async fn get_version_id(
         url_version: Option<String>,
-        transaction: &mut Transaction<'_, Postgres>,
+        postgres: &PgPool,
     ) -> Result<Option<GenI64>, AppError> {
         Ok(if let Some(url_version) = url_version {
             sqlx::query_as!(GenI64,
-		"INSERT INTO incoming_request_url_version(url_version) VALUES ($1) ON CONFLICT (url_version)
-		DO UPDATE SET url_version = EXCLUDED.url_version
-		RETURNING incoming_request_url_version_id AS id", url_version)
-            .fetch_optional(&mut **transaction)
+        "INSERT INTO incoming_request_url_version(url_version) VALUES ($1) ON CONFLICT (url_version)
+        DO UPDATE SET url_version = EXCLUDED.url_version
+        RETURNING incoming_request_url_version_id AS id", url_version)
+            .fetch_optional(postgres)
             .await?
         } else {
             None
@@ -92,17 +147,17 @@ impl ModelIncomingRequest {
 
     async fn get_path_id(
         url_path: Option<String>,
-        transaction: &mut Transaction<'_, Postgres>,
+        postgres: &PgPool,
     ) -> Result<Option<GenI64>, AppError> {
         Ok(if let Some(url_path) = url_path {
             sqlx::query_as!(
                 GenI64,
                 "INSERT INTO incoming_request_url_path(url_path) VALUES ($1) ON CONFLICT (url_path)
-		DO UPDATE SET url_path = EXCLUDED.url_path
-		RETURNING incoming_request_url_path_id AS id",
+        DO UPDATE SET url_path = EXCLUDED.url_path
+        RETURNING incoming_request_url_path_id AS id",
                 url_path
             )
-            .fetch_optional(&mut **transaction)
+            .fetch_optional(postgres)
             .await?
         } else {
             None
@@ -111,14 +166,14 @@ impl ModelIncomingRequest {
 
     async fn get_query_id(
         url_query: Option<String>,
-        transaction: &mut Transaction<'_, Postgres>,
+        postgres: &PgPool,
     ) -> Result<Option<GenI64>, AppError> {
         Ok(if let Some(url_query) = url_query {
             sqlx::query_as!(GenI64,
-		"INSERT INTO incoming_request_url_query(url_query) VALUES ($1) ON CONFLICT (url_query)
-		DO UPDATE SET url_query = EXCLUDED.url_query
-		RETURNING incoming_request_url_query_id AS id", url_query)
-            .fetch_optional(&mut **transaction)
+        "INSERT INTO incoming_request_url_query(url_query) VALUES ($1) ON CONFLICT (url_query)
+        DO UPDATE SET url_query = EXCLUDED.url_query
+        RETURNING incoming_request_url_query_id AS id", url_query)
+            .fetch_optional(postgres)
             .await?
         } else {
             None
@@ -126,20 +181,17 @@ impl ModelIncomingRequest {
     }
     /// Insert the request url into database, this will recored every single request to the database
     async fn insert_request(postgres: &PgPool, url: UriMethod) -> Result<(), AppError> {
-        let mut transaction = postgres.begin().await?;
-
-        Self::delete_temp(&mut *transaction).await?;
-
         let (url_version, url_path, url_query) = url.split_into_parts();
 
-        // todo tokio join this - if so need to remove transaction
-
-        let version_id = Self::get_version_id(url_version, &mut transaction).await?;
-        let path_id = Self::get_path_id(url_path, &mut transaction).await?;
-        let query_id = Self::get_query_id(url_query, &mut transaction).await?;
+        let ((), version_id, path_id, query_id) = tokio::try_join!(
+            Self::delete_temp(postgres),
+            Self::get_version_id(url_version, postgres),
+            Self::get_path_id(url_path, postgres),
+            Self::get_query_id(url_query, postgres)
+        )?;
 
         let request_url = sqlx::query_as!(
-            UrlId,
+            GenI64,
             r#"
      INSERT INTO incoming_request_url (incoming_request_url_version_id, incoming_request_url_path_id, incoming_request_url_query_id)
      VALUES ($1, $2, $3)
@@ -147,39 +199,35 @@ impl ModelIncomingRequest {
      RETURNING incoming_request_url_id AS id"#,
           version_id.map(|i|i.id), path_id.map(|i|i.id), query_id.map(|i|i.id)
         )
-        .fetch_one(&mut *transaction)
+        .fetch_one(postgres)
         .await?;
 
-        sqlx::query!(
-            r#"INSERT INTO incoming_request (incoming_request_url_id, request_method)
+        tokio::try_join!(
+            sqlx::query!(
+                r#"INSERT INTO incoming_request (incoming_request_url_id, request_method)
         VALUES (
            $1,
             ($2::text)::request_method
         )
        ON CONFLICT (incoming_request_url_id, request_method)
         DO UPDATE SET count = incoming_request.count + 1"#,
-            request_url.id.get(),
-            url.1.to_string()
-        )
-        .execute(&mut *transaction)
-        .await?;
-
-        sqlx::query!(
-            r#"INSERT INTO temp_incoming_request (incoming_request_url_id, request_method)
+                request_url.id,
+                url.1.to_string()
+            )
+            .execute(postgres),
+            sqlx::query!(
+                r#"INSERT INTO temp_incoming_request (incoming_request_url_id, request_method)
         VALUES (
             $1,
             ($2::text)::request_method
         )
        ON CONFLICT (incoming_request_url_id, request_method)
       DO UPDATE SET count = temp_incoming_request.count + 1"#,
-            request_url.id.get(),
-            url.1.to_string()
-        )
-        .execute(&mut *transaction)
-        .await?;
-
-        transaction.commit().await?;
-
+                request_url.id,
+                url.1.to_string()
+            )
+            .execute(postgres)
+        )?;
         Ok(())
     }
 
@@ -191,355 +239,67 @@ impl ModelIncomingRequest {
 
     // Get usgae stats from postgres
     async fn _get(postgres: &PgPool) -> Result<Stats, AppError> {
-        let mut transaction = postgres.begin().await?;
-        sqlx::query!("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-            .execute(&mut *transaction)
-            .await?;
-        let daily = Self::get_daily(&mut transaction).await?;
-        let total = Self::get_total(&mut transaction).await?;
-        transaction.commit().await?;
+        let daily = Self::get_daily(postgres).await?;
+        let total = Self::get_total(postgres).await?;
         Ok(Stats { daily, total })
     }
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
     #[allow(clippy::too_many_lines)]
-    async fn get_daily(postgres: &mut Transaction<'_, Postgres>) -> Result<StatsEntry, AppError> {
-        // TODO tokio join
-		// Would need to remove transaction if want to use tokio_join
-        let aircraft = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'aircraft'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let airline = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'airline'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let flightroute = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'callsign'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let mode_s = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'mode-s'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let n_number = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'n-number'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let stats = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'stats'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let online = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'online'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let aggregate = sqlx::query_as!(
-            Count,
-            r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM temp_incoming_request"#
-        )
-        .fetch_one(&mut **postgres)
-        .await?
-        .count;
+    async fn get_daily(postgres: &PgPool) -> Result<StatsEntry, AppError> {
+        let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
+            fetch_temp_stats!(postgres, "aircraft"),
+            fetch_temp_stats!(postgres, "airline"),
+            fetch_temp_stats!(postgres, "callsign"),
+            fetch_temp_stats!(postgres, "mode-s"),
+            fetch_temp_stats!(postgres, "n-number"),
+            fetch_temp_stats!(postgres, "online"),
+            fetch_temp_stats!(postgres, "stats"),
+            sqlx::query_as!(
+                Count,
+                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM temp_incoming_request"#
+            )
+            .fetch_one(postgres)
+        )?;
 
         Ok(StatsEntry {
             aircraft,
             airline,
-            callsign: flightroute,
+            callsign,
             mode_s,
             n_number,
             online,
             stats,
-            aggregate,
+            aggregate: aggregate.count,
         })
     }
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
     #[allow(clippy::too_many_lines)]
-    async fn get_total(postgres: &mut Transaction<'_, Postgres>) -> Result<StatsEntry, AppError> {
-        let aircraft = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'aircraft'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let airline = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'airline'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let flightroute = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'callsign'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let mode_s = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'mode-s'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let n_number = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'n-number'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let stats = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'stats'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let online = sqlx::query_as!(
-            EntryCount,
-            r#"
-SELECT  '/' || CONCAT_WS('/',
-    NULLIF(iruv.url_version,''),
-    NULLIF(irup.url_path,''),
-    NULLIF(iruq.url_query,'')) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
-FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = 'online'
-GROUP BY '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 10"#
-        )
-        .fetch_all(&mut **postgres)
-        .await?;
-
-        let aggregate = sqlx::query_as!(
-            Count,
-            r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM incoming_request"#
-        )
-        .fetch_one(&mut **postgres)
-        .await?
-        .count;
-
+    async fn get_total(postgres: &PgPool) -> Result<StatsEntry, AppError> {
+        let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
+            fetch_stats!(postgres, "aircraft"),
+            fetch_stats!(postgres, "airline"),
+            fetch_stats!(postgres, "callsign"),
+            fetch_stats!(postgres, "mode-s"),
+            fetch_stats!(postgres, "n-number"),
+            fetch_stats!(postgres, "online"),
+            fetch_stats!(postgres, "stats"),
+            sqlx::query_as!(
+                Count,
+                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM incoming_request"#
+            )
+            .fetch_one(postgres)
+        )?;
         Ok(StatsEntry {
             aircraft,
             airline,
-            callsign: flightroute,
+            callsign,
             mode_s,
             n_number,
             online,
             stats,
-            aggregate,
+            aggregate: aggregate.count,
         })
     }
 
