@@ -474,6 +474,8 @@ pub mod tests {
         // Cache only gets update every ten minutes, so should still be empty here
         assert_empty_stats_cache(&setup.redis).await;
         setup.flush_redis().await;
+
+        // sleep!(1000);
         let result = reqwest::get(&url)
             .await
             .unwrap()
@@ -483,7 +485,7 @@ pub mod tests {
 
         assert_eq!(
             serde_json::to_string(&result.response.daily).unwrap(),
-            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":2}],"aggregate":23}"#
+            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":1}],"aggregate":22}"#
         );
         let ttl: i64 = setup.redis.ttl("stats").await.unwrap();
         assert!((59..=60).contains(&ttl));

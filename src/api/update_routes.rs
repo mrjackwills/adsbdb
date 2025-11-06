@@ -249,7 +249,7 @@ pub async fn aircraft_patch(
 
     current_aircraft.update(state.postgres, &body).await?;
 
-	// Delete caches
+    // Delete caches
     tokio::try_join!(
         state
             .redis
