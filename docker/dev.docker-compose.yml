@@ -17,9 +17,7 @@ services:
     restart: always
     shm_size: 512MB
     volumes:
-    # TODO change back to /ramdrive
       - /data/adsbdb/pg_data:/pg_data
-    # command: -c max_wal_size=4GB
     ports:
       - 127.0.0.1:5432:5432
     networks:

@@ -19,6 +19,7 @@
 
 ### Refactors
 + incoming_request_url table, [59f9c28a093418410db5856f9681278841f62e58]
++ Incoming request remove transactions, [1825222454a9fe29e370d2e9705704f113e16819]
 + use try_joins, [273ba3ba0bb9cece30a1809901f5fdf89a78c42f]
 
 ### Tests
