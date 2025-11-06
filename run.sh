@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 2025-05-21
-# v0.4.0
+# 2025-11-06
+# v0.5.0
 
 APP_NAME='adsbdb'
 
@@ -103,12 +103,31 @@ make_all_directories() {
 	make_logs_directories
 }
 
+restart_base_containers() {
+	echo "restarting base containers: ${BASE_CONTAINERS[*]}"
+	docker restart "${BASE_CONTAINERS[@]}"
+	sleep 10
+}
+
+run_migrations() {
+	if ask_yn "run migrations"; then
+		restart_base_containers
+		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
+	fi
+	# Probaly not required
+	if ask_yn "restart base containers"; then
+		restart_base_containers
+	fi
+}
+
 dev_up() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-	echo "starting containers: ${TO_RUN[*]}"
-	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
+	echo "starting base containers: ${BASE_CONTAINERS[*]}"
+	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${BASE_CONTAINERS[@]}"
+	sleep 15
 	run_migrations
-	
+	echo "starting selected containers: ${TO_RUN[*]}"
+	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
 }
 
 dev_down() {
@@ -120,8 +139,12 @@ production_up() {
 	if ask_yn "added crontab \"15 3 * * *  docker restart ${APP_NAME}_postgres_backup\""; then
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-		docker compose -f docker-compose.yml up -d
+		echo "starting base containers: ${BASE_CONTAINERS[*]}"
+		docker compose -f docker-compose.yml up -d "${BASE_CONTAINERS[@]}"
+		sleep 15
 		run_migrations
+		echo "starting all containers: ${ALL[*]}"
+		docker compose -f docker-compose.yml up -d
 	else
 		exit
 	fi
@@ -131,8 +154,12 @@ production_rebuild() {
 	if ask_yn "added crontab \"15 3 * * *  docker restart ${APP_NAME}_postgres_backup\""; then
 		make_all_directories
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
-		docker compose -f docker-compose.yml up -d --build
+		echo "starting base containers: ${BASE_CONTAINERS[*]}"
+		docker compose -f docker-compose.yml up -d  --build "${BASE_CONTAINERS[@]}"
+		sleep 15
 		run_migrations
+		echo "starting all containers: ${ALL[*]}"
+		docker compose -f docker-compose.yml up -d  --build
 	else
 		exit
 	fi
@@ -196,12 +223,6 @@ pull_branch() {
 	main
 }
 
-run_migrations() {
-	if ask_yn "run init_postgres.sh migrations"; then
-		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
-	fi
-}
-
 main() {
 	echo "in main"
 	cmd=(dialog --backtitle "Start ${APP_NAME} containers" --keep-tite --radiolist "choose environment" 14 80 16)
@@ -245,13 +266,12 @@ main() {
 		5)
 			production_rebuild
 			break
-			;;		
+			;;
 		6)
 			pull_branch
 			;;
 		7)
 			run_migrations
-			
 			;;
 		esac
 	done

@@ -29,12 +29,6 @@ run_migrations() {
 	fi
 }
 
-
-set_wal_size() {
-	echo "Setting max_wal_size to 4GB."
-	psql -U "${POSTGRES_USER}" -c "ALTER SYSTEM SET max_wal_size = '4GB';"
-}
-
 # # restore a db from a pg_dump file
 restore_pg_dump() {
 	echo "restore_pg_dump"
@@ -65,11 +59,11 @@ create_tables() {
 }
 
 main() {
-	if [ ! "$1" == "migrations" ]; then
-		create_adsbdb_user
+	if [ "$1" == "migrations" ]; then
+		run_migrations
+	else
 		create_tables
 	fi
-	run_migrations
 }
 
 main "$1"
