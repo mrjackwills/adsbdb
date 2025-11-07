@@ -26,6 +26,7 @@ doc_markdown = "allow"
 
 [dependencies]
 argon2 = "0.5"
+async-channel = "2.5"
 axum = {version = "0.8", features=["macros"]}
 dotenvy = "0.15"
 fred = { version = "10.1" }

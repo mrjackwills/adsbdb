@@ -3,11 +3,7 @@ use std::collections::HashMap;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
-use tokio::sync::{
-    broadcast::Sender as BSender,
-    mpsc::{Receiver, Sender},
-    oneshot,
-};
+use tokio::sync::{broadcast::Sender as BSender, oneshot};
 
 #[cfg(not(test))]
 use crate::api::UnknownAC;
@@ -65,7 +61,7 @@ pub struct Scraper {
     photo_url: String,
     allow_scrape_photo: Option<()>,
     postgres: PgPool,
-    tx: Sender<MsgScraper>,
+    tx: async_channel::Sender<MsgScraper>,
 }
 
 #[derive(Debug)]
@@ -99,7 +95,7 @@ impl Scraper {
         &mut self,
         oneshot: oneshot::Sender<Option<ModelFlightroute>>,
         callsign: Callsign,
-        tx: Sender<MsgScraper>,
+        tx: async_channel::Sender<MsgScraper>,
     ) {
         if self.allow_scrape_flightroute.is_none() {
             oneshot.send(None).ok();
@@ -134,7 +130,12 @@ impl Scraper {
     }
 
     /// Scrape for a photo, or if currently being scraper, wait for response
-    fn msg_photo(&mut self, oneshot: oneshot::Sender<()>, mode_s: ModeS, tx: Sender<MsgScraper>) {
+    fn msg_photo(
+        &mut self,
+        oneshot: oneshot::Sender<()>,
+        mode_s: ModeS,
+        tx: async_channel::Sender<MsgScraper>,
+    ) {
         if self.allow_scrape_photo.is_none() {
             oneshot.send(()).ok();
             return;
@@ -165,8 +166,8 @@ impl Scraper {
         }
     }
 
-    pub async fn listen(&mut self, mut rx: Receiver<MsgScraper>) {
-        while let Some(msg) = rx.recv().await {
+    pub async fn listen(&mut self, rx: async_channel::Receiver<MsgScraper>) {
+        while let Ok(msg) = rx.recv().await {
             match msg {
                 MsgScraper::Remove(to_remove) => self.msg_remove(to_remove),
                 MsgScraper::CallSign((oneshot, callsign)) => {
@@ -180,8 +181,8 @@ impl Scraper {
     }
 
     /// Build a new scraper, and spawn in a tokio thread, return a Sender to be inserted into ApplicationState
-    pub fn start(app_env: &AppEnv, postgres: PgPool) -> Sender<MsgScraper> {
-        let (tx, rx) = tokio::sync::mpsc::channel(1024);
+    pub fn start(app_env: &AppEnv, postgres: PgPool) -> async_channel::Sender<MsgScraper> {
+        let (tx, rx) = async_channel::bounded(8192);
         let mut scraper = Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),

@@ -13,7 +13,6 @@ mod scraper;
 
 use api::AppError;
 use parse_env::AppEnv;
-use tokio::sync::mpsc::Sender;
 use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
 
 use crate::{
@@ -56,12 +55,14 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
     }
 }
 
-async fn start_scraper(app_env: &AppEnv) -> Result<Sender<MsgScraper>, AppError> {
+async fn start_scraper(app_env: &AppEnv) -> Result<async_channel::Sender<MsgScraper>, AppError> {
     let postgres = db_postgres::get_pool(app_env).await?;
     Ok(Scraper::start(app_env, postgres))
 }
 
-async fn start_incoming_requests(app_env: &AppEnv) -> Result<Sender<MsgIncomingRequest>, AppError> {
+async fn start_incoming_requests(
+    app_env: &AppEnv,
+) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
     let db = tokio::try_join!(db_postgres::get_pool(app_env), db_redis::get_pool(app_env))?;
     ModelIncomingRequest::start(db.0, db.1).await
 }

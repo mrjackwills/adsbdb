@@ -16,7 +16,7 @@ use std::{
     sync::LazyLock,
     time::Instant,
 };
-use tokio::{signal, sync::mpsc::Sender};
+use tokio::signal;
 use tower::ServiceBuilder;
 use tracing::info;
 
@@ -45,8 +45,8 @@ pub struct ApplicationState {
     postgres: PgPool,
     redis: Pool,
     uptime: Instant,
-    scraper_tx: tokio::sync::mpsc::Sender<MsgScraper>,
-    stats_tx: tokio::sync::mpsc::Sender<MsgIncomingRequest>,
+    scraper_tx: async_channel::Sender<MsgScraper>,
+    stats_tx: async_channel::Sender<MsgIncomingRequest>,
     url_prefix: String,
 }
 
@@ -55,8 +55,8 @@ impl ApplicationState {
         app_env: &AppEnv,
         postgres: PgPool,
         redis: Pool,
-        scraper_tx: tokio::sync::mpsc::Sender<MsgScraper>,
-        stats_tx: tokio::sync::mpsc::Sender<MsgIncomingRequest>,
+        scraper_tx: async_channel::Sender<MsgScraper>,
+        stats_tx: async_channel::Sender<MsgIncomingRequest>,
     ) -> Self {
         Self {
             postgres,
@@ -175,8 +175,8 @@ pub async fn serve(
     app_env: AppEnv,
     postgres: PgPool,
     redis: Pool,
-    tx_scraper: Sender<MsgScraper>,
-    tx_stats: Sender<MsgIncomingRequest>,
+    tx_scraper: async_channel::Sender<MsgScraper>,
+    tx_stats: async_channel::Sender<MsgIncomingRequest>,
 ) -> Result<(), AppError> {
     let application_state = ApplicationState::new(&app_env, postgres, redis, tx_scraper, tx_stats);
 
@@ -424,10 +424,10 @@ pub mod tests {
             let url = format!("http://127.0.0.1:8282{}{}", API_VERSION.as_str(), i.1);
             for _ in 0..=i.0 {
                 reqwest::get(&url).await.unwrap();
+                // Sleep to allow the insert_request thread to correctly insert/update entries
+                sleep!(50);
             }
         }
-        // Sleep to allow the insert_request thread to correctly insert/update entries
-        sleep!(300);
     }
 
     async fn assert_empty_stats_cache(redis: &Pool) {
@@ -475,7 +475,6 @@ pub mod tests {
         assert_empty_stats_cache(&setup.redis).await;
         setup.flush_redis().await;
 
-        // sleep!(1000);
         let result = reqwest::get(&url)
             .await
             .unwrap()

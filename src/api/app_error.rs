@@ -62,10 +62,8 @@ pub enum AppError {
     Registration(String),
     #[error("Reqwest")]
     Reqwest(#[from] reqwest::Error),
-    // #[error("internal error")]
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
-    // #[error("not found")]
     #[error(transparent)]
     SqlxError(#[from] sqlx::Error),
     #[error("unknown")]

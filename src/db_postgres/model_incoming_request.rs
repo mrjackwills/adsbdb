@@ -3,7 +3,6 @@ use fred::prelude::Pool;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgExecutor, PgPool};
-use tokio::sync::mpsc::Sender;
 
 use crate::{
     api::{AppError, Stats, StatsEntry},
@@ -322,13 +321,13 @@ impl ModelIncomingRequest {
     pub async fn start(
         postgres: PgPool,
         redis: Pool,
-    ) -> Result<Sender<MsgIncomingRequest>, AppError> {
+    ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
         Self::get_stats(&postgres, &redis).await?;
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(8192);
-        let mut now = std::time::Instant::now();
+        let (tx, rx) = async_channel::bounded(8192);
         tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
+            let mut now = std::time::Instant::now();
+            while let Ok(msg) = rx.recv().await {
                 if let Err(e) = match msg {
                     MsgIncomingRequest::Url(i) => Self::insert_request(&postgres, i).await,
                 } {
@@ -343,6 +342,7 @@ impl ModelIncomingRequest {
                 }
             }
         });
+
         Ok(tx)
     }
 }

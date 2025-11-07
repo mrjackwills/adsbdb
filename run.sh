@@ -114,10 +114,6 @@ run_migrations() {
 		restart_base_containers
 		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
 	fi
-	# Probaly not required
-	if ask_yn "restart base containers"; then
-		restart_base_containers
-	fi
 }
 
 dev_up() {
