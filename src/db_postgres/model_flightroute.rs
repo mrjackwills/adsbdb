@@ -95,7 +95,7 @@ WITH random_flightroute AS (
             flightroute
         )
     )
-  LIMIT 500
+  LIMIT 150
 )
   
 SELECT
