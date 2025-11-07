@@ -375,3 +375,5 @@ UNIQUE (incoming_request_url_version_id, incoming_request_url_path_id, incoming_
 COMMIT;
 
 ALTER TABLE incoming_request_url DROP COLUMN request_url;
+
+-- v0.5.0

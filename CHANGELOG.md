@@ -10,6 +10,7 @@
 ### Features
 + Independent database connections for each thread, [21bcdf1cff29faecbda68d9ee927f34fb8cef9ee]
 + update random flightroute, [e7f55bf6f6cfd9f21c0d9289d7ffad3248d27ca9]
++ use bounded async_channel instead of tokio::sync::mpsc, [bcc32f098dec8a13ffb2379613033115ff8b4d71]
 
 ### Fixes
 + allow '+' in registrations, closes #60, [14a4653d7707243bdb9cc11780e69faeb652d36b]
