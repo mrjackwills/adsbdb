@@ -409,7 +409,7 @@ release_flow() {
 
 	cargo_test
 	cargo_cross_build_all 0
-	build_container_all
+	build_container_all 0
 
 	cd "${CWD}" || error_close "Can't find ${CWD}"
 	check_tag
