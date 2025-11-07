@@ -3,7 +3,7 @@ networks:
     name: dev-adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.5.0
+    image: adsbdb_postgres:0.6.0
     container_name: adsbdb_postgres
     build:
       context: /workspaces/adsbdb/
@@ -17,8 +17,7 @@ services:
     restart: always
     shm_size: 512MB
     volumes:
-      - /ramdrive/adsbdb/pg_data:/pg_data
-    command: -p 5432
+      - /data/adsbdb/pg_data:/pg_data
     ports:
       - 127.0.0.1:5432:5432
     networks:
@@ -36,10 +35,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 2048MB
 
   adsbdb_redis:
-    image: adsbdb_redis:0.5.0
+    image: adsbdb_redis:0.6.0
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -47,7 +46,7 @@ services:
       dockerfile: /workspaces/adsbdb/docker/dockerfile/redis.Dockerfile
     env_file: /workspaces/adsbdb/docker/env/.redis.env
     volumes:
-      - /ramdrive/adsbdb/redis_data:/redis_data
+      - /data/adsbdb/redis_data:/redis_data
     cap_drop:
       - all
     security_opt:
@@ -55,7 +54,7 @@ services:
     ipc: private
     restart: always
     ports:
-      - 127.0.0.1:6380:6380
+      - 127.0.0.1:6379:6379
     networks:
       - dev-adsbdb-net
     logging:
@@ -70,9 +69,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 32MB
+          memory: 1024MB
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.5.0
+    image: adsbdb_postgres_backup:0.6.0
     container_name: adsbdb_postgres_backup
     build:
       context: /workspaces/adsbdb/
@@ -84,9 +83,9 @@ services:
       - no-new-privileges
     ipc: private
     volumes:
-      - /ramdrive/adsbdb/backups:/backups
-      - /ramdrive/adsbdb/redis_data:/redis_data:ro
-      - /ramdrive/adsbdb/logs:/logs
+      - /data/adsbdb/backups:/backups
+      - /data/adsbdb/redis_data:/redis_data:ro
+      - /data/adsbdb/logs:/logs
     networks:
       - dev-adsbdb-net
     logging:
@@ -102,14 +101,14 @@ services:
         limits:
           memory: 32M
   adsbdb_api:
-    image: adsbdb_api:0.5.0
+    image: adsbdb_api:0.6.0
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
       context: /workspaces/adsbdb/
       dockerfile: /workspaces/adsbdb/docker/dockerfile/api.Dockerfile
     volumes:
-      - /ramdrive/adsbdb/logs:/logs
+      - /data/adsbdb/logs:/logs
       - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8282:8282"

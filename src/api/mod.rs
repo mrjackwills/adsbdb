@@ -28,10 +28,10 @@ mod update_routes;
 
 use crate::{
     S,
-    db_postgres::{ModelIncomingRequest, MsgIncomingRequest, UriMethod},
+    db_postgres::{MsgIncomingRequest, UriMethod},
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
-    scraper::{Scraper, ScraperMsg},
+    scraper::MsgScraper,
 };
 pub use app_error::*;
 pub use input::{AircraftSearch, AirlineCode, Callsign, ModeS, NNumber, Registration, Validate};
@@ -45,8 +45,8 @@ pub struct ApplicationState {
     postgres: PgPool,
     redis: Pool,
     uptime: Instant,
-    scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
-    stats_tx: tokio::sync::mpsc::Sender<MsgIncomingRequest>,
+    scraper_tx: async_channel::Sender<MsgScraper>,
+    stats_tx: async_channel::Sender<MsgIncomingRequest>,
     url_prefix: String,
 }
 
@@ -55,8 +55,8 @@ impl ApplicationState {
         app_env: &AppEnv,
         postgres: PgPool,
         redis: Pool,
-        scraper_tx: tokio::sync::mpsc::Sender<ScraperMsg>,
-        stats_tx: tokio::sync::mpsc::Sender<MsgIncomingRequest>,
+        scraper_tx: async_channel::Sender<MsgScraper>,
+        stats_tx: async_channel::Sender<MsgIncomingRequest>,
     ) -> Self {
         Self {
             postgres,
@@ -171,11 +171,14 @@ fn get_addr(app_env: &AppEnv) -> Result<SocketAddr, AppError> {
 
 /// Serve the app!
 #[allow(clippy::cognitive_complexity)]
-pub async fn serve(app_env: AppEnv, postgres: PgPool, redis: Pool) -> Result<(), AppError> {
-    let scraper_tx = Scraper::start(&app_env, &postgres);
-    let stats_tx = ModelIncomingRequest::start(&postgres, &redis).await?;
-
-    let application_state = ApplicationState::new(&app_env, postgres, redis, scraper_tx, stats_tx);
+pub async fn serve(
+    app_env: AppEnv,
+    postgres: PgPool,
+    redis: Pool,
+    tx_scraper: async_channel::Sender<MsgScraper>,
+    tx_stats: async_channel::Sender<MsgIncomingRequest>,
+) -> Result<(), AppError> {
+    let application_state = ApplicationState::new(&app_env, postgres, redis, tx_scraper, tx_stats);
 
     let mut api_router = Router::new()
         .route(
@@ -292,13 +295,14 @@ async fn shutdown_signal() {
 #[cfg(test)]
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
-    use std::thread::sleep;
 
     use super::*;
 
     use crate::db_postgres;
     use crate::db_redis;
     use crate::parse_env;
+    use crate::start_incoming_requests;
+    use crate::start_scraper;
 
     use fred::interfaces::ClientLike;
     use fred::interfaces::KeysInterface;
@@ -372,8 +376,13 @@ pub mod tests {
         let app_env = setup.app_env.clone();
         let redis = setup.redis.clone();
 
+        // need to set up scrapers here
+        let tx_scraper = start_scraper(&app_env).await.unwrap();
+        let tx_stats = start_incoming_requests(&app_env).await.unwrap();
         let handle = tokio::spawn(async {
-            serve(app_env, postgres, redis).await.unwrap();
+            serve(app_env, postgres, redis, tx_scraper, tx_stats)
+                .await
+                .unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
         // Will seed that stats in redis, so now need 100ms
@@ -413,12 +422,12 @@ pub mod tests {
         ];
         for i in urls.iter().enumerate() {
             let url = format!("http://127.0.0.1:8282{}{}", API_VERSION.as_str(), i.1);
-            for x in 0..=i.0 {
+            for _ in 0..=i.0 {
                 reqwest::get(&url).await.unwrap();
+                // Sleep to allow the insert_request thread to correctly insert/update entries
+                sleep!(50);
             }
         }
-        /// Sleep to allow the insert_request thread to correctly insert/update entries
-        sleep!(300);
     }
 
     async fn assert_empty_stats_cache(redis: &Pool) {
@@ -462,9 +471,10 @@ pub mod tests {
 
         seed_stats().await;
 
-        /// Cache only gets update every ten minutes, so should still be empty here
+        // Cache only gets update every ten minutes, so should still be empty here
         assert_empty_stats_cache(&setup.redis).await;
         setup.flush_redis().await;
+
         let result = reqwest::get(&url)
             .await
             .unwrap()
@@ -489,18 +499,12 @@ pub mod tests {
         seed_stats().await;
         setup.flush_redis().await;
 
-        let result = reqwest::get(&url)
-            .await
-            .unwrap()
-            .json::<TestResponseT<Stats>>()
-            .await
-            .unwrap();
-
         sqlx::query!(
             "UPDATE temp_incoming_request SET timestamp = (CURRENT_TIMESTAMP - INTERVAL '25 hours')"
         )
         .execute(&setup.postgres)
-        .await;
+        .await
+        .unwrap();
 
         setup.flush_redis().await;
         let result = reqwest::get(&url)

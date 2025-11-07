@@ -136,9 +136,6 @@ update_version_number_in_files() {
 	# update version in cargo.toml, to match selected current version
 	sed -i "s|^version = .*|version = \"${MAJOR}.${MINOR}.${PATCH}\"|" Cargo.toml
 
-	# update nginx api config location with new major version
-	sed -i -r -E "s=location \/v[0-9]+\/=location /v${MAJOR}\/=g" ./nginx_confs/api.adsbdb.com.conf
-
 	# update docker api healthcheck
 	sed -i -r -E "s=v[0-9]+=v${MAJOR}=g" ./docker/healthcheck/health_api.sh
 
@@ -148,14 +145,6 @@ update_version_number_in_files() {
 	# update dev-docker compose image version
 	sed -i -r -E "s=image: (\w+):[0-9]+\.[0-9]+\.[0-9]+=image: \1:${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dev.docker-compose.yml
 
-	# update endpoint in website js
-	sed -i -r -E "s=https://api.adsbdb.com/v[0-9]+/online=https://api.adsbdb.com/v${MAJOR}/online=g" ./site/online.js
-
-	# update endpoint in website html
-	sed -i -r -E "s=https://api.adsbdb.com/v[0-9]+=https://api.adsbdb.com/v${MAJOR}=g" ./site/index.html
-
-	# Update version number on api dockerfile, to download latest release from github
-	# sed -i -r -E "s=download/v[0-9]+.[0-9]+.[0-9]+=download/v${MAJOR}.${MINOR}.${PATCH}=g" ./docker/dockerfile/api.Dockerfile
 }
 
 # Work out the current version, based on git tags
@@ -409,7 +398,7 @@ release_flow() {
 
 	cargo_test
 	cargo_cross_build_all 0
-	build_container_all
+	build_container_all 0
 
 	cd "${CWD}" || error_close "Can't find ${CWD}"
 	check_tag

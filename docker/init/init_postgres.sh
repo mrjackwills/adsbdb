@@ -29,7 +29,7 @@ run_migrations() {
 	fi
 }
 
-# restore a db from a pg_dump file
+# # restore a db from a pg_dump file
 restore_pg_dump() {
 	echo "restore_pg_dump"
 	pg_restore -U "${POSTGRES_USER}" -O --exit-on-error --single-transaction -d "${DB_NAME}" -v /init/pg_dump.tar
@@ -59,12 +59,11 @@ create_tables() {
 }
 
 main() {
-	if [ ! "$1" == "migrations" ]; then
-		echo "running not mig"
-		create_adsbdb_user
+	if [ "$1" == "migrations" ]; then
+		run_migrations
+	else
 		create_tables
 	fi
-	run_migrations
 }
 
 main "$1"

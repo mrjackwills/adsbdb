@@ -249,19 +249,18 @@ pub async fn aircraft_patch(
 
     current_aircraft.update(state.postgres, &body).await?;
 
-    // Delete cache
-    state
-        .redis
-        .del::<(), String>(format!("mode_s::{}", current_aircraft.mode_s))
-        .await?;
-    state
-        .redis
-        .del::<(), String>(format!("registration::{}", current_aircraft.registration))
-        .await?;
-    state
-        .redis
-        .del::<(), String>(format!("registration::{}", body.registration))
-        .await?;
+    // Delete caches
+    tokio::try_join!(
+        state
+            .redis
+            .del::<(), String>(format!("mode_s::{}", current_aircraft.mode_s)),
+        state
+            .redis
+            .del::<(), String>(format!("registration::{}", current_aircraft.registration)),
+        state
+            .redis
+            .del::<(), String>(format!("registration::{}", body.registration))
+    )?;
 
     Ok(StatusCode::OK)
 }
@@ -279,6 +278,8 @@ pub mod tests {
     use crate::api::tests::test_setup;
     use crate::parse_env::AppEnv;
     use crate::sleep;
+    use crate::start_incoming_requests;
+    use crate::start_scraper;
 
     use fred::prelude::{HashesInterface, Pool};
     use reqwest::{Client, StatusCode};
@@ -324,8 +325,14 @@ pub mod tests {
         let postgres = setup.postgres.clone();
 
         let redis = setup.redis.clone();
+
+        let tx_scraper = start_scraper(&app_env).await.unwrap();
+        let tx_stats = start_incoming_requests(&app_env).await.unwrap();
+
         let handle = tokio::spawn(async move {
-            serve(spawn_env, postgres, redis).await.unwrap();
+            serve(spawn_env, postgres, redis, tx_scraper, tx_stats)
+                .await
+                .unwrap();
         });
         // just sleep to make sure the server is running - 1ms is enough
         sleep!(100);

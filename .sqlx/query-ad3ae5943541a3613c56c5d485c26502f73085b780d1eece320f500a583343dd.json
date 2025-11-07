@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO incoming_request_url_version(url_version) VALUES ($1) ON CONFLICT (url_version)\n        DO UPDATE SET url_version = EXCLUDED.url_version\n        RETURNING incoming_request_url_version_id AS id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ad3ae5943541a3613c56c5d485c26502f73085b780d1eece320f500a583343dd"
+}

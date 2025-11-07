@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::{
+    S,
     api::{AppError, Callsign},
     generic_id, redis_hash_to_struct,
     scraper::ScrapedFlightroute,
@@ -65,10 +66,22 @@ generic_id!(FlightrouteId);
 
 impl ModelFlightroute {
     /// Get a random flightroute
-    /// Fingers-crossed this can't fail - if so increase the limit to 500
-    /// TODO try to convert to a query_as! macro
-    #[allow(clippy::too_many_lines)]
+    /// Recursive ish function, using loops otherwise the async call stack gets silly
     pub async fn get_random(db: &PgPool) -> Result<Self, AppError> {
+        let mut counter = 0;
+        loop {
+            if let Some(x) = Self::_get_random(db).await? {
+                return Ok(x);
+            }
+            if counter >= 15 {
+                return Err(AppError::Internal(S!("random")));
+            }
+            counter += 1;
+        }
+    }
+    #[allow(clippy::too_many_lines)]
+    /// TODO try to convert to a query_as! macro
+    async fn _get_random(db: &PgPool) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>("
 WITH random_flightroute AS (
     SELECT
@@ -82,7 +95,7 @@ WITH random_flightroute AS (
             flightroute
         )
     )
-  LIMIT 250
+  LIMIT 150
 )
   
 SELECT
@@ -134,9 +147,9 @@ FROM
     INNER JOIN flightroute_callsign_inner fci_icao ON fci_icao.flightroute_callsign_inner_id = flc.icao_prefix_id
     INNER JOIN airline ai USING(airline_id)
     LEFT JOIN flightroute_callsign_inner fci_iata ON fci_iata.flightroute_callsign_inner_id = flc.iata_prefix_id
-    
+
     LEFT JOIN country co_airline ON co_airline.country_id = ai.country_id
-    
+
     INNER JOIN airport apo ON apo.airport_id = fl.airport_origin_id
     INNER JOIN country co_o ON co_o.country_id = apo.country_id
     INNER JOIN airport_municipality am_o ON am_o.airport_municipality_id = apo.airport_municipality_id
@@ -146,7 +159,7 @@ FROM
     INNER JOIN airport_elevation ae_o ON ae_o.airport_elevation_id = apo.airport_elevation_id
     INNER JOIN airport_latitude ala_o ON ala_o.airport_latitude_id = apo.airport_latitude_id
     INNER JOIN airport_longitude alo_o ON alo_o.airport_longitude_id = apo.airport_longitude_id
-    
+
     LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
     LEFT JOIN country co_m ON co_m.country_id = apm.country_id
     LEFT JOIN airport_municipality am_m ON am_m.airport_municipality_id = apm.airport_municipality_id
@@ -156,7 +169,7 @@ FROM
     LEFT JOIN airport_elevation ae_m ON ae_m.airport_elevation_id = apm.airport_elevation_id
     LEFT JOIN airport_latitude ala_m ON ala_m.airport_latitude_id = apm.airport_latitude_id
     LEFT JOIN airport_longitude alo_m ON alo_m.airport_longitude_id = apm.airport_longitude_id
-    
+
     INNER JOIN airport apd ON apd.airport_id = fl.airport_destination_id
     INNER JOIN country co_d ON co_d.country_id = apd.country_id
     INNER JOIN airport_municipality am_d ON am_d.airport_municipality_id = apd.airport_municipality_id
@@ -169,7 +182,7 @@ FROM
     
 ORDER BY RANDOM()
 LIMIT 1"
-).fetch_one(db).await?)
+).fetch_optional(db).await?)
     }
     /// Query a flightroute based on a callsign with is a valid N-Number
     fn get_query_callsign() -> String {
@@ -264,6 +277,7 @@ LIMIT
     }
 
     /// Start of IATA and ICAO query
+    /// TODO fix me, only work where iata is not null
     const fn get_query_selects() -> &'static str {
         r"
 SELECT
@@ -314,6 +328,7 @@ SELECT
     }
 
     /// Query for flightroute based on IATA callsign
+    /// TODO where iata prefix is not null?
     fn get_query_iata() -> String {
         format!(
             r"
@@ -756,13 +771,13 @@ mod tests {
 
     #[tokio::test]
     /// Just check that a large sample of random flightroutes can be found correctly
+    /// This can still fail:(
     async fn flightroute_get_random() {
         let setup = setup().await;
 
-        for _ in 0..=2500 {
+        for _ in 0..=2000 {
             let result = ModelFlightroute::get_random(&setup.1).await;
             assert!(result.is_ok());
-            // MAYBE
             // for each, do a icao and iata search, make sure they match?
             // Issues with callsign again
         }

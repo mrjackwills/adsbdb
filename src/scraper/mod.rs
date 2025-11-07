@@ -3,11 +3,7 @@ use std::collections::HashMap;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
-use tokio::sync::{
-    broadcast::Sender as BSender,
-    mpsc::{Receiver, Sender},
-    oneshot,
-};
+use tokio::sync::{broadcast::Sender as BSender, oneshot};
 
 #[cfg(not(test))]
 use crate::api::UnknownAC;
@@ -65,7 +61,7 @@ pub struct Scraper {
     photo_url: String,
     allow_scrape_photo: Option<()>,
     postgres: PgPool,
-    tx: Sender<ScraperMsg>,
+    tx: async_channel::Sender<MsgScraper>,
 }
 
 #[derive(Debug)]
@@ -75,7 +71,7 @@ pub enum ToRemove {
 }
 
 #[derive(Debug)]
-pub enum ScraperMsg {
+pub enum MsgScraper {
     CallSign((oneshot::Sender<Option<ModelFlightroute>>, Callsign)),
     Remove(ToRemove),
     Photo((oneshot::Sender<()>, ModeS)),
@@ -99,7 +95,7 @@ impl Scraper {
         &mut self,
         oneshot: oneshot::Sender<Option<ModelFlightroute>>,
         callsign: Callsign,
-        tx: Sender<ScraperMsg>,
+        tx: async_channel::Sender<MsgScraper>,
     ) {
         if self.allow_scrape_flightroute.is_none() {
             oneshot.send(None).ok();
@@ -108,9 +104,8 @@ impl Scraper {
         if let Some(int_tx) = self.callsign_requests.get(&callsign) {
             let mut int_rx = int_tx.subscribe();
             tokio::spawn(async move {
-                let t = int_rx.recv().await.unwrap_or(None);
-                oneshot.send(t).ok();
-                tx.send(ScraperMsg::Remove(ToRemove::Callsign(callsign)))
+                oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
+                tx.send(MsgScraper::Remove(ToRemove::Callsign(callsign)))
                     .await
                     .ok();
             });
@@ -127,7 +122,7 @@ impl Scraper {
             tokio::spawn(async move {
                 Self::spawn_callsign(data.0, &data.1, data.2, int_tx).await;
                 oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
-                tx.send(ScraperMsg::Remove(ToRemove::Callsign(data.1)))
+                tx.send(MsgScraper::Remove(ToRemove::Callsign(data.1)))
                     .await
                     .ok();
             });
@@ -135,7 +130,12 @@ impl Scraper {
     }
 
     /// Scrape for a photo, or if currently being scraper, wait for response
-    fn msg_photo(&mut self, oneshot: oneshot::Sender<()>, mode_s: ModeS, tx: Sender<ScraperMsg>) {
+    fn msg_photo(
+        &mut self,
+        oneshot: oneshot::Sender<()>,
+        mode_s: ModeS,
+        tx: async_channel::Sender<MsgScraper>,
+    ) {
         if self.allow_scrape_photo.is_none() {
             oneshot.send(()).ok();
             return;
@@ -146,7 +146,7 @@ impl Scraper {
             tokio::spawn(async move {
                 int_tx.recv().await.ok();
                 oneshot.send(()).ok();
-                tx.send(ScraperMsg::Remove(ToRemove::Photo(mode_s)))
+                tx.send(MsgScraper::Remove(ToRemove::Photo(mode_s)))
                     .await
                     .ok();
             });
@@ -159,21 +159,21 @@ impl Scraper {
                 Self::spawn_photo(data.0, &data.1, data.2, int_tx).await;
                 int_rx.recv().await.ok();
                 oneshot.send(()).ok();
-                tx.send(ScraperMsg::Remove(ToRemove::Photo(data.1)))
+                tx.send(MsgScraper::Remove(ToRemove::Photo(data.1)))
                     .await
                     .ok();
             });
         }
     }
 
-    pub async fn listen(&mut self, mut rx: Receiver<ScraperMsg>) {
-        while let Some(msg) = rx.recv().await {
+    pub async fn listen(&mut self, rx: async_channel::Receiver<MsgScraper>) {
+        while let Ok(msg) = rx.recv().await {
             match msg {
-                ScraperMsg::Remove(to_remove) => self.msg_remove(to_remove),
-                ScraperMsg::CallSign((oneshot, callsign)) => {
+                MsgScraper::Remove(to_remove) => self.msg_remove(to_remove),
+                MsgScraper::CallSign((oneshot, callsign)) => {
                     self.msg_callsign(oneshot, callsign, self.tx.clone());
                 }
-                ScraperMsg::Photo((oneshot, mode_s)) => {
+                MsgScraper::Photo((oneshot, mode_s)) => {
                     self.msg_photo(oneshot, mode_s, self.tx.clone());
                 }
             }
@@ -181,8 +181,8 @@ impl Scraper {
     }
 
     /// Build a new scraper, and spawn in a tokio thread, return a Sender to be inserted into ApplicationState
-    pub fn start(app_env: &AppEnv, postgres: &PgPool) -> Sender<ScraperMsg> {
-        let (tx, rx) = tokio::sync::mpsc::channel(1024);
+    pub fn start(app_env: &AppEnv, postgres: PgPool) -> async_channel::Sender<MsgScraper> {
+        let (tx, rx) = async_channel::bounded(8192);
         let mut scraper = Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
@@ -190,7 +190,7 @@ impl Scraper {
             allow_scrape_photo: app_env.allow_scrape_photo,
             callsign_requests: HashMap::new(),
             photo_requests: HashMap::new(),
-            postgres: postgres.clone(),
+            postgres,
             tx: tx.clone(),
         };
         tokio::spawn(async move {
@@ -543,9 +543,9 @@ pub mod tests {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
-        let sender = Scraper::start(&setup.0, &setup.1);
+        let sender = Scraper::start(&setup.0, setup.1.clone());
         let (s, r) = oneshot::channel();
-        sender.send(ScraperMsg::CallSign((s, callsign))).await.ok();
+        sender.send(MsgScraper::CallSign((s, callsign))).await.ok();
 
         let result = r.await;
 
@@ -604,10 +604,10 @@ pub mod tests {
         let mut setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
         setup.0.allow_scrape_flightroute = None;
-        let sender = Scraper::start(&setup.0, &setup.1);
+        let sender = Scraper::start(&setup.0, setup.1.clone());
 
         let (s, r) = oneshot::channel();
-        sender.send(ScraperMsg::CallSign((s, callsign))).await.ok();
+        sender.send(MsgScraper::CallSign((s, callsign))).await.ok();
 
         let result = r.await;
         assert!(result.is_ok());
@@ -618,7 +618,7 @@ pub mod tests {
     #[tokio::test]
     async fn scraper_get_photo() {
         let setup = test_setup().await;
-        let sender = Scraper::start(&setup.0, &setup.1);
+        let sender = Scraper::start(&setup.0, setup.1.clone());
 
         let mode_s = ModeS::from(S!("393C00"));
 
@@ -636,7 +636,7 @@ pub mod tests {
 
         let (s, r) = oneshot::channel();
         sender
-            .send(ScraperMsg::Photo((s, mode_s.clone())))
+            .send(MsgScraper::Photo((s, mode_s.clone())))
             .await
             .unwrap();
         let result = r.await;
@@ -667,7 +667,7 @@ pub mod tests {
     async fn scraper_get_photo_null() {
         let mut setup = test_setup().await;
         setup.0.allow_scrape_photo = None;
-        let sender = Scraper::start(&setup.0, &setup.1);
+        let sender = Scraper::start(&setup.0, setup.1.clone());
 
         let mode_s = ModeS::from(S!("393C00"));
 
@@ -685,7 +685,7 @@ pub mod tests {
 
         let (s, r) = oneshot::channel();
         sender
-            .send(ScraperMsg::Photo((s, mode_s.clone())))
+            .send(MsgScraper::Photo((s, mode_s.clone())))
             .await
             .unwrap();
         let result = r.await;

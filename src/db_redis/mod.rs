@@ -15,7 +15,6 @@ pub mod ratelimit;
 
 pub const ONE_MINUTE_AS_SEC: i64 = 60;
 pub const ONE_WEEK_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 60 * 24 * 7;
-pub const TEN_MINUTES_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 10;
 pub const HASH_FIELD: &str = "data";
 
 /// Macro to convert a stringified struct back into the struct
@@ -44,7 +43,7 @@ macro_rules! redis_hash_to_struct {
 pub async fn insert_cache<T: Serialize + Send + Sync>(
     redis: &Pool,
     to_insert: Option<&T>,
-    key: &RedisKey<'_>,
+    key: RedisKey<'_>,
 ) -> Result<(), AppError> {
     let ttl = match key {
         RedisKey::Stats => ONE_MINUTE_AS_SEC,
