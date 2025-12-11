@@ -26,6 +26,7 @@ services:
       resources:
         limits:
           memory: 2048MB
+          # todo limit cpu here?
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
