@@ -1,4 +1,3 @@
-# TODO update me to version 18 once the postgresql-18 client is available for Alpine
 FROM postgres:18-alpine3.23
 
 ARG DOCKER_GUID=1000 \
