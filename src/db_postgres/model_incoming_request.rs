@@ -323,9 +323,9 @@ impl ModelIncomingRequest {
         redis: Pool,
     ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
         Self::get_stats(&postgres, &redis).await?;
-		// TODO issue with this!
-		// Run the stats all the time on it's own thread, and increase the bounded messages here
-		// Always return the stats cache, but insert new every minute
+        // TODO issue with this!
+        // Run the stats all the time on it's own thread, and increase the bounded messages here
+        // Always return the stats cache, but insert new every minute
 
         let (tx, rx) = async_channel::bounded(8192);
         tokio::spawn(async move {

@@ -14,8 +14,6 @@ readme = "README.md"
 unsafe_code = "forbid"
 
 [lints.clippy]
-nursery = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
 enum_glob_use = "deny"
 expect_used = "warn"
 todo = "warn"
@@ -35,13 +33,11 @@ jiff = { version="0.2", features = ["serde"] }
 jiff-sqlx = {version = "0.1", features = ["postgres"] }
 mimalloc = "0.1"
 rand = { version = "0.8" }
-reqwest = { version = "0.12", default-features = false, features = [
+reqwest = { version = "0.13", default-features = false, features = [
 	"brotli",
-	"cookies",
 	"gzip",
 	"json",
-	"multipart",
-	"rustls-tls",
+	"default-tls"
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -52,7 +48,7 @@ sqlx = { version = "0.8", features = [
 	"time",
 ] }
 thiserror = "2.0"
-tokio = { version = "1.48", features = ["full"] }
+tokio = { version = "1.49", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["full"] }
 tracing = "0.1"
