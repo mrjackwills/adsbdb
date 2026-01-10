@@ -45,6 +45,8 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     to_insert: Option<&T>,
     key: RedisKey<'_>,
 ) -> Result<(), AppError> {
+	// NO NEED FOR THIS!
+	// ALways use a week, and update the cache seperatley in the incoming request section!
     let ttl = match key {
         RedisKey::Stats => ONE_MINUTE_AS_SEC,
         _ => ONE_WEEK_AS_SEC,

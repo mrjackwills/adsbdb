@@ -121,7 +121,7 @@ GROUP BY
     '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
 ORDER BY "count!" DESC, "url!"
 LIMIT 10
-"#,$path
+"#, $path
         )
         .fetch_all($pg)
     };
@@ -323,6 +323,9 @@ impl ModelIncomingRequest {
         redis: Pool,
     ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
         Self::get_stats(&postgres, &redis).await?;
+		// TODO issue with this!
+		// Run the stats all the time on it's own thread, and increase the bounded messages here
+		// Always return the stats cache, but insert new every minute
 
         let (tx, rx) = async_channel::bounded(8192);
         tokio::spawn(async move {

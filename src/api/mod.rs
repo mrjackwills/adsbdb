@@ -90,8 +90,7 @@ fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 /// if neither headers work, use the optional socket address from axum
 pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
     x_forwarded_for(headers)
-        .or_else(|| x_real_ip(headers))
-        .map_or_else(|| addr.0.ip(), |ip_addr| ip_addr)
+        .or_else(|| x_real_ip(headers)).unwrap_or_else(|| addr.0.ip())
 }
 
 /// Limit the users request based on ip address, using redis as mem store
