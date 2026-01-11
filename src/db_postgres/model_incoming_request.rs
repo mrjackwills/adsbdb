@@ -7,9 +7,18 @@ use sqlx::{FromRow, PgExecutor, PgPool};
 use crate::{
     api::{AppError, Stats, StatsEntry},
     db_postgres::ID,
-    db_redis::{ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache},
+    db_redis::{RedisKey, get_cache, insert_cache},
     redis_hash_to_struct,
 };
+
+#[cfg(not(test))]
+use crate::db_redis::ONE_MINUTE_AS_SEC;
+
+#[cfg(test)]
+const RE_SEED_TIME: i64 = 1;
+
+#[cfg(not(test))]
+const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UriMethod(Uri, Method);
@@ -236,13 +245,6 @@ impl ModelIncomingRequest {
         Ok(())
     }
 
-    // Get usgae stats from postgres
-    async fn _get(postgres: &PgPool) -> Result<Stats, AppError> {
-        let daily = Self::get_daily(postgres).await?;
-        let total = Self::get_total(postgres).await?;
-        Ok(Stats { daily, total })
-    }
-
     /// Return stats for aircraft & flightroutes for previous 24 hours
     #[allow(clippy::too_many_lines)]
     async fn get_daily(postgres: &PgPool) -> Result<StatsEntry, AppError> {
@@ -302,47 +304,61 @@ impl ModelIncomingRequest {
         })
     }
 
-    /// Get stats, first check cache, then try postgres, will insert to cache if not found
+    async fn seed_redis(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
+        let statistics = Self::get_daily_total_postgres(postgres).await?;
+        insert_cache(redis, Some(&statistics), RedisKey::Stats).await?;
+        Ok(())
+    }
+
+    /// Get usage stats from postgres - this is a slow query
+    async fn get_daily_total_postgres(postgres: &PgPool) -> Result<Stats, AppError> {
+        let daily = Self::get_daily(postgres).await?;
+        let total = Self::get_total(postgres).await?;
+        Ok(Stats { daily, total })
+    }
+
     pub async fn get_stats(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
-        Self::delete_temp(postgres).await?;
-        let redis_key = RedisKey::Stats;
-        if let Some(Some(cache_stats)) = get_cache::<Stats>(redis, &redis_key).await? {
-            Ok(cache_stats)
+        if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
+            Ok(stats)
         } else {
-            let statistics = Self::_get(postgres).await?;
-            insert_cache(redis, Some(&statistics), redis_key).await?;
-            Ok(statistics)
+            Self::get_daily_total_postgres(postgres).await
+        }
+    }
+
+    /// Check if the stats need to be re-seeded into Redis
+    /// If so, will be spawned into new tokio thread
+    /// RE_SEED_TIME is vastly reduced when testing
+    fn check_to_re_seed(now: &mut std::time::Instant, postgres: &PgPool, redis: &Pool) {
+        if now.elapsed().as_secs() >= u64::try_from(RE_SEED_TIME).unwrap_or_default() {
+            *now = std::time::Instant::now();
+            let (postgres, redis) = (postgres.clone(), redis.clone());
+            tokio::spawn(async move {
+                if let Err(e) = Self::seed_redis(&postgres, &redis).await {
+                    tracing::error!("{e:?}");
+                }
+            });
         }
     }
 
     /// Create a message handler on it's own tokio thread, and return it's message sender
     /// Will insert request_statistics on each message received
-    /// Will insert cache stats every ten minutes - assuming it has recieved any messages at all in that time period
+    /// Will insert cache stats every 60 seconds - assuming it has recieved any messages at all in that time period
     pub async fn start(
         postgres: PgPool,
         redis: Pool,
     ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
-        Self::get_stats(&postgres, &redis).await?;
-        // TODO issue with this!
-        // Run the stats all the time on it's own thread, and increase the bounded messages here
-        // Always return the stats cache, but insert new every minute
-
+        Self::seed_redis(&postgres, &redis).await?;
         let (tx, rx) = async_channel::bounded(8192);
         tokio::spawn(async move {
             let mut now = std::time::Instant::now();
             while let Ok(msg) = rx.recv().await {
                 if let Err(e) = match msg {
+                    // Spawn each request into own thread - probably not needed
                     MsgIncomingRequest::Url(i) => Self::insert_request(&postgres, i).await,
                 } {
                     tracing::error!("{e:?}");
                 }
-
-                if now.elapsed().as_secs() > u64::try_from(ONE_MINUTE_AS_SEC).unwrap_or_default() {
-                    if let Err(e) = Self::get_stats(&postgres, &redis).await {
-                        tracing::error!("{e:?}");
-                    }
-                    now = std::time::Instant::now();
-                }
+                Self::check_to_re_seed(&mut now, &postgres, &redis);
             }
         });
 

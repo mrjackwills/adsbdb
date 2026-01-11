@@ -417,7 +417,7 @@ pub mod tests {
     }
 
     /// Make request to all endpoints to seed incoming_request entries
-    async fn seed_stats() {
+    async fn test_seed_stats() {
         let urls = [
             "/aircraft/test",
             "/airline/test",
@@ -468,6 +468,7 @@ pub mod tests {
             .await
             .unwrap();
 
+        sleep!(1500);
         assert_eq!(result.response.daily.aircraft, vec![]);
         assert_eq!(result.response.daily.aircraft, vec![]);
         assert_eq!(result.response.daily.callsign, vec![]);
@@ -477,7 +478,7 @@ pub mod tests {
         assert_eq!(result.response.daily.stats, vec![]);
         assert_eq!(result.response.daily.aggregate, 0);
 
-        seed_stats().await;
+        test_seed_stats().await;
 
         // Cache only gets update every ten minutes, so should still be empty here
         assert_empty_stats_cache(&setup.redis).await;
@@ -496,8 +497,9 @@ pub mod tests {
             serde_json::to_string(&result.response.daily).unwrap(),
             r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":2}],"aggregate":23}"#
         );
+
         let ttl: i64 = setup.redis.ttl("stats").await.unwrap();
-        assert!((59..=60).contains(&ttl));
+        assert!((296..=300).contains(&ttl));
     }
 
     #[tokio::test]
@@ -506,7 +508,7 @@ pub mod tests {
         let setup = start_server().await;
         let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
         assert_empty_stats_cache(&setup.redis).await;
-        seed_stats().await;
+        test_seed_stats().await;
         setup.flush_redis().await;
 
         sqlx::query!(
@@ -517,6 +519,15 @@ pub mod tests {
         .unwrap();
 
         setup.flush_redis().await;
+        CLIENT
+            .get(&url)
+            .send()
+            .await
+            .unwrap()
+            .json::<TestResponseT<Stats>>()
+            .await
+            .unwrap();
+        sleep!(1500);
         let result = CLIENT
             .get(&url)
             .send()

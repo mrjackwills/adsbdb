@@ -367,7 +367,7 @@ build_choice() {
 			exit
 			;;
 		1)
-			cargo_build_x86
+			cargo_build
 			exit
 			;;
 		2)
