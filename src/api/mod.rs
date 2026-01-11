@@ -1724,7 +1724,6 @@ pub mod tests {
         let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
-        println!("{result:?}");
         let ans = ["rate limited for 60 seconds", "rate limited for 59 seconds"];
         assert!(ans.contains(&result.as_str().unwrap()));
 
