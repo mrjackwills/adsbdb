@@ -375,3 +375,10 @@ COMMIT;
 ALTER TABLE incoming_request_url DROP COLUMN request_url;
 
 -- v0.5.0
+
+\echo "update Chişinău International Airport IATA code"
+INSERT INTO airport_iata_code(iata_code) VALUES('RMO');
+
+UPDATE airport ai
+SET airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_code WHERE iata_code = 'RMO')
+WHERE ai.airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_code WHERE iata_code = 'KIV');
