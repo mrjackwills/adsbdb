@@ -184,12 +184,10 @@ CREATE INDEX IF NOT EXISTS index_temp_incoming_request_comp ON temp_incoming_req
 CREATE TABLE incoming_request (
     incoming_request_id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    -- minute_ts TIMESTAMPTZ NOT NULL,
     incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
     request_method request_method NOT NULL,
     count INTEGER NOT NULL DEFAULT 1
 );
-
 
 GRANT ALL ON incoming_request TO adsbdb;
 GRANT USAGE, SELECT ON SEQUENCE incoming_request_incoming_request_id_seq TO adsbdb;

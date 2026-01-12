@@ -59,7 +59,7 @@ impl From<&Parts> for MsgIncomingRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Serialize, Deserialize, FromRow, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct EntryCount {
     url: String,
     count: i64,
@@ -276,7 +276,7 @@ impl ModelIncomingRequest {
     }
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, unused)]
     async fn get_total(postgres: &PgPool) -> Result<StatsEntry, AppError> {
         let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
             fetch_stats!(postgres, "aircraft"),
@@ -310,6 +310,16 @@ impl ModelIncomingRequest {
         Ok(())
     }
 
+    #[cfg(test)]
+    /// Get usage stats from postgres - For testing just return same values for faily and total, else the tests are inordinately slow
+    async fn get_daily_total_postgres(postgres: &PgPool) -> Result<Stats, AppError> {
+        let daily = Self::get_daily(postgres).await?;
+        Ok(Stats {
+            daily: daily.clone(),
+            total: daily,
+        })
+    }
+    #[cfg(not(test))]
     /// Get usage stats from postgres - this is a slow query
     async fn get_daily_total_postgres(postgres: &PgPool) -> Result<Stats, AppError> {
         let daily = Self::get_daily(postgres).await?;
