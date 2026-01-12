@@ -249,18 +249,15 @@ pub async fn serve(
         app_env.allow_scrape_flightroute.is_some(),
         app_env.allow_scrape_photo.is_some()
     );
-    info!("updater: {}", app_env.allow_update.is_some(),);
+    info!("updater: {}", app_env.allow_update.is_some());
 
-    match axum::serve(
+    axum::serve(
         tokio::net::TcpListener::bind(&addr).await?,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await
-    {
-        Ok(()) => Ok(()),
-        Err(_) => Err(AppError::Internal(S!("api_server"))),
-    }
+    .map_err(|_| AppError::Internal(S!("api_server")))
 }
 
 #[allow(clippy::expect_used)]
@@ -432,7 +429,7 @@ pub mod tests {
             for _ in 0..=i.0 {
                 count += 1;
                 CLIENT.get(&url).send().await.unwrap();
-				// Sleep to re-seed the redis stats, or allow stats insertion
+                // Sleep to re-seed the redis stats, or allow stats insertion
                 if count == 20 {
                     sleep!(1600);
                 } else {
