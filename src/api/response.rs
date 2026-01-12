@@ -90,7 +90,7 @@ pub struct Airline {
     pub callsign: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct StatsEntry {
     pub aircraft: Vec<EntryCount>,
     pub airline: Vec<EntryCount>,

@@ -184,12 +184,10 @@ CREATE INDEX IF NOT EXISTS index_temp_incoming_request_comp ON temp_incoming_req
 CREATE TABLE incoming_request (
     incoming_request_id BIGSERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    -- minute_ts TIMESTAMPTZ NOT NULL,
     incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
     request_method request_method NOT NULL,
     count INTEGER NOT NULL DEFAULT 1
 );
-
 
 GRANT ALL ON incoming_request TO adsbdb;
 GRANT USAGE, SELECT ON SEQUENCE incoming_request_incoming_request_id_seq TO adsbdb;
@@ -377,3 +375,10 @@ COMMIT;
 ALTER TABLE incoming_request_url DROP COLUMN request_url;
 
 -- v0.5.0
+
+\echo "update Chişinău International Airport IATA code"
+INSERT INTO airport_iata_code(iata_code) VALUES('RMO');
+
+UPDATE airport ai
+SET airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_code WHERE iata_code = 'RMO')
+WHERE ai.airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_code WHERE iata_code = 'KIV');

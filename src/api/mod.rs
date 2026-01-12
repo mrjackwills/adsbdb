@@ -91,7 +91,7 @@ fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
 pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
     x_forwarded_for(headers)
         .or_else(|| x_real_ip(headers))
-        .map_or_else(|| addr.0.ip(), |ip_addr| ip_addr)
+        .unwrap_or_else(|| addr.0.ip())
 }
 
 /// Limit the users request based on ip address, using redis as mem store
@@ -249,18 +249,15 @@ pub async fn serve(
         app_env.allow_scrape_flightroute.is_some(),
         app_env.allow_scrape_photo.is_some()
     );
-    info!("updater: {}", app_env.allow_update.is_some(),);
+    info!("updater: {}", app_env.allow_update.is_some());
 
-    match axum::serve(
+    axum::serve(
         tokio::net::TcpListener::bind(&addr).await?,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal())
     .await
-    {
-        Ok(()) => Ok(()),
-        Err(_) => Err(AppError::Internal(S!("api_server"))),
-    }
+    .map_err(|_| AppError::Internal(S!("api_server")))
 }
 
 #[allow(clippy::expect_used)]
@@ -328,6 +325,9 @@ pub mod tests {
             .unwrap();
     }
 
+    pub static CLIENT: LazyLock<reqwest::Client> =
+        LazyLock::new(|| reqwest::ClientBuilder::new().build().unwrap());
+
     pub struct TestSetup {
         pub _handle: Option<JoinHandle<()>>,
         pub app_env: AppEnv,
@@ -344,8 +344,11 @@ pub mod tests {
     // Get basic api params, also flushes all redis keys
     pub async fn test_setup() -> TestSetup {
         let app_env = parse_env::AppEnv::get_env();
-        let postgres = db_postgres::get_pool(&app_env).await.unwrap();
-        let redis = db_redis::get_pool(&app_env).await.unwrap();
+        let (postgres, redis) = tokio::try_join!(
+            db_postgres::get_pool(&app_env),
+            db_redis::get_pool(&app_env)
+        )
+        .unwrap();
         delete_incoming_request(&postgres).await;
         let setup = TestSetup {
             _handle: None,
@@ -410,8 +413,8 @@ pub mod tests {
         assert_eq!(API_VERSION.as_str(), S!("/v0"));
     }
 
-    /// Make request to all endpoints to seed incoming_request entries
-    async fn seed_stats() {
+    /// Make request to all endpoints to seed incoming_request entries, will make 21 reqeusts
+    async fn test_seed_stats() {
         let urls = [
             "/aircraft/test",
             "/airline/test",
@@ -420,12 +423,18 @@ pub mod tests {
             "/n-number/test",
             "/online",
         ];
+        let mut count = 0;
         for i in urls.iter().enumerate() {
             let url = format!("http://127.0.0.1:8282{}{}", API_VERSION.as_str(), i.1);
             for _ in 0..=i.0 {
-                reqwest::get(&url).await.unwrap();
-                // Sleep to allow the insert_request thread to correctly insert/update entries
-                sleep!(50);
+                count += 1;
+                CLIENT.get(&url).send().await.unwrap();
+                // Sleep to re-seed the redis stats, or allow stats insertion
+                if count == 20 {
+                    sleep!(1600);
+                } else {
+                    sleep!(50);
+                }
             }
         }
     }
@@ -453,7 +462,9 @@ pub mod tests {
         assert_empty_stats_cache(&setup.redis).await;
 
         let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
-        let result = reqwest::get(&url)
+        let result = CLIENT
+            .get(&url)
+            .send()
             .await
             .unwrap()
             .json::<TestResponseT<Stats>>()
@@ -469,13 +480,11 @@ pub mod tests {
         assert_eq!(result.response.daily.stats, vec![]);
         assert_eq!(result.response.daily.aggregate, 0);
 
-        seed_stats().await;
+        test_seed_stats().await;
 
-        // Cache only gets update every ten minutes, so should still be empty here
-        assert_empty_stats_cache(&setup.redis).await;
-        setup.flush_redis().await;
-
-        let result = reqwest::get(&url)
+        let result = CLIENT
+            .get(&url)
+            .send()
             .await
             .unwrap()
             .json::<TestResponseT<Stats>>()
@@ -484,10 +493,11 @@ pub mod tests {
 
         assert_eq!(
             serde_json::to_string(&result.response.daily).unwrap(),
-            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":2}],"aggregate":23}"#
+            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":1}],"aggregate":22}"#
         );
+
         let ttl: i64 = setup.redis.ttl("stats").await.unwrap();
-        assert!((59..=60).contains(&ttl));
+        assert!((296..=300).contains(&ttl));
     }
 
     #[tokio::test]
@@ -496,7 +506,7 @@ pub mod tests {
         let setup = start_server().await;
         let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
         assert_empty_stats_cache(&setup.redis).await;
-        seed_stats().await;
+        test_seed_stats().await;
         setup.flush_redis().await;
 
         sqlx::query!(
@@ -507,7 +517,18 @@ pub mod tests {
         .unwrap();
 
         setup.flush_redis().await;
-        let result = reqwest::get(&url)
+        CLIENT
+            .get(&url)
+            .send()
+            .await
+            .unwrap()
+            .json::<TestResponseT<Stats>>()
+            .await
+            .unwrap();
+        sleep!(1500);
+        let result = CLIENT
+            .get(&url)
+            .send()
             .await
             .unwrap()
             .json::<TestResponseT<Stats>>()
@@ -532,7 +553,7 @@ pub mod tests {
             API_VERSION.as_str(),
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -582,7 +603,7 @@ pub mod tests {
             API_VERSION.as_str(),
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -632,7 +653,7 @@ pub mod tests {
             API_VERSION.as_str(),
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -687,7 +708,7 @@ pub mod tests {
             API_VERSION.as_str(),
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -742,7 +763,7 @@ pub mod tests {
             API_VERSION.as_str(),
             callsign
         );
-        let response = reqwest::get(url).await.unwrap();
+        let response = CLIENT.get(url).send().await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let result = response.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "unknown callsign");
@@ -751,12 +772,12 @@ pub mod tests {
     #[tokio::test]
     /// /callsign/random, check response, check cache, clear cache then check against a /callsign/{callsign} response
     async fn http_mod_get_callsign_random() {
-        let test_setup = start_server().await;
+        let setup = start_server().await;
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/random",
             API_VERSION.as_str(),
         );
-        let response = reqwest::get(url).await.unwrap();
+        let response = CLIENT.get(url).send().await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let random_test_response = response.json::<TestResponseValue>().await.unwrap();
 
@@ -794,7 +815,7 @@ pub mod tests {
         let callsign = result["callsign"].as_str().unwrap().to_owned();
         let callsign_icao = result["callsign_icao"].as_str().unwrap().to_owned();
 
-        let callsign_cache: Option<String> = test_setup
+        let callsign_cache: Option<String> = setup
             .redis
             .hget(format!("callsign::{callsign}"), "data")
             .await
@@ -802,7 +823,7 @@ pub mod tests {
         assert!(callsign_cache.is_some());
         assert!(!callsign_cache.unwrap().is_empty());
 
-        let callsign_icao_cache: Option<String> = test_setup
+        let callsign_icao_cache: Option<String> = setup
             .redis
             .hget(format!("callsign::{callsign_icao}"), "data")
             .await
@@ -812,7 +833,7 @@ pub mod tests {
 
         if let Some(callsign_iata) = result.get("callsign_iata") {
             let callsign_iata = callsign_iata.as_str().unwrap().to_owned();
-            let callsign_iata_cache: Option<String> = test_setup
+            let callsign_iata_cache: Option<String> = setup
                 .redis
                 .hget(format!("callsign::{callsign_iata}"), "data")
                 .await
@@ -821,14 +842,16 @@ pub mod tests {
             assert!(!callsign_iata_cache.unwrap().is_empty());
         }
 
-        test_setup.flush_redis().await;
+        setup.flush_redis().await;
 
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
             API_VERSION.as_str(),
             callsign
         );
-        let resp = reqwest::get(url)
+        let resp = CLIENT
+            .get(url)
+            .send()
             .await
             .unwrap()
             .json::<TestResponseValue>()
@@ -837,14 +860,16 @@ pub mod tests {
 
         assert_eq!(test_response, resp);
 
-        test_setup.flush_redis().await;
+        setup.flush_redis().await;
 
         let url = format!(
             "http://127.0.0.1:8282{}/callsign/{}",
             API_VERSION.as_str(),
             callsign_icao
         );
-        let resp = reqwest::get(url)
+        let resp = CLIENT
+            .get(url)
+            .send()
             .await
             .unwrap()
             .json::<TestResponseValue>()
@@ -853,14 +878,16 @@ pub mod tests {
         assert_eq!(test_response, resp);
 
         if let Some(callsign_iata) = result.get("callsign_iata") {
-            test_setup.flush_redis().await;
+            setup.flush_redis().await;
 
             let url = format!(
                 "http://127.0.0.1:8282{}/callsign/{}",
                 API_VERSION.as_str(),
                 callsign_iata.as_str().unwrap()
             );
-            let resp = reqwest::get(url)
+            let resp = CLIENT
+                .get(url)
+                .send()
                 .await
                 .unwrap()
                 .json::<TestResponseValue>()
@@ -902,7 +929,7 @@ pub mod tests {
             API_VERSION.as_str(),
             mode_s
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -934,7 +961,7 @@ pub mod tests {
             API_VERSION.as_str(),
             registration
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -970,7 +997,7 @@ pub mod tests {
             mode_s,
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -1054,7 +1081,7 @@ pub mod tests {
             mode_s,
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -1138,7 +1165,7 @@ pub mod tests {
             mode_s,
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -1242,7 +1269,7 @@ pub mod tests {
             mode_s,
             callsign
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
 
@@ -1344,7 +1371,7 @@ pub mod tests {
             API_VERSION.as_str(),
             mode_s
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "unknown aircraft");
@@ -1353,12 +1380,13 @@ pub mod tests {
     #[tokio::test]
     /// /aircraft/random, check response, check cache, clear cache then check against a /aircraft/{mode_s/registration} response
     async fn http_mod_get_aircraft_random() {
-        let test_setup = start_server().await;
+        let setup = start_server().await;
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/random",
             API_VERSION.as_str(),
         );
-        let response = reqwest::get(url).await.unwrap();
+        let response = CLIENT.get(url).send().await.unwrap();
+
         assert_eq!(response.status(), StatusCode::OK);
 
         let response = response.json::<TestResponseValue>().await.unwrap();
@@ -1392,7 +1420,7 @@ pub mod tests {
 
         let mode_s = aircraft_result["mode_s"].as_str().unwrap().to_owned();
 
-        let cache: Option<String> = test_setup
+        let cache: Option<String> = setup
             .redis
             .hget(format!("mode_s::{mode_s}"), "data")
             .await
@@ -1401,7 +1429,7 @@ pub mod tests {
         assert!(!cache.unwrap().is_empty());
 
         let registration = aircraft_result["registration"].as_str().unwrap().to_owned();
-        let cache: Option<String> = test_setup
+        let cache: Option<String> = setup
             .redis
             .hget(format!("registration::{registration}"), "data")
             .await
@@ -1409,14 +1437,14 @@ pub mod tests {
         assert!(cache.is_some());
         assert!(!cache.unwrap().is_empty());
 
-        test_setup.flush_redis().await;
+        setup.flush_redis().await;
 
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}",
             API_VERSION.as_str(),
             mode_s
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
@@ -1424,14 +1452,14 @@ pub mod tests {
 
         assert_eq!(aircraft_result, result);
 
-        test_setup.flush_redis().await;
+        setup.flush_redis().await;
 
         let url = format!(
             "http://127.0.0.1:8282{}/aircraft/{}",
             API_VERSION.as_str(),
             registration
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
@@ -1449,7 +1477,7 @@ pub mod tests {
             API_VERSION.as_str(),
             airline
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
@@ -1483,7 +1511,7 @@ pub mod tests {
             "http://127.0.0.1:8282{}/airline/random",
             API_VERSION.as_str(),
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
 
@@ -1509,7 +1537,7 @@ pub mod tests {
             API_VERSION.as_str(),
             airline
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "unknown airline");
@@ -1524,7 +1552,7 @@ pub mod tests {
             API_VERSION.as_str(),
             n_number
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "A061E4");
@@ -1539,7 +1567,7 @@ pub mod tests {
             API_VERSION.as_str(),
             n_number
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "invalid n_number: A1235F");
@@ -1554,7 +1582,7 @@ pub mod tests {
             API_VERSION.as_str(),
             mode_s
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "N925XJ");
@@ -1569,7 +1597,7 @@ pub mod tests {
             API_VERSION.as_str(),
             mode_s
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "");
@@ -1584,7 +1612,7 @@ pub mod tests {
             API_VERSION.as_str(),
             mode_s
         );
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "invalid modeS: JCD2D3");
@@ -1595,7 +1623,7 @@ pub mod tests {
         start_server().await;
         let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         sleep!();
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
@@ -1611,7 +1639,7 @@ pub mod tests {
 
         let rand_route = "asdasjkaj9ahsddasdasd";
         let url = format!("http://127.0.0.1:8282{version}/{rand_route}");
-        let resp = reqwest::get(url).await.unwrap();
+        let resp = CLIENT.get(url).send().await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
@@ -1623,15 +1651,15 @@ pub mod tests {
     #[tokio::test]
     // Not rate limited, but rate limit points = number of requests, and ttl 60
     async fn http_mod_rate_limit() {
-        let test_setup = start_server().await;
+        let setup = start_server().await;
 
         let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         for _ in 1..=45 {
-            reqwest::get(&url).await.unwrap();
+            CLIENT.get(&url).send().await.unwrap();
         }
 
-        let count: usize = test_setup.redis.get("ratelimit::127.0.0.1").await.unwrap();
-        let ttl: usize = test_setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
+        let ttl: usize = setup.redis.ttl("ratelimit::127.0.0.1").await.unwrap();
+        let count: usize = setup.redis.get("ratelimit::127.0.0.1").await.unwrap();
         assert_eq!(count, 45);
         assert_eq!(ttl, 60);
     }
@@ -1642,18 +1670,18 @@ pub mod tests {
 
         let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         for _ in 1..=511 {
-            reqwest::get(&url).await.unwrap();
+            CLIENT.get(&url).send().await.unwrap();
         }
 
         // 512th request is fine
-        let resp = reqwest::get(&url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result["api_version"], env!("CARGO_PKG_VERSION"));
         assert!(result.get("uptime").is_some());
 
         // 512th+ request is rate limited
-        let resp = reqwest::get(&url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 60 seconds");
@@ -1669,7 +1697,7 @@ pub mod tests {
         sleep!(1000);
 
         // TTL doesn't get reset on further requwest
-        let resp = reqwest::get(&url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 58 seconds");
@@ -1687,18 +1715,18 @@ pub mod tests {
 
         let url = format!("http://127.0.0.1:8282{}/online", API_VERSION.as_str());
         for _ in 1..=1023 {
-            reqwest::get(&url).await.unwrap();
+            CLIENT.get(&url).send().await.unwrap();
         }
 
         // 1023rd request is rate limited
-        let resp = reqwest::get(&url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         let ans = ["rate limited for 60 seconds", "rate limited for 59 seconds"];
         assert!(ans.contains(&result.as_str().unwrap()));
 
         // 1024th + request is rate limited for 300 seconds
-        let resp = reqwest::get(&url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");
@@ -1713,7 +1741,7 @@ pub mod tests {
         assert_eq!(ttl, 299);
 
         // TTL is reset to 300 on one more request
-        let resp = reqwest::get(&url).await.unwrap();
+        let resp = CLIENT.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
         let result = resp.json::<TestResponseValue>().await.unwrap().response;
         assert_eq!(result, "rate limited for 300 seconds");

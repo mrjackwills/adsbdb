@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-create_adsbdb_user() {
-	echo "create_adsbdb_user"
-	psql -v ON_ERROR_STOP=0 -U "${POSTGRES_USER}" -d "${POSTGRES_USER}" <<-EOSQL
-		CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASSWORD}';
+create_database() {
+	echo "create ${DB_NAME} database"
+	psql -v ON_ERROR_STOP=0 -U "$POSTGRES_USER" -d "$POSTGRES_USER" <<-EOSQL
+		CREATE DATABASE ${DB_NAME};
 	EOSQL
 }
 
-create_adsbdb_database() {
-	echo "create_adsbdb_database"
-	psql -v ON_ERROR_STOP=0 -U "${POSTGRES_USER}" -d "${POSTGRES_USER}" <<-EOSQL
-		CREATE DATABASE ${DB_NAME};
+create_user() {
+	echo "create  ${DB_USER} user"
+	psql -v ON_ERROR_STOP=0 -U "$POSTGRES_USER" -d "$POSTGRES_USER" <<-EOSQL
+		CREATE ROLE ${DB_USER} WITH LOGIN PASSWORD '$DB_PASSWORD';
 	EOSQL
 }
 
@@ -40,8 +40,8 @@ restore_pg_dump() {
 }
 
 from_pg_dump() {
-	create_adsbdb_user
-	create_adsbdb_database
+	create_user
+	create_database
 	restore_pg_dump
 }
 
