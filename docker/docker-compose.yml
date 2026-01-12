@@ -26,7 +26,6 @@ services:
       resources:
         limits:
           memory: 2048MB
-          # todo limit cpu here?
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
@@ -53,8 +52,6 @@ services:
       - adsbdb-net
     logging:
       driver: "json-file"
-      options:
-        max-size: "16m"
     depends_on:
       adsbdb_postgres:
         condition: service_healthy
@@ -79,8 +76,6 @@ services:
       - adsbdb-net
     logging:
       driver: "json-file"
-      options:
-        max-size: "16m"
     healthcheck:
       test: ["CMD", "/healthcheck/health_redis.sh"]
       interval: 30s
@@ -112,8 +107,6 @@ services:
       - adsbdb-net
     logging:
       driver: "json-file"
-      options:
-        max-size: "16m"
     deploy:
       resources:
         limits:
