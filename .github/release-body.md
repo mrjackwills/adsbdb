@@ -1,31 +1,23 @@
-### 2025-11-07
+### 2026-01-12
 
 ### Chores
-+ dependecies updated, [f6578306d160ce7c47b59e55f0b92002b5ffe64c]
-+ run.sh & init_postgres.sh updated, [5e4633f14fa0d79a49816e2cb6bcd2780cba9288]
-+ update api.Dockerfile, [22ed0345a22c85edda40320f6df88657740339b2]
-+ update redis port, [552bacc67677de54a8e4eb48b2d44dd60bb0a2b0]
-
-### Docs
-+ test comment, [038ebe8c3b4b9f0859e51ac1fd2bfe34d68e2137]
++ dependencies updated, [1d37d786cfc5f524d16cfbb90f1f0e885da8bd96], [ac223196d81b4e8f7cdd867997120cbd741f6330]
++ Dockerfile updated, [d1dd6e0a8afa0409997bcfae2c7eebef6bb84131]
++ Rust 1.92.0 linting, [936a4f8b6afb621378a4c1e7e0bc7dc519c59efa]
 
 ### Features
-+ Independent database connections for each thread, [21bcdf1cff29faecbda68d9ee927f34fb8cef9ee]
-+ update random flightroute, [e7f55bf6f6cfd9f21c0d9289d7ffad3248d27ca9]
-+ use bounded async_channel instead of tokio::sync::mpsc, [bcc32f098dec8a13ffb2379613033115ff8b4d71]
++ upgrade to postgres 18, [e7bcf08e68ba9962e4ccfd072250c9e9391bbab0]
 
 ### Fixes
-+ allow '+' in registrations, closes #60, [14a4653d7707243bdb9cc11780e69faeb652d36b]
-+ remove /ramdata usage, [2c12417e9a7ac936863cf5a3388b096d2c4f0e6d]
-+ set max_wal_size using docker-compose.yml, [2972cc5254767fb0957979a0ddc6bd48e96c0f9b]
-+ transparent errors, [de44d6ef6dde3388a9dd4f49fb2d286f08edea03]
++ Chişinău IATA code, closes #/68, [7c3c73a3bdb551c48451440e8e8c46a0f44d078e]
++ init_postgres.sh, [d1b40879fe15678f2635c8141c438134d9d3215c]
++ remove Docker log limits, [9b7e06088428c135aa9d0a70e6792fe662bf6be5]
++ stats re-seeding fix, [97854bdb0139b275285b4d2770ceefeb43b93456]
 
 ### Refactors
-+ incoming_request_url table, [59f9c28a093418410db5856f9681278841f62e58]
-+ Incoming request remove transactions, [1825222454a9fe29e370d2e9705704f113e16819]
-+ use try_joins, [273ba3ba0bb9cece30a1809901f5fdf89a78c42f]
++ dead code removed, [7fdee76017f7fc8571fcdf4b4542fb8fa04effa0]
 
 ### Tests
-+ additional registration validate tests, [e1a609dbc5fa0bb10bca7f5b1ac97ad5370c003b]
+* stats test fixed, [ee03f08ed54974f7a6c4d5bc8551792fc14f01ae]
 
 see <a href='https://github.com/mrjackwills/adsbdb/blob/main/CHANGELOG.md'>CHANGELOG.md</a> for more details
