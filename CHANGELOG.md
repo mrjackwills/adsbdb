@@ -1,5 +1,8 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.2'>v0.6.2</a>
+### 2026-01-19
+
 ### Fixes
-+ GitHub workflow fix, [ebc669cecc8176b0ca2eade4725f11fd82a2dca6]
++ GitHub workflow fix, [ebc669ce](https://github.com/mrjackwills/adsbdb/commit/ebc669cecc8176b0ca2eade4725f11fd82a2dca6)
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.1'>v0.6.1</a>
 ### 2026-01-12
