@@ -1,3 +1,6 @@
+### Fixes
++ GitHub workflow fix, [ebc669cecc8176b0ca2eade4725f11fd82a2dca6]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.1'>v0.6.1</a>
 ### 2026-01-12
 
