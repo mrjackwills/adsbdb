@@ -279,7 +279,6 @@ zig_build_x86() {
 		rustup target add $target
 		cargo zigbuild --release --target $target
 	"
-	ask_continue
 	add_db_env
 }
 
@@ -297,7 +296,6 @@ zig_build_aarch64() {
 		rustup target add $target
 		cargo zigbuild --release --target $target
 	"
-	ask_continue
 	add_db_env
 }
 
