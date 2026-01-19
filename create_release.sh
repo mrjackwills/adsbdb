@@ -264,6 +264,55 @@ cross_build_aarch64() {
 	add_db_env
 }
 
+# Zigbuild, as GitHub workflow would execute
+zig_build_x86() {
+	remove_db_env
+	local target="x86_64-unknown-linux-gnu"
+
+	docker run --rm \
+	-v "$(pwd):/io" \
+	-w /io \
+	ghcr.io/rust-cross/cargo-zigbuild \
+	bash -ec "
+		rustup update stable
+		rustup default stable
+		rustup target add $target
+		cargo zigbuild --release --target $target
+	"
+	add_db_env
+}
+
+zig_build_aarch64() {
+	remove_db_env
+	local target="aarch64-unknown-linux-gnu"
+
+	docker run --rm \
+	-v "$(pwd):/io" \
+	-w /io \
+	ghcr.io/rust-cross/cargo-zigbuild \
+	bash -ec "
+		rustup update stable
+		rustup default stable
+		rustup target add $target
+		cargo zigbuild --release --target $target
+	"
+	add_db_env
+}
+
+# Build all releases that GitHub workflow would
+# This will download GB's of docker images
+# $1 is 0 or 1, if 1 won't run ask_continue
+zig_build_all() {
+	if ask_yn "cargo clean"; then
+		cargo_clean
+	fi
+	skip_confirm=$1
+	zig_build_x86
+	[ "$skip_confirm" -ne 1 ] && ask_continue
+	zig_build_aarch64
+	[ "$skip_confirm" -ne 1 ] && ask_continue
+}
+
 cargo_clean() {
 	echo -e "${YELLOW}cargo clean${RESET}"
 	cargo clean
@@ -346,6 +395,46 @@ build_container_choice() {
 	done
 }
 
+# Select architectures to build Docker container for
+zig_build_choice() {
+	cmd=(dialog --backtitle "Choose option" --keep-tite --radiolist "choose" 14 80 16)
+	options=(
+		1 "x86 " off
+		2 "aarch64" off
+		3 "all" off
+		4 "all automatic" off
+	)
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
+	exitStatus=$?
+	clear
+	if [ $exitStatus -ne 0 ]; then
+		exit
+	fi
+	for choice in $choices; do
+		case $choice in
+		0)
+			exit
+			;;
+		1)
+			zig_build_x86
+			exit
+			;;
+		2)
+			zig_build_aarch64
+			exit
+			;;
+		3)
+			zig_build_all 0
+			exit
+			;;
+		4)
+			zig_build_all 1
+			exit
+			;;
+		esac
+	done
+}
+
 # Select architectures to build for
 build_choice() {
 	cmd=(dialog --backtitle "Choose option" --keep-tite --radiolist "choose" 14 80 16)
@@ -399,6 +488,7 @@ release_flow() {
 	cargo_test
 	cargo_cross_build_all 0
 	build_container_all 0
+	zig_build_all 0
 
 	cd "${CWD}" || error_close "Can't find ${CWD}"
 	check_tag
@@ -465,6 +555,7 @@ main() {
 		3 "release" off
 		4 "build" off
 		5 "docker builds" off
+		6 "zig build" off
 	)
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 	exitStatus=$?
@@ -498,6 +589,11 @@ main() {
 			;;
 		5)
 			build_container_choice
+			main
+			break
+			;;
+		6)
+			zig_build_choice
 			main
 			break
 			;;
