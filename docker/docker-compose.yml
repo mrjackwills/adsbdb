@@ -84,7 +84,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024MB
+          memory: 2048MB
   adsbdb_api:
     image: adsbdb_api:0.6.2
     container_name: adsbdb_api
@@ -110,7 +110,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512MB
     healthcheck:
       test: ["CMD", "/healthcheck/health_api.sh"]
       interval: 30s
