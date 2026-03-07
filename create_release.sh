@@ -280,6 +280,8 @@ zig_build_x86() {
 		cargo zigbuild --release --target $target
 	"
 	add_db_env
+	echo -e "${YELLOW}sudo chown -R vscode:vscode /workspaces/adsbdb/target${RESET}"
+	sudo chown -R vscode:vscode /workspaces/adsbdb/target
 }
 
 zig_build_aarch64() {
@@ -297,6 +299,8 @@ zig_build_aarch64() {
 		cargo zigbuild --release --target $target
 	"
 	add_db_env
+	echo -e "${YELLOW}sudo chown -R vscode:vscode /workspaces/adsbdb/target${RESET}"
+	sudo chown -R vscode:vscode /workspaces/adsbdb/target
 }
 
 # Build all releases that GitHub workflow would
