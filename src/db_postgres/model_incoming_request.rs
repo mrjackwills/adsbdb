@@ -138,7 +138,7 @@ LIMIT 10
 
 impl ModelIncomingRequest {
     /// As I can't be bothered/know how to change the postgres query macro to allow a definable limit
-	/// just use this function to cut certain url stats to a single item, used for  /stats & /online
+    /// just use this function to cut certain url stats to a single item, used for  /stats & /online
     fn single_entry_count(input: Vec<EntryCount>) -> Vec<EntryCount> {
         input.into_iter().take(1).collect()
     }
@@ -252,6 +252,7 @@ impl ModelIncomingRequest {
     }
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
+    /// TODO This is a slow, think 30 second, query, need to work on it
     #[allow(clippy::too_many_lines)]
     async fn get_daily(postgres: &PgPool) -> Result<StatsEntry, AppError> {
         let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
@@ -310,6 +311,7 @@ impl ModelIncomingRequest {
         })
     }
 
+    /// TODO This is slow, ideally would all be in redis
     async fn seed_redis(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
         let statistics = Self::get_daily_total_postgres(postgres).await?;
         insert_cache(redis, Some(&statistics), RedisKey::Stats).await?;

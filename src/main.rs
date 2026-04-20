@@ -60,6 +60,8 @@ async fn start_scraper(app_env: &AppEnv) -> Result<async_channel::Sender<MsgScra
     Ok(Scraper::start(app_env, postgres))
 }
 
+/// This initial seeding is slow, will block until complete
+/// Ideally put the daily stats into redis, but would a decent amount of work
 async fn start_incoming_requests(
     app_env: &AppEnv,
 ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
