@@ -137,6 +137,12 @@ LIMIT 10
 }
 
 impl ModelIncomingRequest {
+    /// As I can't be bothered/know how to change the postgres query macro to allow a definable limit
+	/// just use this function to cut certain url stats to a single item, used for  /stats & /online
+    fn single_entry_count(input: Vec<EntryCount>) -> Vec<EntryCount> {
+        input.into_iter().take(1).collect()
+    }
+
     async fn get_version_id(
         url_version: Option<String>,
         postgres: &PgPool,
@@ -269,8 +275,8 @@ impl ModelIncomingRequest {
             callsign,
             mode_s,
             n_number,
-            online,
-            stats,
+            online: Self::single_entry_count(online),
+            stats: Self::single_entry_count(stats),
             aggregate: aggregate.count,
         })
     }
@@ -298,8 +304,8 @@ impl ModelIncomingRequest {
             callsign,
             mode_s,
             n_number,
-            online,
-            stats,
+            online: Self::single_entry_count(online),
+            stats: Self::single_entry_count(stats),
             aggregate: aggregate.count,
         })
     }
