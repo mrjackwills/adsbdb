@@ -7,6 +7,9 @@
 ### Features
 + limit certain stats vecs to 1 item, [8b53555425d4bda910dcb42625ca1d911e85512d]
 
+### Refactors
++ seperate some initial task spawns, [781cfba2d3acef741e28c1b35ea3057dc548337b]
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.3'>v0.6.3</a>
 ### 2026-03-07
 
