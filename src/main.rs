@@ -60,6 +60,8 @@ async fn start_scraper(app_env: &AppEnv) -> Result<async_channel::Sender<MsgScra
     Ok(Scraper::start(app_env, postgres))
 }
 
+/// This initial seeding is slow, will block until complete
+/// Ideally put the daily stats into redis, but would a decent amount of work
 async fn start_incoming_requests(
     app_env: &AppEnv,
 ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
@@ -71,12 +73,13 @@ async fn start() -> Result<(), AppError> {
     let app_env = parse_env::AppEnv::get_env();
     setup_tracing(&app_env)?;
 
-    let (postgres, redis, tx_scraper, tx_stats) = tokio::try_join!(
+    let (postgres, redis) = tokio::try_join!(
         db_postgres::get_pool(&app_env),
         db_redis::get_pool(&app_env),
-        start_scraper(&app_env),
-        start_incoming_requests(&app_env)
     )?;
+
+    let (tx_scraper, tx_stats) =
+        tokio::try_join!(start_scraper(&app_env), start_incoming_requests(&app_env),)?;
 
     api::serve(app_env, postgres, redis, tx_scraper, tx_stats).await
 }

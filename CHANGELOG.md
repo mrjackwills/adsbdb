@@ -1,3 +1,18 @@
+# <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.4'>v0.6.4</a>
+### 2026-04-22
+
+### Chores
++ dependencies updated, [80c8e6ec](https://github.com/mrjackwills/adsbdb/commit/80c8e6ecdd1a2c26a567f0ea5db744d27bb426f9), [c3c616ba](https://github.com/mrjackwills/adsbdb/commit/c3c616ba847c709cc9d57d451774d26806c11433)
+
+### Docs
++ comments/todos added, [65da94d6](https://github.com/mrjackwills/adsbdb/commit/65da94d65a099d38c258bbf8927ff22346845397)
+
+### Features
++ limit certain stats vecs to 1 item, [8b535554](https://github.com/mrjackwills/adsbdb/commit/8b53555425d4bda910dcb42625ca1d911e85512d)
+
+### Refactors
++ seperate some initial task spawns, [781cfba2](https://github.com/mrjackwills/adsbdb/commit/781cfba2d3acef741e28c1b35ea3057dc548337b)
+
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.3'>v0.6.3</a>
 ### 2026-03-07
 
