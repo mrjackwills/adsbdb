@@ -253,6 +253,7 @@ impl ModelIncomingRequest {
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
     /// TODO This is a slow, think 30 second, query, need to work on it
+    /// Ideally should be using redis instead!
     #[allow(clippy::too_many_lines)]
     async fn get_daily(postgres: &PgPool) -> Result<StatsEntry, AppError> {
         let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
@@ -371,7 +372,6 @@ impl ModelIncomingRequest {
             let mut now = std::time::Instant::now();
             while let Ok(msg) = rx.recv().await {
                 if let Err(e) = match msg {
-                    // Spawn each request into own thread - probably not needed
                     MsgIncomingRequest::Url(i) => Self::insert_request(&postgres, i).await,
                 } {
                     tracing::error!("{e:?}");
