@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{AssertSqlSafe, PgPool};
 
 use crate::{
     S,
@@ -387,15 +387,16 @@ WHERE
             Callsign::Icao(_) => Self::get_query_icao(),
             Callsign::Other(_) => Self::get_query_callsign(),
         };
+        let query = AssertSqlSafe(query);
 
         match callsign {
-            Callsign::Other(callsign) => sqlx::query_as::<_, Self>(&query)
+            Callsign::Other(callsign) => sqlx::query_as::<_, Self>(query)
                 .bind(callsign)
                 .fetch_optional(db)
                 .await
                 .unwrap_or(None),
             Callsign::Iata(x) | Callsign::Icao(x) => {
-                match sqlx::query_as::<_, Self>(&query)
+                match sqlx::query_as::<_, Self>(query)
                     .bind(&x.0)
                     .bind(&x.1)
                     .fetch_optional(db)
@@ -405,7 +406,8 @@ WHERE
                         if let Some(flightroute) = flightroute {
                             Some(flightroute)
                         } else {
-                            sqlx::query_as::<_, Self>(&Self::get_query_callsign())
+                            // Ownership issues here!
+                            sqlx::query_as::<_, Self>(AssertSqlSafe(Self::get_query_callsign()))
                                 .bind(format!("{}{}", x.0, x.1))
                                 .fetch_optional(db)
                                 .await

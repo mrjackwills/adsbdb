@@ -11,14 +11,15 @@ use crate::{
     redis_hash_to_struct,
 };
 
-#[cfg(not(test))]
+// #[cfg(not(test))]
 use crate::db_redis::ONE_MINUTE_AS_SEC;
 
-#[cfg(test)]
-const RE_SEED_TIME: i64 = 1;
+// #[cfg(test)]
+// const RE_SEED_TIME: i64 = 1;
 
-#[cfg(not(test))]
-const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC;
+// TODO change this to five minutes
+// #[cfg(not(test))]
+const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC.wrapping_mul(5);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UriMethod(Uri, Method);

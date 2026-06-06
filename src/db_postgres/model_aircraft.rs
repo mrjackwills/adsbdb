@@ -622,12 +622,12 @@ mod tests {
 
     #[derive(Deserialize)]
     struct TestOutput {
-        value: String,
+        value: Option<String>,
     }
 
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
-    /// Update an aircraft, set each updatable value to XX, and validate that the aircraft details have been changed
+    /// Update an aircraft, set each updatable value to XXX, and validate that the aircraft details have been changed
     async fn model_aircraft_update_new_values() {
         let test_setup = test_setup().await;
         let mut transaction = test_setup.postgres.begin().await.unwrap();
@@ -646,7 +646,9 @@ mod tests {
         .fetch_one(&mut *transaction)
         .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, "XXX");
+        let result = result.unwrap();
+        assert!(result.value.is_some());
+        assert_eq!(result.value.unwrap(), "XXX");
         transaction.rollback().await.unwrap();
 
         // aircraft icao_type
@@ -666,7 +668,9 @@ mod tests {
         .fetch_one(&mut *transaction)
         .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, "XXX");
+        let result = result.unwrap();
+        assert!(result.value.is_some());
+        assert_eq!(result.value.unwrap(), "XXX");
         transaction.rollback().await.unwrap();
 
         // Manufacturer
@@ -686,7 +690,9 @@ mod tests {
         .fetch_one(&mut *transaction)
         .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, "XXX");
+        let result = result.unwrap();
+        assert!(result.value.is_some());
+        assert_eq!(result.value.unwrap(), "XXX");
         transaction.rollback().await.unwrap();
 
         // Registered owner
@@ -701,7 +707,9 @@ mod tests {
             FROM aircraft a
             LEFT JOIN aircraft_registered_owner aro USING (aircraft_registered_owner_id) WHERE aircraft_id = $1", aircraft.aircraft_id.0).fetch_one(&mut *transaction).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, "XXX");
+        let result = result.unwrap();
+        assert!(result.value.is_some());
+        assert_eq!(result.value.unwrap(), "XXX");
         transaction.rollback().await.unwrap();
 
         // Registration
@@ -723,7 +731,9 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, "NXXX");
+        let result = result.unwrap();
+        assert!(result.value.is_some());
+        assert_eq!(result.value.unwrap(), "NXXX");
         transaction.rollback().await.unwrap();
 
         // Flag code
@@ -745,7 +755,9 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, "XXX");
+        let result = result.unwrap();
+        assert!(result.value.is_some());
+        assert_eq!(result.value.unwrap(), "XXX");
         transaction.rollback().await.unwrap();
     }
 
