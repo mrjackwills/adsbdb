@@ -25,7 +25,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2048MB
+          memory: 4096MB
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
@@ -84,7 +84,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2048MB
+          memory: 4096MB
   adsbdb_api:
     image: adsbdb_api:0.6.4
     container_name: adsbdb_api
