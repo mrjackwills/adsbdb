@@ -79,6 +79,7 @@ impl ModelFlightroute {
             counter += 1;
         }
     }
+
     #[allow(clippy::too_many_lines)]
     /// TODO try to convert to a query_as! macro
     async fn _get_random(db: &PgPool) -> Result<Option<Self>, AppError> {

@@ -10,7 +10,10 @@ pub use model_aircraft::ModelAircraft;
 pub use model_airline::ModelAirline;
 pub use model_airport::ModelAirport;
 pub use model_flightroute::ModelFlightroute;
-pub use model_incoming_request::{EntryCount, ModelIncomingRequest, MsgIncomingRequest, UriMethod};
+pub use model_incoming_request::{
+    EntryCount, ModelIncomingRequest, MsgIncomingRequest, PathID, QueryID, RE_SEED_TIME, UriMethod,
+    VersionID,
+};
 
 use crate::{api::AppError, parse_env::AppEnv};
 
@@ -34,7 +37,9 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
 }
 
 /// Generic PostgreSQL ID
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize, serde::Serialize, Hash,
+)]
 pub struct ID<T> {
     id: T,
 }
