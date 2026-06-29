@@ -5,8 +5,9 @@ use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
     Router,
-    extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, State},
-    http::{HeaderMap, Request},
+    body::Body,
+    extract::{ConnectInfo, DefaultBodyLimit, State},
+    http::Request,
     middleware::{self, Next},
     response::Response,
     routing::{get, patch},
@@ -70,29 +71,38 @@ impl ApplicationState {
     }
 }
 
-/// extract `x-forwarded-for` header
-fn x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get(X_FORWARDED_FOR)
-        .and_then(|x| x.to_str().ok())
-        .and_then(|s| s.split(',').find_map(|s| s.trim().parse::<IpAddr>().ok()))
-}
-
-/// extract the `x-real-ip` header
-fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get(X_REAL_IP)
-        .and_then(|x| x.to_str().ok())
-        .and_then(|s| s.parse::<IpAddr>().ok())
-}
-
 /// Get a users ip address, application should always be behind an nginx reverse proxy
 /// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
-pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
-    x_forwarded_for(headers)
-        .or_else(|| x_real_ip(headers))
-        .unwrap_or_else(|| addr.0.ip())
+fn get_ip(req: &Request<Body>) -> Result<IpAddr, AppError> {
+    let headers = req.headers();
+
+    let from_header = |name| headers.get(name).and_then(|v| v.to_str().ok());
+
+    let parse_ip = |s: &str| s.trim().parse::<IpAddr>().ok();
+
+    from_header(X_REAL_IP)
+        .and_then(parse_ip)
+        .or_else(|| from_header(X_FORWARDED_FOR).and_then(|s| s.split(',').find_map(parse_ip)))
+        .or_else(|| {
+            req.extensions()
+                .get::<ConnectInfo<SocketAddr>>()
+                .map(|info| info.ip())
+        })
+        .ok_or_else(|| AppError::Internal(S!("IP error")))
+}
+
+async fn insert_stats(
+    State(state): State<ApplicationState>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    state
+        .stats_tx
+        .send(MsgIncomingRequest::Url(UriMethod::from(&req)))
+        .await
+        .ok();
+    next.run(req).await
 }
 
 /// Limit the users request based on ip address, using redis as mem store
@@ -101,17 +111,8 @@ async fn rate_limiting(
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    let (mut parts, body) = req.into_parts();
-    let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
-
-    state
-        .stats_tx
-        .send(MsgIncomingRequest::Url(UriMethod::from(&parts)))
-        .await
-        .ok();
-    let ip = get_ip(&parts.headers, addr);
-    RateLimit::new(ip).check(&state.redis).await?;
-    Ok(next.run(Request::from_parts(parts, body)).await)
+    RateLimit::new(get_ip(&req)?).check(&state.redis).await?;
+    Ok(next.run(req).await)
 }
 
 static API_VERSION: LazyLock<String> = LazyLock::new(|| {
@@ -236,6 +237,10 @@ pub async fn serve(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(1024))
                 .layer(cors)
+                .layer(middleware::from_fn_with_state(
+                    application_state.clone(),
+                    insert_stats,
+                ))
                 .layer(middleware::from_fn_with_state(
                     application_state,
                     rate_limiting,

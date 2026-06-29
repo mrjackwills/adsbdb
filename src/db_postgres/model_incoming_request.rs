@@ -1,4 +1,7 @@
-use axum::http::{Uri, request::Parts};
+use axum::{
+    body::Body,
+    http::{Request, Uri, request::Parts},
+};
 use fred::prelude::Pool;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -35,15 +38,16 @@ impl UriMethod {
     }
 }
 
-impl From<&Parts> for UriMethod {
-    fn from(value: &Parts) -> Self {
-        Self(value.uri.clone(), value.method.clone())
+impl From<&Request<Body>> for UriMethod {
+    fn from(value: &Request<Body>) -> Self {
+        Self(value.uri().clone(), value.method().clone())
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MsgIncomingRequest {
     Url(UriMethod),
+    // TODO reseed time?
 }
 
 impl From<&Parts> for MsgIncomingRequest {
@@ -68,7 +72,6 @@ redis_hash_to_struct!(Stats);
 pub struct ModelIncomingRequest;
 
 // Only using types here, as the sqlx macro doesn't like generic types
-
 type VId = ID<VersionID>;
 type QId = ID<QueryID>;
 type PId = ID<PathID>;
@@ -248,8 +251,7 @@ ON CONFLICT
 DO UPDATE SET
     url_version = EXCLUDED.url_version
 RETURNING
-    incoming_request_url_version_id AS id
-    "#,
+    incoming_request_url_version_id AS id;"#,
                 url_version
             )
             .fetch_one(postgres)
@@ -289,8 +291,7 @@ ON CONFLICT
 DO UPDATE SET
     url_path = EXCLUDED.url_path
 RETURNING
-    incoming_request_url_path_id AS id
-    "#,
+    incoming_request_url_path_id AS id;"#,
                 url_path
             )
             .fetch_one(postgres)
@@ -327,8 +328,7 @@ ON CONFLICT
 DO UPDATE SET
     url_query = EXCLUDED.url_query
 RETURNING
-    incoming_request_url_query_id AS id
-    "#,
+    incoming_request_url_query_id AS id;"#,
                 url_query
             )
             .fetch_one(postgres)
@@ -376,8 +376,7 @@ ON CONFLICT (
 DO UPDATE SET 
     incoming_request_url_version_id = EXCLUDED.incoming_request_url_version_id
 RETURNING
-    incoming_request_url_id AS id
-"#,
+    incoming_request_url_id AS id;"#,
             version_id.map(|i| i.get()),
             path_id.map(|i| i.get()),
             query_id.map(|i| i.get())
@@ -419,7 +418,7 @@ VALUES
 ON CONFLICT
     (incoming_request_url_id, request_method)
 DO UPDATE SET
-    count = incoming_request.count + 1"#,
+    count = incoming_request.count + 1;"#,
                 request_id.get(),
                 url.1.to_string()
             )
@@ -435,7 +434,7 @@ VALUES
 ON CONFLICT
     (incoming_request_url_id, request_method)
 DO UPDATE SET
-    count = temp_incoming_request.count + 1"#,
+    count = temp_incoming_request.count + 1;"#,
                 request_id.get(),
                 url.1.to_string()
             )
@@ -446,7 +445,7 @@ DO UPDATE SET
 
     /// Delete all entries from temp table older than 24 hours
     async fn delete_temp(db: impl PgExecutor<'_>) -> Result<(), AppError> {
-        sqlx::query!("DELETE FROM temp_incoming_request WHERE timestamp <= (CURRENT_TIMESTAMP - INTERVAL '24 hours')").execute(db).await?;
+        sqlx::query!("DELETE FROM temp_incoming_request WHERE timestamp <= (CURRENT_TIMESTAMP - INTERVAL '24 hours');").execute(db).await?;
         Ok(())
     }
 
@@ -465,7 +464,7 @@ DO UPDATE SET
             fetch_temp_single_stats!(postgres, "stats"),
             sqlx::query_as!(
                 Count,
-                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM temp_incoming_request"#
+                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM temp_incoming_request;"#
             )
             .fetch_one(postgres)
         )?;
@@ -494,7 +493,7 @@ DO UPDATE SET
             fetch_single_stats!(postgres, "stats"),
             sqlx::query_as!(
                 Count,
-                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM incoming_request"#
+                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM incoming_request;"#
             )
             .fetch_one(postgres)
         )?;
@@ -546,6 +545,7 @@ DO UPDATE SET
     /// If so, will be spawned into new tokio thread
     /// RE_SEED_TIME is vastly reduced when testing
     fn check_to_re_seed(now: &mut std::time::Instant, postgres: &PgPool, redis: &Pool) {
+        // TODO should calc the time it takes to reseed, and then minus that from re_sseed time?
         if now.elapsed().as_secs() >= u64::try_from(RE_SEED_TIME).unwrap_or_default() {
             *now = std::time::Instant::now();
             let (postgres, redis) = (postgres.clone(), redis.clone());
