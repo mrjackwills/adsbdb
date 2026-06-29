@@ -70,7 +70,7 @@ impl ModelFlightroute {
     pub async fn get_random(db: &PgPool) -> Result<Self, AppError> {
         let mut counter = 0;
         loop {
-            if let Some(x) = Self::_get_random(db).await? {
+            if let Some(x) = Self::_get_random(db).await?.pop() {
                 return Ok(x);
             }
             if counter >= 15 {
@@ -82,23 +82,15 @@ impl ModelFlightroute {
 
     #[allow(clippy::too_many_lines)]
     /// TODO try to convert to a query_as! macro
-    async fn _get_random(db: &PgPool) -> Result<Option<Self>, AppError> {
+    async fn _get_random(db: &PgPool) -> Result<Vec<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>("
 WITH random_flightroute AS (
-    SELECT
-        fl.flightroute_id
-    FROM
-        flightroute fl
-    OFFSET FLOOR(RANDOM() * (
-        SELECT
-            count(*)
-          FROM
-            flightroute
-        )
-    )
-  LIMIT 150
+    SELECT flightroute_id
+    FROM flightroute TABLESAMPLE BERNOULLI(1)
+    ORDER BY random()
+    LIMIT 5
 )
-  
+
 SELECT
     fl.flightroute_id,
     concat(ai.icao_prefix, fci_icao.callsign) AS callsign,
@@ -179,12 +171,10 @@ FROM
     INNER JOIN airport_name an_d ON an_d.airport_name_id = apd.airport_name_id
     INNER JOIN airport_elevation ae_d ON ae_d.airport_elevation_id = apd.airport_elevation_id
     INNER JOIN airport_latitude ala_d ON ala_d.airport_latitude_id = apd.airport_latitude_id
-    INNER JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_longitude_id
-    
-ORDER BY RANDOM()
-LIMIT 1"
-).fetch_optional(db).await?)
+    INNER JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_longitude_id;"
+).fetch_all(db).await?)
     }
+
     /// Query a flightroute based on a callsign with is a valid N-Number
     fn get_query_callsign() -> String {
         format!(

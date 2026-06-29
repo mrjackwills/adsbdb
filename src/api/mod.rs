@@ -21,6 +21,7 @@ use tower::ServiceBuilder;
 use tracing::info;
 
 mod app_error;
+mod random_seed;
 mod input;
 mod response;
 mod router;

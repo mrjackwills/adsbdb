@@ -53,19 +53,10 @@ impl ModelAircraft {
 WITH random_aircraft AS (
     SELECT
         aircraft_id
-    FROM
-        aircraft
-    OFFSET FLOOR(
-        RANDOM() * (
-            SELECT
-                count(*)
-            FROM
-                aircraft
-            )
-        )
+    FROM aircraft TABLESAMPLE BERNOULLI(0.01)
+    ORDER BY random()
     LIMIT 1
 )
-
 SELECT
     aa.aircraft_id,
     ams.mode_s,
