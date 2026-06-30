@@ -396,3 +396,6 @@ CREATE INDEX IF NOT EXISTS index_incoming_request_id ON incoming_request_url(
 CREATE INDEX IF NOT EXISTS index_temp_request_count ON temp_incoming_request(incoming_request_url_id) INCLUDE (count);
 
 CREATE INDEX IF NOT EXISTS index_iru_path_id ON incoming_request_url (incoming_request_url_path_id);
+
+\echo "update RHO municipality"
+UPDATE airport_municipality am SET municipality = 'Rhodes Island' WHERE am.municipality = 'Rodes Island';
