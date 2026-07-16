@@ -1,6 +1,7 @@
 use crate::{
     S,
     api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
+    db_postgres::{PathID, QueryID, RE_SEED_TIME, VersionID},
     parse_env::AppEnv,
 };
 use fred::{
@@ -10,6 +11,7 @@ use fred::{
     types::FromValue,
 };
 use serde::{Serialize, de::DeserializeOwned};
+// use tower_http::ServiceExt;
 use std::{collections::HashMap, fmt, net::IpAddr};
 pub mod ratelimit;
 
@@ -45,10 +47,7 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     to_insert: Option<&T>,
     key: RedisKey<'_>,
 ) -> Result<(), AppError> {
-    let ttl = match key {
-        RedisKey::Stats => ONE_MINUTE_AS_SEC * 5,
-        _ => ONE_WEEK_AS_SEC,
-    };
+    let ttl = key.get_ttl();
     let key = key.to_string();
     let serialized = to_insert
         .as_ref()
@@ -65,7 +64,7 @@ pub async fn get_cache<T: DeserializeOwned + Send + FromValue>(
     redis: &Pool,
     key: &RedisKey<'_>,
 ) -> Result<Option<Option<T>>, AppError> {
-    let set_expire = key != &RedisKey::Stats;
+    let set_expire = key.get_expire();
     let key = key.to_string();
     if let Some(value) = redis
         .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
@@ -104,13 +103,57 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<Pool, AppError> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IncomingRequestKey<'a> {
+    IncomingRequestUrl(
+        Option<&'a VersionID>,
+        Option<&'a PathID>,
+        Option<&'a QueryID>,
+    ),
+    Path(&'a str),
+    Query(&'a str),
+    Version(&'a str),
+}
+
+impl fmt::Display for IncomingRequestKey<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::IncomingRequestUrl(version, path, query) => write!(
+                f,
+                "v::{}::p::{}::q::{}",
+                version.map_or(S!(), |i| i.get().to_string()),
+                path.map_or(S!(), |i| i.get().to_string()),
+                query.map_or(S!(), |i| i.get().to_string()),
+            ),
+            Self::Query(query) => write!(f, "q::{query}"),
+            Self::Path(path) => write!(f, "p::{path}"),
+            Self::Version(version) => write!(f, "v::{version}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RedisKey<'a> {
     Airline(&'a AirlineCode),
     Callsign(&'a Callsign),
-    Registration(&'a Registration),
+    IncomingRequest(IncomingRequestKey<'a>),
     ModeS(&'a ModeS),
     RateLimit(IpAddr),
+    Registration(&'a Registration),
     Stats,
+}
+
+impl<'a> RedisKey<'a> {
+    const fn get_ttl(&self) -> i64 {
+        match self {
+            // Want this to be double the RE_SEED_TIME, so that there is always a cache available
+            Self::Stats => RE_SEED_TIME.wrapping_mul(2),
+            _ => ONE_WEEK_AS_SEC,
+        }
+    }
+
+    const fn get_expire(&self) -> bool {
+        !matches!(self, Self::Stats)
+    }
 }
 
 impl fmt::Display for RedisKey<'_> {
@@ -122,6 +165,9 @@ impl fmt::Display for RedisKey<'_> {
             Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
             Self::Registration(registration) => write!(f, "registration::{registration}"),
             Self::Stats => write!(f, "stats"),
+            Self::IncomingRequest(incoming_request_key) => {
+                write!(f, "ir::{incoming_request_key}")
+            }
         }
     }
 }
@@ -129,8 +175,8 @@ impl fmt::Display for RedisKey<'_> {
 impl<'a> From<&'a AircraftSearch> for RedisKey<'a> {
     fn from(value: &'a AircraftSearch) -> Self {
         match value {
-            AircraftSearch::Registration(registration) => Self::Registration(registration),
             AircraftSearch::ModeS(mode_s) => Self::ModeS(mode_s),
+            AircraftSearch::Registration(registration) => Self::Registration(registration),
         }
     }
 }

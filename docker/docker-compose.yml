@@ -4,7 +4,7 @@ networks:
     name: adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.6.4
+    image: adsbdb_postgres:0.6.5
     container_name: adsbdb_postgres
     build:
       context: $HOME/adsbdb.d/
@@ -17,15 +17,28 @@ services:
     ipc: private
     restart: always
     shm_size: 512MB
-    command: -c max_wal_size=4GB
     volumes:
       - $HOME/databases.d/adsbdb/pg_data:/pg_data
     networks:
       - adsbdb-net
+    command: >
+       postgres
+       -c autovacuum_vacuum_scale_factor=0.1
+       -c autovacuum_analyze_scale_factor=0.05
+       -c autovacuum_vacuum_cost_limit=1000
+       -c checkpoint_completion_target=0.9
+       -c effective_cache_size=3GB
+       -c effective_io_concurrency=200
+       -c max_wal_size=8GB
+       -c min_wal_size=2GB
+       -c random_page_cost=1.1
+       -c shared_buffers=1GB
+       -c wal_compression=on
+       -c work_mem=16MB
     deploy:
       resources:
         limits:
-          memory: 2048MB
+          memory: 4096MB
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
@@ -33,7 +46,7 @@ services:
       timeout: 20s
       retries: 3
   adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.6.4
+    image: adsbdb_postgres_backup:0.6.5
     container_name: adsbdb_postgres_backup
     build:
       context: $HOME/adsbdb.d/
@@ -57,7 +70,7 @@ services:
         condition: service_healthy
     restart: 'no'
   adsbdb_redis:
-    image: adsbdb_redis:0.6.4
+    image: adsbdb_redis:0.6.5
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -84,9 +97,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2048MB
+          memory: 4096MB
   adsbdb_api:
-    image: adsbdb_api:0.6.4
+    image: adsbdb_api:0.6.5
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:

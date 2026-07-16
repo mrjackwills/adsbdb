@@ -5,8 +5,9 @@ use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
     Router,
-    extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, State},
-    http::{HeaderMap, Request},
+    body::Body,
+    extract::{ConnectInfo, DefaultBodyLimit, State},
+    http::Request,
     middleware::{self, Next},
     response::Response,
     routing::{get, patch},
@@ -69,29 +70,38 @@ impl ApplicationState {
     }
 }
 
-/// extract `x-forwarded-for` header
-fn x_forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get(X_FORWARDED_FOR)
-        .and_then(|x| x.to_str().ok())
-        .and_then(|s| s.split(',').find_map(|s| s.trim().parse::<IpAddr>().ok()))
-}
-
-/// extract the `x-real-ip` header
-fn x_real_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get(X_REAL_IP)
-        .and_then(|x| x.to_str().ok())
-        .and_then(|s| s.parse::<IpAddr>().ok())
-}
-
 /// Get a users ip address, application should always be behind an nginx reverse proxy
 /// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
-pub fn get_ip(headers: &HeaderMap, addr: ConnectInfo<SocketAddr>) -> IpAddr {
-    x_forwarded_for(headers)
-        .or_else(|| x_real_ip(headers))
-        .unwrap_or_else(|| addr.0.ip())
+fn get_ip(req: &Request<Body>) -> Result<IpAddr, AppError> {
+    let headers = req.headers();
+
+    let from_header = |name| headers.get(name).and_then(|v| v.to_str().ok());
+
+    let parse_ip = |s: &str| s.trim().parse::<IpAddr>().ok();
+
+    from_header(X_REAL_IP)
+        .and_then(parse_ip)
+        .or_else(|| from_header(X_FORWARDED_FOR).and_then(|s| s.split(',').find_map(parse_ip)))
+        .or_else(|| {
+            req.extensions()
+                .get::<ConnectInfo<SocketAddr>>()
+                .map(|info| info.ip())
+        })
+        .ok_or_else(|| AppError::Internal(S!("IP error")))
+}
+
+async fn insert_stats(
+    State(state): State<ApplicationState>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    state
+        .stats_tx
+        .send(MsgIncomingRequest::Url(UriMethod::from(&req)))
+        .await
+        .ok();
+    next.run(req).await
 }
 
 /// Limit the users request based on ip address, using redis as mem store
@@ -100,17 +110,8 @@ async fn rate_limiting(
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    let (mut parts, body) = req.into_parts();
-    let addr = ConnectInfo::<SocketAddr>::from_request_parts(&mut parts, &state).await?;
-
-    state
-        .stats_tx
-        .send(MsgIncomingRequest::Url(UriMethod::from(&parts)))
-        .await
-        .ok();
-    let ip = get_ip(&parts.headers, addr);
-    RateLimit::new(ip).check(&state.redis).await?;
-    Ok(next.run(Request::from_parts(parts, body)).await)
+    RateLimit::new(get_ip(&req)?).check(&state.redis).await?;
+    Ok(next.run(req).await)
 }
 
 static API_VERSION: LazyLock<String> = LazyLock::new(|| {
@@ -236,20 +237,23 @@ pub async fn serve(
                 .layer(DefaultBodyLimit::max(1024))
                 .layer(cors)
                 .layer(middleware::from_fn_with_state(
+                    application_state.clone(),
+                    insert_stats,
+                ))
+                .layer(middleware::from_fn_with_state(
                     application_state,
                     rate_limiting,
                 )),
         );
 
     let addr = get_addr(&app_env)?;
-    info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    info!("starting server @ {addr}{}", API_VERSION.as_str());
-    info!(
+    tracing::info!("starting server @ {addr}{}", API_VERSION.as_str());
+    tracing::info!(
         "scrape_flightroute: {}, scrape_photo: {}",
         app_env.allow_scrape_flightroute.is_some(),
         app_env.allow_scrape_photo.is_some()
     );
-    info!("updater: {}", app_env.allow_update.is_some());
+    tracing::info!("updater: {}", app_env.allow_update.is_some());
 
     axum::serve(
         tokio::net::TcpListener::bind(&addr).await?,
@@ -441,6 +445,8 @@ pub mod tests {
 
     async fn assert_empty_stats_cache(redis: &Pool) {
         let stats_cache: Option<String> = redis.hget("stats", "data").await.unwrap();
+        let stats_ttl = redis.ttl::<i64, _>("stats").await.unwrap();
+        assert_eq!(stats_ttl, 600);
         assert!(stats_cache.is_some());
         let cache = serde_json::from_str::<Stats>(&stats_cache.unwrap()).unwrap();
 
@@ -458,6 +464,7 @@ pub mod tests {
     /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
     /// Check that the stats cache is correctly populated and ttl/expire working as expected
     async fn http_mod_get_stats() {
+        // unimplemented!("fix me");
         let setup = start_server().await;
         assert_empty_stats_cache(&setup.redis).await;
 
@@ -481,6 +488,7 @@ pub mod tests {
         assert_eq!(result.response.daily.aggregate, 0);
 
         test_seed_stats().await;
+        setup.flush_redis().await;
 
         let result = CLIENT
             .get(&url)
@@ -493,55 +501,74 @@ pub mod tests {
 
         assert_eq!(
             serde_json::to_string(&result.response.daily).unwrap(),
-            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":1}],"aggregate":22}"#
+            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":2}],"aggregate":23}"#
         );
-
-        let ttl: i64 = setup.redis.ttl("stats").await.unwrap();
-        assert!((296..=300).contains(&ttl));
     }
 
     #[tokio::test]
-    /// Check that stats older than 1 day get removed on any interaction with the api
-    async fn http_mod_get_stats_old_removed() {
+    /// Check that request ids are correctly stores in the redis cache, with valid TTLs, and also inserted in postgres
+    async fn http_mod_stats_cache() {
         let setup = start_server().await;
-        let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
-        assert_empty_stats_cache(&setup.redis).await;
+
         test_seed_stats().await;
-        setup.flush_redis().await;
 
-        sqlx::query!(
-            "UPDATE temp_incoming_request SET timestamp = (CURRENT_TIMESTAMP - INTERVAL '25 hours')"
-        )
-        .execute(&setup.postgres)
-        .await
-        .unwrap();
+        let assert_ttl = |ttl: i64| assert!(ttl > 604790);
 
-        setup.flush_redis().await;
-        CLIENT
-            .get(&url)
-            .send()
-            .await
-            .unwrap()
-            .json::<TestResponseT<Stats>>()
-            .await
-            .unwrap();
-        sleep!(1500);
-        let result = CLIENT
-            .get(&url)
-            .send()
-            .await
-            .unwrap()
-            .json::<TestResponseT<Stats>>()
-            .await
-            .unwrap();
+        let version_result = setup
+            .redis
+            .hget::<i64, &str, &str>("ir::v::v0", "data")
+            .await;
+        assert!(version_result.is_ok());
 
-        assert_eq!(result.response.daily.aircraft, vec![]);
-        assert_eq!(result.response.daily.aircraft, vec![]);
-        assert_eq!(result.response.daily.callsign, vec![]);
-        assert_eq!(result.response.daily.mode_s, vec![]);
-        assert_eq!(result.response.daily.n_number, vec![]);
-        assert_eq!(result.response.daily.online, vec![]);
-        assert_eq!(result.response.daily.aggregate, 1);
+        let version_id = version_result.unwrap();
+
+        assert_ttl(setup.redis.ttl::<i64, &str>("ir::v::v0").await.unwrap());
+
+        let query_result = setup
+            .redis
+            .hget::<i64, &str, &str>("ir::q::test", "data")
+            .await;
+        assert!(query_result.is_ok());
+        let query_id = query_result.unwrap();
+
+        assert_ttl(setup.redis.ttl::<i64, &str>("ir::q::test").await.unwrap());
+
+        for path in ["aircraft", "callsign", "mode-s", "n-number", "online"] {
+            let path_key = format!("ir::p::{path}");
+            let path_result = setup.redis.hget::<i64, &str, &str>(&path_key, "data").await;
+            assert!(path_result.is_ok());
+
+            assert_ttl(setup.redis.ttl::<i64, String>(path_key).await.unwrap());
+
+            let path_id = path_result.unwrap();
+            let full_key = if path == "online" {
+                format!("ir::v::{version_id}::p::{path_id}::q::")
+            } else {
+                format!("ir::v::{version_id}::p::{path_id}::q::{query_id}")
+            };
+
+            let incoming_request_url_id =
+                setup.redis.hget::<i64, &str, &str>(&full_key, "data").await;
+            assert!(incoming_request_url_id.is_ok());
+            let incoming_request_url_id = incoming_request_url_id.unwrap();
+            assert_ttl(setup.redis.ttl::<i64, String>(full_key).await.unwrap());
+            let pg_result =
+                sqlx::query("SELECT * FROM incoming_request WHERE incoming_request_url_id = $1")
+                    .bind(incoming_request_url_id)
+                    .fetch_optional(&setup.postgres)
+                    .await;
+            assert!(pg_result.is_ok());
+            assert!(pg_result.unwrap().is_some());
+
+            let pg_result_temp = sqlx::query(
+                "SELECT * FROM temp_incoming_request WHERE incoming_request_url_id = $1",
+            )
+            .bind(incoming_request_url_id)
+            .fetch_optional(&setup.postgres)
+            .await;
+            assert!(pg_result_temp.is_ok());
+            assert!(pg_result_temp.unwrap().is_some());
+        }
     }
 
     #[tokio::test]

@@ -382,3 +382,20 @@ INSERT INTO airport_iata_code(iata_code) VALUES('RMO');
 UPDATE airport ai
 SET airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_code WHERE iata_code = 'RMO')
 WHERE ai.airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_code WHERE iata_code = 'KIV');
+
+
+-- v0.6.5
+
+CREATE INDEX IF NOT EXISTS index_incoming_request_id ON incoming_request_url(
+    incoming_request_url_id,
+    incoming_request_url_path_id,
+    incoming_request_url_version_id,
+    incoming_request_url_query_id
+);
+
+CREATE INDEX IF NOT EXISTS index_temp_request_count ON temp_incoming_request(incoming_request_url_id) INCLUDE (count);
+
+CREATE INDEX IF NOT EXISTS index_iru_path_id ON incoming_request_url (incoming_request_url_path_id);
+
+\echo "update RHO municipality"
+UPDATE airport_municipality am SET municipality = 'Rhodes Island' WHERE am.municipality = 'Rodes Island';

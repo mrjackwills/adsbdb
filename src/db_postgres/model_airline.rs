@@ -25,44 +25,27 @@ impl ModelAirline {
     pub async fn get_random(db: &PgPool) -> Result<Self, AppError> {
         Ok(sqlx::query_as!(
             Self,
-            r#"WITH random_airline_id AS (
-    SELECT
-        airline_id
-    FROM
-        airline
-    OFFSET FLOOR(
-        RANDOM() * (
-            SELECT
-                count(*)
-            FROM
-            airline
-        )
-    )
-    LIMIT 1
-)
-
-SELECT
+            r#"SELECT
     co.country_name,
     co.country_iso_name,
-    ai.airline_id,
     ai.airline_callsign,
+    ai.airline_id,
     ai.airline_name,
     ai.iata_prefix,
     ai.icao_prefix
-FROM
-    airline ai
-    JOIN country co USING(country_id)
-WHERE
-    ai.airline_id = (
-        SELECT
-            airline_id
-        FROM
-            random_airline_id
-        )"#
+FROM (
+    SELECT airline_id
+    FROM airline TABLESAMPLE BERNOULLI(5)
+    ORDER BY random()
+    LIMIT 1
+) ra
+JOIN airline ai USING(airline_id)
+JOIN country co USING(country_id)"#
         )
         .fetch_one(db)
         .await?)
     }
+
     pub async fn get_by_icao_callsign(
         db: &PgPool,
         callsign: &Callsign,

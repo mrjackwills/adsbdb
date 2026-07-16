@@ -72,6 +72,7 @@ async fn start_incoming_requests(
 async fn start() -> Result<(), AppError> {
     let app_env = parse_env::AppEnv::get_env();
     setup_tracing(&app_env)?;
+    tracing::info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 
     let (postgres, redis) = tokio::try_join!(
         db_postgres::get_pool(&app_env),

@@ -1,13 +1,13 @@
 [package]
 name = "adsbdb"
-version = "0.6.4"
+version = "0.6.5"
 edition = "2024"
 authors = ["Jack Wills <email@mrjackwills.com>"]
 description = "aircraft & flightroute api"
 repository = "https://github.com/mrjackwills/adsbdb"
 homepage = "https://www.adsbdb.com"
 license = "MIT"
-rust-version = "1.93.0"
+rust-version = "1.95.0"
 readme = "README.md"
 
 [lints.rust]
@@ -30,7 +30,7 @@ dotenvy = "0.15"
 fred = { version = "10.1" }
 http-body = "1.0"
 jiff = { version="0.2", features = ["serde"] }
-jiff-sqlx = {version = "0.1", features = ["postgres"] }
+jiff-sqlx = {version = "0.2", features = ["postgres"] }
 mimalloc = "0.1"
 rand = { version = "0.8" }
 reqwest = { version = "0.13", default-features = false, features = [
@@ -41,22 +41,22 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
 	"macros",
 	"postgres",
-	"runtime-tokio-rustls",
+	"runtime-tokio",
 	"time",
 ] }
 thiserror = "2.0"
 tokio = { version = "1.52", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
-tower-http = { version = "0.6", features = ["full"] }
+tower-http = { version = "0.7", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 
 [dev-dependencies]
-regex = "1.12"
+regex = "1.13"
 
 [profile.release]
 lto = true
