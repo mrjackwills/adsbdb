@@ -5,7 +5,7 @@ use axum::{
 use fred::prelude::Pool;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgExecutor, PgPool};
+use sqlx::{PgExecutor, PgPool};
 
 use crate::{
     api::{AppError, Stats, StatsEntry},
@@ -56,13 +56,13 @@ impl From<&Parts> for MsgIncomingRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct EntryCount {
     url: String,
     count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Count {
     count: i64,
 }
