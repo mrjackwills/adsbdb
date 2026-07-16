@@ -37,9 +37,7 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
 }
 
 /// Generic PostgreSQL ID
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, Hash,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, Hash)]
 pub struct ID<T> {
     id: T,
 }
