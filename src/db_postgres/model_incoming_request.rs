@@ -510,6 +510,7 @@ DO UPDATE SET
         })
     }
 
+	/// This is slow
     async fn seed_redis(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
         let statistics = Self::get_daily_total_postgres(postgres).await?;
         insert_cache(redis, Some(&statistics), RedisKey::Stats).await?;
