@@ -15,11 +15,9 @@
 + Rhodes typo, closes #79, [c0bef3777ecf91bbdbc6c3934b07d66793e9adb3]
 
 ### Refactors
-+ dead code removed, [514cab31c9088b132974a79f29298a066a1b6c39], [560f49ac78a5df3201dac87f96bd9f1742b2fc0d]
++ dead code removed, [514cab31c9088b132974a79f29298a066a1b6c39], [560f49ac78a5df3201dac87f96bd9f1742b2fc0d], [34de4c0cf2b4e011b317183477ce32ebe5760e43]
 + improve random queries, [e27e4354f1b30dd576bfbf1de0af5c511f04d399]
 + improve request ip capture, [7985b6a966988db5ac3651dc2ce9d8b08e172b12]
-
-
 
 # <a href='https://github.com/mrjackwills/adsbdb/releases/tag/v0.6.4'>v0.6.4</a>
 ### 2026-04-22
