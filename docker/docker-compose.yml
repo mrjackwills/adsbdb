@@ -17,11 +17,24 @@ services:
     ipc: private
     restart: always
     shm_size: 512MB
-    command: -c max_wal_size=4GB
     volumes:
       - $HOME/databases.d/adsbdb/pg_data:/pg_data
     networks:
       - adsbdb-net
+    command: >
+       postgres
+       -c autovacuum_vacuum_scale_factor=0.1
+       -c autovacuum_analyze_scale_factor=0.05
+       -c autovacuum_vacuum_cost_limit=1000
+       -c checkpoint_completion_target=0.9
+       -c effective_cache_size=3GB
+       -c effective_io_concurrency=200
+       -c max_wal_size=8GB
+       -c min_wal_size=2GB
+       -c random_page_cost=1.1
+       -c shared_buffers=1GB
+       -c wal_compression=on
+       -c work_mem=16MB
     deploy:
       resources:
         limits:
