@@ -19,7 +19,7 @@ generic_id!(AircraftOperatorFlagCode);
 generic_id!(AircraftPhoto);
 generic_id!(AircraftId);
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 struct CountryRegistrationPrefix {
     aircraft_registration_country_prefix_id: i64,
     registration_country_prefix: String,
