@@ -6,37 +6,79 @@
       {
         "ordinal": 0,
         "name": "country_name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "country",
+            "name": "country_name"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "country_iso_name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "country",
+            "name": "country_iso_name"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "airline_id",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "airline",
+            "name": "airline_id"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "airline_callsign",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "airline",
+            "name": "airline_callsign"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "airline_name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "airline",
+            "name": "airline_name"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "iata_prefix",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "airline",
+            "name": "iata_prefix"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "icao_prefix",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "airline",
+            "name": "icao_prefix"
+          }
+        }
       }
     ],
     "parameters": {

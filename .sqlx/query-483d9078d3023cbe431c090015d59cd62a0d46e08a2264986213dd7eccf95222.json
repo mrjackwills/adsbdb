@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nINSERT INTO temp_incoming_request (\n    incoming_request_url_id,\n    request_method\n    )\nVALUES\n    ($1,($2::text)::request_method)\nON CONFLICT\n    (incoming_request_url_id, request_method)\nDO UPDATE SET\n    count = temp_incoming_request.count + 1;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "483d9078d3023cbe431c090015d59cd62a0d46e08a2264986213dd7eccf95222"
+}

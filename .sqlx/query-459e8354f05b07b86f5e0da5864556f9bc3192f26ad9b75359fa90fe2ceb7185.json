@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nSELECT\n    co.country_name,\n    co.country_iso_name,\n    ai.airline_id,\n    ai.airline_callsign,\n    ai.airline_name,\n    ai.iata_prefix,\n    ai.icao_prefix\nFROM\n    airline ai\n    JOIN country co USING(country_id)\nWHERE\n    icao_prefix = $1",
+  "query": "SELECT\n    co.country_name,\n    co.country_iso_name,\n    ai.airline_callsign,\n    ai.airline_id,\n    ai.airline_name,\n    ai.iata_prefix,\n    ai.icao_prefix\nFROM (\n    SELECT airline_id\n    FROM airline TABLESAMPLE BERNOULLI(5)\n    ORDER BY random()\n    LIMIT 1\n) ra\nJOIN airline ai USING(airline_id)\nJOIN country co USING(country_id)",
   "describe": {
     "columns": [
       {
@@ -27,23 +27,23 @@
       },
       {
         "ordinal": 2,
-        "name": "airline_id",
-        "type_info": "Int8",
-        "origin": {
-          "Table": {
-            "table": "airline",
-            "name": "airline_id"
-          }
-        }
-      },
-      {
-        "ordinal": 3,
         "name": "airline_callsign",
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "airline",
             "name": "airline_callsign"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "airline_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "airline",
+            "name": "airline_id"
           }
         }
       },
@@ -82,19 +82,17 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
       false,
-      false,
       true,
+      false,
       false,
       true,
       false
     ]
   },
-  "hash": "4a8ab96f7d5ef3d617f55600197b0e317d5552add17ecbcefd327e655973877d"
+  "hash": "459e8354f05b07b86f5e0da5864556f9bc3192f26ad9b75359fa90fe2ceb7185"
 }

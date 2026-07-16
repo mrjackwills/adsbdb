@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(count), 0) AS \"count!\" FROM temp_incoming_request;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "30d86839ab10b37b611d6c425a5ef9238fd38dca27f4f4abc7c12c34fa3689e3"
+}
