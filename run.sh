@@ -72,8 +72,9 @@ DOCKER_DIR="${APP_DIR}/docker"
 
 # Containers
 API="${APP_NAME}_api"
+APP_POSTGRES="${APP_NAME}_postgres"
 BACKUP_CONTAINER="${APP_NAME}_postgres_backup"
-BASE_CONTAINERS=("${APP_NAME}_postgres" "${APP_NAME}_redis")
+BASE_CONTAINERS=("${APP_POSTGRES}" "${APP_NAME}_redis")
 ALL=("${BASE_CONTAINERS[@]}" "${API}" "${BACKUP_CONTAINER}")
 TO_RUN=("${BASE_CONTAINERS[@]}")
 
@@ -106,12 +107,27 @@ make_all_directories() {
 restart_base_containers() {
 	echo "restarting base containers: ${BASE_CONTAINERS[*]}"
 	docker restart "${BASE_CONTAINERS[@]}"
-	sleep 10
 }
 
 run_migrations() {
+
+# This will only work if there is a file to restore!
+	TARGET_PHRASE="database system is ready to accept connections"
+
+	# Loop until the phrase appears exactly (or at least) twice
+	# TODO this will break if the container is already active!
+	# do a y/n
+	if ask_yn "wait for restore"; then
+		while [ "$(docker logs "$APP_POSTGRES" 2>&1 | grep -c "$TARGET_PHRASE")" -lt 2 ]; do
+			echo "$APP_POSTGRES not ready - sleeping for 1 minute"
+			sleep 60
+		done
+		fi
+	echo "pg_restore complete"
+
 	if ask_yn "run migrations"; then
 		restart_base_containers
+		sleep 10
 		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
 	fi
 }
@@ -120,7 +136,6 @@ dev_up() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	echo "starting base containers: ${BASE_CONTAINERS[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${BASE_CONTAINERS[@]}"
-	sleep 15
 	run_migrations
 	echo "starting selected containers: ${TO_RUN[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
@@ -137,7 +152,6 @@ production_up() {
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		echo "starting base containers: ${BASE_CONTAINERS[*]}"
 		docker compose -f docker-compose.yml up -d "${BASE_CONTAINERS[@]}"
-		sleep 15
 		run_migrations
 		echo "starting all containers: ${ALL[*]}"
 		docker compose -f docker-compose.yml up -d
@@ -152,7 +166,6 @@ production_rebuild() {
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		echo "starting base containers: ${BASE_CONTAINERS[*]}"
 		docker compose -f docker-compose.yml up -d  --build "${BASE_CONTAINERS[@]}"
-		sleep 15
 		run_migrations
 		echo "starting all containers: ${ALL[*]}"
 		docker compose -f docker-compose.yml up -d  --build
