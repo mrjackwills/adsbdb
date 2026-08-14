@@ -6,9 +6,9 @@ services:
     image: adsbdb_postgres:0.6.5
     container_name: adsbdb_postgres
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/postgres.Dockerfile
-    env_file: /workspaces/adsbdb/docker/env/.postgres.env
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/postgres.Dockerfile
+    env_file: /workspaces/backend/docker/env/.postgres.env
     cap_drop:
       - all
     security_opt:
@@ -52,9 +52,9 @@ services:
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/redis.Dockerfile
-    env_file: /workspaces/adsbdb/docker/env/.redis.env
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/redis.Dockerfile
+    env_file: /workspaces/backend/docker/env/.redis.env
     volumes:
       - /data/adsbdb/redis_data:/redis_data
     cap_drop:
@@ -84,9 +84,9 @@ services:
     image: adsbdb_postgres_backup:0.6.5
     container_name: adsbdb_postgres_backup
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/postgres_backup.Dockerfile
-    env_file: /workspaces/adsbdb/docker/env/.postgres_backup.env
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/postgres_backup.Dockerfile
+    env_file: /workspaces/backend/docker/env/.postgres_backup.env
     cap_drop:
       - all
     security_opt:
@@ -115,11 +115,11 @@ services:
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/api.Dockerfile
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/api.Dockerfile
     volumes:
       - /data/adsbdb/logs:/logs
-      - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
+      - /workspaces/backend/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8282:8282"
     cap_drop:
