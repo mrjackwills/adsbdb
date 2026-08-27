@@ -57,15 +57,18 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
     }
 }
 
-fn start_scraper(app_env: &AppEnv, postgres: &PgPool) -> Result<async_channel::Sender<MsgScraper>, AppError> {
+fn start_scraper(
+    app_env: &AppEnv,
+    postgres: &PgPool,
+) -> Result<async_channel::Sender<MsgScraper>, AppError> {
     Ok(Scraper::start(app_env, postgres))
 }
 
 /// This initial seeding is slow, will block until complete
 /// Ideally put the daily stats into redis, but would a decent amount of work
 async fn start_incoming_requests(
-	postgres: &PgPool,
-	redis: &Pool
+    postgres: &PgPool,
+    redis: &Pool,
 ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
     ModelIncomingRequest::start(postgres, redis).await
 }
@@ -80,8 +83,8 @@ async fn start() -> Result<(), AppError> {
         db_redis::get_pool(&app_env),
     )?;
 
-    let tx_scraper =  start_scraper(&app_env, &postgres)?;
-	let tx_stats = start_incoming_requests(&postgres, &redis).await?;
+    let tx_scraper = start_scraper(&app_env, &postgres)?;
+    let tx_stats = start_incoming_requests(&postgres, &redis).await?;
 
     api::serve(app_env, postgres, redis, tx_scraper, tx_stats).await
 }

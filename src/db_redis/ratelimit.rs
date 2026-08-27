@@ -6,10 +6,11 @@ pub struct RateLimit {
     key: String,
 }
 
-const UPPER_LIMIT: u64 = 1024;
-const LOWER_LIMIT: u64 = 512;
+const UPPER_LIMIT: usize = 1024;
+const LOWER_LIMIT: usize = 512;
 
 const ONE_MINUTE_AS_SEC: i64 = 60;
+const FIVE_MINUTES_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 5;
 
 impl RateLimit {
     pub fn new(ip: IpAddr) -> Self {
@@ -20,33 +21,33 @@ impl RateLimit {
 
     /// Check if request has been rate limited, always increases the current value of the given rate limit
     pub async fn check(&self, redis: &Pool) -> Result<(), AppError> {
-        if let Some(count) = redis.get::<Option<u64>, &str>(&self.key).await? {
-            redis.incr::<(), _>(&self.key).await?;
-            if count >= UPPER_LIMIT {
-                // Only show the count if is multiple of the upper limit
-                if count % UPPER_LIMIT == 0 {
-                    tracing::info!("{} - {count}", self.key);
-                }
-                redis
-                    .expire::<(), &str>(&self.key, ONE_MINUTE_AS_SEC * 5, None)
-                    .await?;
-            }
-            if count > LOWER_LIMIT {
-                return Err(AppError::RateLimited(
-                    redis.ttl::<i64, &str>(&self.key).await?,
-                ));
-            }
-            if count == LOWER_LIMIT {
-                redis
-                    .expire::<i64, &String>(&self.key, ONE_MINUTE_AS_SEC, None)
-                    .await?;
-                return Err(AppError::RateLimited(ONE_MINUTE_AS_SEC));
-            }
-        } else {
-            redis.incr::<(), _>(&self.key).await?;
+        let count = redis.incr::<usize, _>(&self.key).await?.saturating_sub(1);
+        if count == 0 {
             redis
                 .expire::<i64, &String>(&self.key, ONE_MINUTE_AS_SEC, None)
                 .await?;
+            return Ok(());
+        }
+
+        if count >= UPPER_LIMIT {
+            // Only show the count if is multiple of the upper limit
+            if count % UPPER_LIMIT == 0 {
+                tracing::info!("{} - {count}", self.key);
+            }
+            redis
+                .expire::<(), &str>(&self.key, FIVE_MINUTES_AS_SEC, None)
+                .await?;
+        }
+        if count > LOWER_LIMIT {
+            return Err(AppError::RateLimited(
+                redis.ttl::<i64, &str>(&self.key).await?,
+            ));
+        }
+        if count == LOWER_LIMIT {
+            redis
+                .expire::<i64, &String>(&self.key, ONE_MINUTE_AS_SEC, None)
+                .await?;
+            return Err(AppError::RateLimited(ONE_MINUTE_AS_SEC));
         }
         Ok(())
     }

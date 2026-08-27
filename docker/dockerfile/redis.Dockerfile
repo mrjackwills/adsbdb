@@ -18,11 +18,11 @@ USER ${DOCKER_APP_USER}
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_redis.sh /healthcheck/
 
-CMD sh -c 'redis-server \
-     --bind ${DOCKER_REDIS_HOST} \
-     --port ${DOCKER_REDIS_PORT} \
-     --requirepass ${DOCKER_REDIS_PASSWORD} \
-     --pidfile /var/run/redis_${DOCKER_REDIS_PORT}.pid \
+CMD sh -c 'exec redis-server \
+	--bind "${DOCKER_REDIS_HOST}" \
+	--port "${DOCKER_REDIS_PORT}" \
+	--requirepass "${DOCKER_REDIS_PASSWORD}" \
+	--pidfile /redis_data/redis_${DOCKER_REDIS_PORT}.pid \
      --logfile /redis_logs/redis-server.log \
      --loglevel notice \
      --save "60 1" \

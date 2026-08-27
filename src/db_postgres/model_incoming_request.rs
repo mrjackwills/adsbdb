@@ -550,8 +550,8 @@ DO UPDATE SET
     ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
         Self::seed_redis(postgres, redis).await?;
         let (tx, rx) = async_channel::bounded(8192);
-		let postgres = postgres.clone();
-		let redis = redis.clone();
+        let postgres = postgres.clone();
+        let redis = redis.clone();
         tokio::spawn(async move {
             let mut now = std::time::Instant::now();
             while let Ok(msg) = rx.recv().await {
