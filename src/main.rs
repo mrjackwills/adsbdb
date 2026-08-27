@@ -15,7 +15,7 @@ mod scraper;
 use api::AppError;
 use parse_env::AppEnv;
 use sqlx::PgPool;
-use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
+use tracing_subscriber::{fmt, prelude::*};
 
 use crate::{
     db_postgres::{ModelIncomingRequest, MsgIncomingRequest},
