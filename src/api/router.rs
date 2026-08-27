@@ -395,8 +395,8 @@ mod tests {
         let redis = db_redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
 
-        let tx_scraper = start_scraper(&app_env).await.unwrap();
-        let tx_stats = start_incoming_requests(&app_env).await.unwrap();
+        let tx_scraper = start_scraper(&app_env, &postgres).unwrap();
+        let tx_stats = start_incoming_requests(&postgres, &redis).await.unwrap();
 
         State(ApplicationState::new(
             &app_env, postgres, redis, tx_scraper, tx_stats,

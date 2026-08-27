@@ -545,11 +545,13 @@ DO UPDATE SET
     /// Will insert cache stats at interval RE_SEED_TIME - assuming it has recieved any messages at all in that time period
     /// As the /online route gets checked via Docker, we can assume atleast single message every 60 seconds
     pub async fn start(
-        postgres: PgPool,
-        redis: Pool,
+        postgres: &PgPool,
+        redis: &Pool,
     ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
-        Self::seed_redis(&postgres, &redis).await?;
+        Self::seed_redis(postgres, redis).await?;
         let (tx, rx) = async_channel::bounded(8192);
+		let postgres = postgres.clone();
+		let redis = redis.clone();
         tokio::spawn(async move {
             let mut now = std::time::Instant::now();
             while let Ok(msg) = rx.recv().await {

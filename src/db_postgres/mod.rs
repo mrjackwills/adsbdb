@@ -30,7 +30,7 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     }
 
     Ok(PgPoolOptions::new()
-        .max_connections(32)
+        .max_connections(95)
         .connect_with(options)
         .await?)
 }

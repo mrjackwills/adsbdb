@@ -181,7 +181,7 @@ impl Scraper {
     }
 
     /// Build a new scraper, and spawn in a tokio thread, return a Sender to be inserted into ApplicationState
-    pub fn start(app_env: &AppEnv, postgres: PgPool) -> async_channel::Sender<MsgScraper> {
+    pub fn start(app_env: &AppEnv, postgres: &PgPool) -> async_channel::Sender<MsgScraper> {
         let (tx, rx) = async_channel::bounded(8192);
         let mut scraper = Self {
             flight_scrape_url: app_env.url_callsign.clone(),
@@ -190,7 +190,7 @@ impl Scraper {
             allow_scrape_photo: app_env.allow_scrape_photo,
             callsign_requests: HashMap::new(),
             photo_requests: HashMap::new(),
-            postgres,
+            postgres: postgres.clone(),
             tx: tx.clone(),
         };
         tokio::spawn(async move {
@@ -541,7 +541,7 @@ pub mod tests {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
-        let sender = Scraper::start(&setup.0, setup.1.clone());
+        let sender = Scraper::start(&setup.0, &setup.1);
         let (s, r) = oneshot::channel();
         sender.send(MsgScraper::CallSign((s, callsign))).await.ok();
 
@@ -602,7 +602,7 @@ pub mod tests {
         let mut setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
         setup.0.allow_scrape_flightroute = None;
-        let sender = Scraper::start(&setup.0, setup.1.clone());
+        let sender = Scraper::start(&setup.0, &setup.1);
 
         let (s, r) = oneshot::channel();
         sender.send(MsgScraper::CallSign((s, callsign))).await.ok();
@@ -616,7 +616,7 @@ pub mod tests {
     #[tokio::test]
     async fn scraper_get_photo() {
         let setup = test_setup().await;
-        let sender = Scraper::start(&setup.0, setup.1.clone());
+        let sender = Scraper::start(&setup.0, &setup.1);
 
         let mode_s = ModeS::from(S!("393C00"));
 
@@ -665,7 +665,7 @@ pub mod tests {
     async fn scraper_get_photo_null() {
         let mut setup = test_setup().await;
         setup.0.allow_scrape_photo = None;
-        let sender = Scraper::start(&setup.0, setup.1.clone());
+        let sender = Scraper::start(&setup.0, &setup.1);
 
         let mode_s = ModeS::from(S!("393C00"));
 

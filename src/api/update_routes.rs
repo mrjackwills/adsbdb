@@ -327,8 +327,8 @@ pub mod tests {
 
         let redis = setup.redis.clone();
 
-        let tx_scraper = start_scraper(&app_env).await.unwrap();
-        let tx_stats = start_incoming_requests(&app_env).await.unwrap();
+        let tx_scraper = start_scraper(&app_env, &postgres).unwrap();
+        let tx_stats = start_incoming_requests(&postgres, &redis).await.unwrap();
 
         let handle = tokio::spawn(async move {
             serve(spawn_env, postgres, redis, tx_scraper, tx_stats)
