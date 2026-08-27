@@ -117,6 +117,7 @@ run_migrations() {
 	# Loop until the phrase appears exactly (or at least) twice
 	# TODO this will break if the container is already active!
 	# do a y/n
+	# TODO change this to see if last line is starts pg_restore
 	if ask_yn "wait for restore"; then
 		while [ "$(docker logs "$APP_POSTGRES" 2>&1 | grep -c "$TARGET_PHRASE")" -lt 2 ]; do
 			echo "$APP_POSTGRES not ready - sleeping for 1 minute"

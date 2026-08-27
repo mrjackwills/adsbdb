@@ -301,6 +301,7 @@ pub mod tests {
 
     use crate::db_postgres;
     use crate::db_redis;
+    use crate::db_redis::RedisKey;
     use crate::parse_env;
     use crate::start_incoming_requests;
     use crate::start_scraper;
@@ -312,22 +313,6 @@ pub mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use tokio::task::JoinHandle;
-
-    /// Delete all entites in temp_incoming_request table, and incoming_request & incoming_rewuest_url which are younger than 12 hours old
-    pub async fn delete_incoming_request(db: &PgPool) {
-        sqlx::query("DELETE FROM incoming_request WHERE timestamp >= (CURRENT_TIMESTAMP - INTERVAL '12 hours')")
-            .execute(db)
-            .await
-            .unwrap();
-        sqlx::query("DELETE FROM temp_incoming_request")
-            .execute(db)
-            .await
-            .unwrap();
-        sqlx::query("DELETE FROM incoming_request_url WHERE timestamp >= (CURRENT_TIMESTAMP - INTERVAL '12 hours')")
-            .execute(db)
-            .await
-            .unwrap();
-    }
 
     pub static CLIENT: LazyLock<reqwest::Client> =
         LazyLock::new(|| reqwest::ClientBuilder::new().build().unwrap());
@@ -353,7 +338,6 @@ pub mod tests {
             db_redis::get_pool(&app_env)
         )
         .unwrap();
-        delete_incoming_request(&postgres).await;
         let setup = TestSetup {
             _handle: None,
             app_env,
@@ -382,6 +366,7 @@ pub mod tests {
         let postgres = setup.postgres.clone();
         let app_env = setup.app_env.clone();
         let redis = setup.redis.clone();
+        setup.flush_redis().await;
 
         // need to set up scrapers here
         let tx_scraper = start_scraper(&app_env).await.unwrap();
@@ -488,7 +473,11 @@ pub mod tests {
         assert_eq!(result.response.daily.aggregate, 0);
 
         test_seed_stats().await;
-        setup.flush_redis().await;
+        setup
+            .redis
+            .del::<(), _>(RedisKey::Stats.to_string())
+            .await
+            .unwrap();
 
         let result = CLIENT
             .get(&url)
@@ -520,8 +509,6 @@ pub mod tests {
             .await;
         assert!(version_result.is_ok());
 
-        let version_id = version_result.unwrap();
-
         assert_ttl(setup.redis.ttl::<i64, &str>("ir::v::v0").await.unwrap());
 
         let query_result = setup
@@ -541,33 +528,33 @@ pub mod tests {
             assert_ttl(setup.redis.ttl::<i64, String>(path_key).await.unwrap());
 
             let path_id = path_result.unwrap();
-            let full_key = if path == "online" {
-                format!("ir::v::{version_id}::p::{path_id}::q::")
+            let pg_result = if path == "online" {
+                sqlx::query(
+                    "SELECT * FROM incoming_request WHERE incoming_request_url_path_id = $1 AND incoming_request_url_query_id IS NULL",
+                )
+                .bind(path_id)
+                .fetch_optional(&setup.postgres)
+                .await
             } else {
-                format!("ir::v::{version_id}::p::{path_id}::q::{query_id}")
+                sqlx::query(
+                    "SELECT * FROM incoming_request WHERE incoming_request_url_path_id = $1 AND incoming_request_url_query_id = $2",
+                )
+                .bind(path_id)
+                .bind(query_id)
+                .fetch_optional(&setup.postgres)
+                .await
             };
-
-            let incoming_request_url_id =
-                setup.redis.hget::<i64, &str, &str>(&full_key, "data").await;
-            assert!(incoming_request_url_id.is_ok());
-            let incoming_request_url_id = incoming_request_url_id.unwrap();
-            assert_ttl(setup.redis.ttl::<i64, String>(full_key).await.unwrap());
-            let pg_result =
-                sqlx::query("SELECT * FROM incoming_request WHERE incoming_request_url_id = $1")
-                    .bind(incoming_request_url_id)
-                    .fetch_optional(&setup.postgres)
-                    .await;
             assert!(pg_result.is_ok());
             assert!(pg_result.unwrap().is_some());
 
-            let pg_result_temp = sqlx::query(
-                "SELECT * FROM temp_incoming_request WHERE incoming_request_url_id = $1",
-            )
-            .bind(incoming_request_url_id)
-            .fetch_optional(&setup.postgres)
-            .await;
-            assert!(pg_result_temp.is_ok());
-            assert!(pg_result_temp.unwrap().is_some());
+            let minute = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64
+                / 60;
+            let key = RedisKey::TempIR((path, minute)).to_string();
+            let temp_bucket = setup.redis.exists::<bool, _>(&key).await.unwrap();
+            assert!(temp_bucket);
         }
     }
 

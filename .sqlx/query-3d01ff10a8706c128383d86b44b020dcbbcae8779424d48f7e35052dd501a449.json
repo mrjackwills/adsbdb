@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nINSERT INTO incoming_request (\n    incoming_request_url_version_id,\n    incoming_request_url_path_id,\n    incoming_request_url_query_id,\n    request_method\n    )\nVALUES\n    ( $1, $2, $3, ($4::text)::request_method)\nON CONFLICT ON CONSTRAINT incoming_request_pkey\nDO UPDATE SET\n    count = incoming_request.count + 1;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3d01ff10a8706c128383d86b44b020dcbbcae8779424d48f7e35052dd501a449"
+}

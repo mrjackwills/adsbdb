@@ -1,7 +1,7 @@
 use crate::{
     S,
     api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
-    db_postgres::{PathID, QueryID, RE_SEED_TIME, VersionID},
+    db_postgres::RE_SEED_TIME,
     parse_env::AppEnv,
 };
 use fred::{
@@ -17,6 +17,7 @@ pub mod ratelimit;
 
 pub const ONE_MINUTE_AS_SEC: i64 = 60;
 pub const ONE_WEEK_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 60 * 24 * 7;
+pub const ONE_DAY_AS_SEC: i64 = ONE_MINUTE_AS_SEC * 60 * 24;
 pub const HASH_FIELD: &str = "data";
 
 /// Macro to convert a stringified struct back into the struct
@@ -104,11 +105,6 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<Pool, AppError> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IncomingRequestKey<'a> {
-    IncomingRequestUrl(
-        Option<&'a VersionID>,
-        Option<&'a PathID>,
-        Option<&'a QueryID>,
-    ),
     Path(&'a str),
     Query(&'a str),
     Version(&'a str),
@@ -117,13 +113,6 @@ pub enum IncomingRequestKey<'a> {
 impl fmt::Display for IncomingRequestKey<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::IncomingRequestUrl(version, path, query) => write!(
-                f,
-                "v::{}::p::{}::q::{}",
-                version.map_or(S!(), |i| i.get().to_string()),
-                path.map_or(S!(), |i| i.get().to_string()),
-                query.map_or(S!(), |i| i.get().to_string()),
-            ),
             Self::Query(query) => write!(f, "q::{query}"),
             Self::Path(path) => write!(f, "p::{path}"),
             Self::Version(version) => write!(f, "v::{version}"),
@@ -140,6 +129,8 @@ pub enum RedisKey<'a> {
     RateLimit(IpAddr),
     Registration(&'a Registration),
     Stats,
+    TempIR((&'a str, i64)),
+    TempIRCount(i64),
 }
 
 impl<'a> RedisKey<'a> {
@@ -147,6 +138,7 @@ impl<'a> RedisKey<'a> {
         match self {
             // Want this to be double the RE_SEED_TIME, so that there is always a cache available
             Self::Stats => RE_SEED_TIME.wrapping_mul(2),
+            Self::TempIR(_) => ONE_DAY_AS_SEC,
             _ => ONE_WEEK_AS_SEC,
         }
     }
@@ -165,6 +157,9 @@ impl fmt::Display for RedisKey<'_> {
             Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
             Self::Registration(registration) => write!(f, "registration::{registration}"),
             Self::Stats => write!(f, "stats"),
+            // Do I need to combine this with IR?
+            Self::TempIR((path, minute)) => write!(f, "tir::p::{path}::{minute}"),
+            Self::TempIRCount(minute) => write!(f, "tir::c::{minute}"),
             Self::IncomingRequest(incoming_request_key) => {
                 write!(f, "ir::{incoming_request_key}")
             }

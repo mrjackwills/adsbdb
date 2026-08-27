@@ -25,19 +25,19 @@ doc_markdown = "allow"
 [dependencies]
 argon2 = "0.5"
 async-channel = "2.5"
-axum = {version = "0.8", features=["macros"]}
+axum = { version = "0.8", features = ["macros"] }
 dotenvy = "0.15"
 fred = { version = "10.1" }
 http-body = "1.0"
-jiff = { version="0.2", features = ["serde"] }
-jiff-sqlx = {version = "0.2", features = ["postgres"] }
+jiff = { version = "0.2", features = ["serde"] }
+jiff-sqlx = { version = "0.2", features = ["postgres"] }
 mimalloc = "0.1"
 rand = { version = "0.8" }
 reqwest = { version = "0.13", default-features = false, features = [
 	"brotli",
 	"gzip",
 	"json",
-	"default-tls"
+	"default-tls",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -64,3 +64,13 @@ codegen-units = 1
 panic = 'abort'
 strip = true
 debug = false
+
+
+[profile.dev]
+debug = "line-tables-only"
+
+
+
+#.cargo/config.toml
+# [build]
+# rustflags = ["-Z", "threads=8"]

@@ -380,7 +380,6 @@ mod tests {
         Registration,
         input::Validate,
         response::{Airline, Airport},
-        tests::delete_incoming_request,
     };
     use crate::db_postgres;
     use crate::db_redis;
@@ -398,8 +397,6 @@ mod tests {
 
         let tx_scraper = start_scraper(&app_env).await.unwrap();
         let tx_stats = start_incoming_requests(&app_env).await.unwrap();
-
-        delete_incoming_request(&postgres).await;
 
         State(ApplicationState::new(
             &app_env, postgres, redis, tx_scraper, tx_stats,

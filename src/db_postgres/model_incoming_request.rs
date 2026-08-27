@@ -2,27 +2,49 @@ use axum::{
     body::Body,
     http::{Request, Uri, request::Parts},
 };
+use fred::interfaces::{KeysInterface, SortedSetsInterface};
 use fred::prelude::Pool;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use sqlx::{PgExecutor, PgPool};
+use sqlx::PgPool;
 
 use crate::{
     api::{AppError, Stats, StatsEntry},
     db_postgres::ID,
-    db_redis::{IncomingRequestKey, ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache},
+    db_redis::{
+        IncomingRequestKey, ONE_DAY_AS_SEC, ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache,
+    },
     generic_id, redis_hash_to_struct,
 };
+use std::collections::HashMap;
 
 pub const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC.wrapping_mul(5);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UriMethod(Uri, Method);
 
-impl UriMethod {
-    /// Split an url into three optional parts, (version, path, query), split on '/' char
-    fn split_into_parts(&self) -> (Option<String>, Option<String>, Option<String>) {
-        let url = self
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SplitUri {
+    version: Option<String>,
+    path: Option<String>,
+    query: Option<String>,
+}
+
+impl SplitUri {
+    fn build_url(&self) -> String {
+        let segments: Vec<String> = [&self.version, &self.path, &self.query]
+            .into_iter()
+            .flatten()
+            .filter(|i| !i.is_empty())
+            .map(|s| s.to_owned())
+            .collect();
+        format!("/{}", segments.join("/"))
+    }
+}
+
+impl From<&UriMethod> for SplitUri {
+    fn from(value: &UriMethod) -> Self {
+        let url = value
             .0
             .to_string()
             .strip_prefix('/')
@@ -30,11 +52,11 @@ impl UriMethod {
             .to_owned();
 
         let mut parts = url.splitn(3, '/').map(|i| Some(i.to_owned()));
-        (
-            parts.next().flatten(),
-            parts.next().flatten(),
-            parts.next().flatten(),
-        )
+        Self {
+            version: parts.next().flatten(),
+            path: parts.next().flatten(),
+            query: parts.next().flatten(),
+        }
     }
 }
 
@@ -47,7 +69,6 @@ impl From<&Request<Body>> for UriMethod {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MsgIncomingRequest {
     Url(UriMethod),
-    // TODO reseed time?
 }
 
 impl From<&Parts> for MsgIncomingRequest {
@@ -75,80 +96,12 @@ pub struct ModelIncomingRequest;
 type VId = ID<VersionID>;
 type QId = ID<QueryID>;
 type PId = ID<PathID>;
-type IRId = ID<IncomingRequestID>;
 
 generic_id!(VersionID);
 generic_id!(PathID);
 generic_id!(QueryID);
 
-generic_id!(IncomingRequestID);
-
-/// postgres, column, uses "temp_incoming_request" table
-macro_rules! fetch_temp_stats {
-    ($pg:expr, $path:expr) => {
-        sqlx::query_as!(
-            EntryCount,
-            r#"
-WITH url_counts AS (
-    SELECT
-        tir.incoming_request_url_id,
-        SUM(tir.count) AS total_count
-    FROM temp_incoming_request tir
-    JOIN incoming_request_url iru ON iru.incoming_request_url_id = tir.incoming_request_url_id
-    JOIN incoming_request_url_path irup ON irup.incoming_request_url_path_id = iru.incoming_request_url_path_id
-    WHERE irup.url_path = $1
-    GROUP BY tir.incoming_request_url_id
-    ORDER BY total_count DESC
-    LIMIT 10
-)
-SELECT
-    '/' || CONCAT_WS(
-        '/',
-        NULLIF(iruv.url_version, ''),
-        NULLIF(irup.url_path, ''),
-        NULLIF(iruq.url_query, '')
-    ) AS "url!",
-    uc.total_count AS "count!"
-FROM url_counts uc
-JOIN incoming_request_url iru ON iru.incoming_request_url_id = uc.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-JOIN incoming_request_url_path irup ON irup.incoming_request_url_path_id = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-ORDER BY uc.total_count DESC, "url!""#,$path
-        )
-        .fetch_all($pg)
-    };
-}
-
-// Used for /stats and /online, else the grouping get's messed up at results in a count of 1
-// Need to work out how to correctly combine both queries so that we can use a single macro
-macro_rules! fetch_temp_single_stats {
-    ($pg:expr, $path:expr) => {
-        sqlx::query_as!(
-            EntryCount,
-r#"SELECT
-    '/' || CONCAT_WS(
-        '/',
-        NULLIF(iruv.url_version, ''),
-        NULLIF(irup.url_path, ''),
-        NULLIF(iruq.url_query, '')
-    ) AS "url!",
-    SUM(COALESCE(tir.count, 0)) AS "count!"
-FROM temp_incoming_request tir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = tir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
-WHERE irup.url_path = $1
-GROUP BY
-    '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
-ORDER BY "count!" DESC, "url!"
-LIMIT 1"#,$path
-        )
-        .fetch_all($pg)
-    };
-}
-
+/// postgres, column, uses "incoming_request" table
 macro_rules! fetch_single_stats {
     ($pg:expr, $path:expr) => {
         sqlx::query_as!(
@@ -160,12 +113,11 @@ r#"SELECT
         NULLIF(irup.url_path, ''),
         NULLIF(iruq.url_query, '')
     ) AS "url!",
-    SUM(COALESCE(ir.count, 0)) AS "count!"
+    SUM(COALESCE(ir.count, 0))::BIGINT AS "count!"
 FROM incoming_request ir
-LEFT JOIN incoming_request_url iru  ON iru.incoming_request_url_id = ir.incoming_request_url_id
-LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
-LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = iru.incoming_request_url_path_id
-LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
+LEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = ir.incoming_request_url_version_id
+LEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = ir.incoming_request_url_path_id
+LEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = ir.incoming_request_url_query_id
 WHERE irup.url_path = $1
 GROUP BY
     '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))
@@ -184,15 +136,18 @@ macro_rules! fetch_stats {
             r#"
 WITH counts AS (
     SELECT
-        ir.incoming_request_url_id,
-        SUM(COALESCE(ir.count, 0)) AS url_count
+        ir.incoming_request_url_version_id,
+        ir.incoming_request_url_path_id,
+        ir.incoming_request_url_query_id,
+        SUM(COALESCE(ir.count, 0))::BIGINT AS url_count
     FROM incoming_request ir
-    JOIN incoming_request_url iru
-        ON iru.incoming_request_url_id = ir.incoming_request_url_id
     JOIN incoming_request_url_path irup
-        ON irup.incoming_request_url_path_id = iru.incoming_request_url_path_id
+        ON irup.incoming_request_url_path_id = ir.incoming_request_url_path_id
     WHERE irup.url_path = $1
-    GROUP BY ir.incoming_request_url_id
+    GROUP BY
+        ir.incoming_request_url_version_id,
+        ir.incoming_request_url_path_id,
+        ir.incoming_request_url_query_id
     ORDER BY url_count DESC
     LIMIT 10
 )
@@ -205,19 +160,108 @@ SELECT
     ) AS "url!",
     c.url_count AS "count!"
 FROM counts c
-JOIN incoming_request_url iru
-    ON iru.incoming_request_url_id = c.incoming_request_url_id
-JOIN incoming_request_url_path irup
-    ON irup.incoming_request_url_path_id = iru.incoming_request_url_path_id
 LEFT JOIN incoming_request_url_version iruv
-    ON iruv.incoming_request_url_version_id = iru.incoming_request_url_version_id
+    ON iruv.incoming_request_url_version_id = c.incoming_request_url_version_id
+LEFT JOIN incoming_request_url_path irup
+    ON irup.incoming_request_url_path_id = c.incoming_request_url_path_id
 LEFT JOIN incoming_request_url_query iruq
-    ON iruq.incoming_request_url_query_id = iru.incoming_request_url_query_id
+    ON iruq.incoming_request_url_query_id = c.incoming_request_url_query_id
 ORDER BY c.url_count DESC, "url!""#,
             $path
         )
         .fetch_all($pg)
     };
+}
+
+/// Current time as an epoch-minute, so that time buckets are distinct across days and TZ-free
+fn epoch_minute() -> i64 {
+    i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    )
+    .unwrap_or_default()
+    .saturating_div(ONE_MINUTE_AS_SEC)
+}
+
+/// Increment the daily stats for a given request
+async fn increment_temp_stat(redis: &Pool, split_url: SplitUri) -> Result<(), AppError> {
+    let minute = epoch_minute();
+    let full_url = split_url.build_url();
+
+    if let Some(path) = split_url.path.filter(|p| !p.is_empty()) {
+        let path_key = RedisKey::TempIR((&path, minute)).to_string();
+        let exists = redis.exists::<bool, _>(&path_key).await?;
+        redis.zincrby::<(), _, _>(&path_key, 1.0, &full_url).await?;
+        if !exists {
+            redis
+                .expire::<(), _>(&path_key, ONE_DAY_AS_SEC, None)
+                .await?;
+        }
+    }
+
+    let count_key = RedisKey::TempIRCount(minute).to_string();
+    let exists = redis.exists::<bool, _>(&count_key).await?;
+    redis.zincrby::<(), _, _>(&count_key, 1.0, full_url).await?;
+    if !exists {
+        redis
+            .expire::<(), _>(&count_key, ONE_DAY_AS_SEC, None)
+            .await?;
+    }
+
+    Ok(())
+}
+
+/// Aggregate the top `limit` url counts for a path
+async fn fetch_temp_stats_limit(
+    redis: &Pool,
+    path: &str,
+    limit: usize,
+) -> Result<Vec<EntryCount>, AppError> {
+    let minute = epoch_minute();
+    let mut counts = HashMap::new();
+    for minute in (minute - 1439)..=minute {
+        let key = RedisKey::TempIR((path, minute)).to_string();
+        let entries = redis
+            .zrevrange::<Vec<(String, i64)>, &str>(&key, 0, -1, true)
+            .await?;
+        for (url, count) in entries {
+            *counts.entry(url).or_default() += count
+        }
+    }
+    let mut out = counts
+        .into_iter()
+        .map(|(url, count)| EntryCount { url, count })
+        .collect::<Vec<EntryCount>>();
+    out.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.url.cmp(&b.url)));
+    out.truncate(limit);
+    Ok(out)
+}
+
+async fn fetch_temp_stats(redis: &Pool, path: &str) -> Result<Vec<EntryCount>, AppError> {
+    fetch_temp_stats_limit(redis, path, 10).await
+}
+
+async fn fetch_temp_single_stats(redis: &Pool, path: &str) -> Result<Vec<EntryCount>, AppError> {
+    fetch_temp_stats_limit(redis, path, 1).await
+}
+
+/// Sum the aggregate request counts over the last 24 hours of minute-buckets
+async fn get_aggregate_count(redis: &Pool) -> Result<i64, AppError> {
+    let now_minute = epoch_minute();
+    let mut total = 0.0;
+    for minute in (now_minute - 1439)..=now_minute {
+        let key = RedisKey::TempIRCount(minute).to_string();
+        let entries = redis
+            .zrevrange::<Vec<(String, f64)>, &str>(&key, 0, -1, true)
+            .await?;
+        for (_, count) in entries {
+            total += count
+        }
+    }
+    // TODO fix this
+    Ok(total as i64)
 }
 
 impl ModelIncomingRequest {
@@ -227,14 +271,13 @@ impl ModelIncomingRequest {
         input.into_iter().take(1).collect()
     }
 
-    // Argh, TODO cache all of these!
     async fn get_version_id(
-        url_version: Option<String>,
+        url_version: Option<&str>,
         postgres: &PgPool,
         redis: &Pool,
     ) -> Result<Option<VersionID>, AppError> {
         Ok(if let Some(url_version) = url_version {
-            let key = RedisKey::IncomingRequest(IncomingRequestKey::Version(&url_version));
+            let key = RedisKey::IncomingRequest(IncomingRequestKey::Version(url_version));
             if let Some(Some(id)) = get_cache::<VersionID>(redis, &key).await? {
                 return Ok(Some(id));
             }
@@ -265,15 +308,13 @@ RETURNING
         })
     }
 
-    // All these should be cached in redis, just to get ID's, can cache with a ttl of 1 week
-
     async fn get_path_id(
-        url_path: Option<String>,
+        url_path: Option<&str>,
         postgres: &PgPool,
         redis: &Pool,
     ) -> Result<Option<PathID>, AppError> {
         Ok(if let Some(url_path) = url_path {
-            let key = RedisKey::IncomingRequest(IncomingRequestKey::Path(&url_path));
+            let key = RedisKey::IncomingRequest(IncomingRequestKey::Path(url_path));
 
             if let Some(Some(id)) = get_cache::<PathID>(redis, &key).await? {
                 return Ok(Some(id));
@@ -306,12 +347,12 @@ RETURNING
     }
 
     async fn get_query_id(
-        url_query: Option<String>,
+        url_query: Option<&str>,
         postgres: &PgPool,
         redis: &Pool,
     ) -> Result<Option<QueryID>, AppError> {
         Ok(if let Some(url_query) = url_query {
-            let key = RedisKey::IncomingRequest(IncomingRequestKey::Query(&url_query));
+            let key = RedisKey::IncomingRequest(IncomingRequestKey::Query(url_query));
             if let Some(Some(id)) = get_cache::<QueryID>(redis, &key).await? {
                 return Ok(Some(id));
             }
@@ -342,131 +383,70 @@ RETURNING
         })
     }
 
-    async fn insert_request_url(
-        postgres: &PgPool,
-        redis: &Pool,
-        version_id: Option<VersionID>,
-        path_id: Option<PathID>,
-        query_id: Option<QueryID>,
-    ) -> Result<IncomingRequestID, AppError> {
-        let key = RedisKey::IncomingRequest(IncomingRequestKey::IncomingRequestUrl(
-            version_id.as_ref(),
-            path_id.as_ref(),
-            query_id.as_ref(),
-        ));
-
-        if let Some(Some(id)) = get_cache::<IncomingRequestID>(redis, &key).await? {
-            return Ok(id);
-        }
-        let id = sqlx::query_as!(
-            IRId,
-            r#"
-INSERT INTO incoming_request_url (
-    incoming_request_url_version_id,
-    incoming_request_url_path_id, 
-    incoming_request_url_query_id
-)
-VALUES
-    ($1, $2, $3)
-ON CONFLICT (
-    incoming_request_url_version_id, 
-    incoming_request_url_path_id, 
-    incoming_request_url_query_id
-) 
-DO UPDATE SET 
-    incoming_request_url_version_id = EXCLUDED.incoming_request_url_version_id
-RETURNING
-    incoming_request_url_id AS id;"#,
-            version_id.map(|i| i.get()),
-            path_id.map(|i| i.get()),
-            query_id.map(|i| i.get())
-        )
-        .fetch_one(postgres)
-        .await?
-        .id;
-
-        insert_cache::<IncomingRequestID>(redis, Some(&id), key).await?;
-        Ok(id)
-    }
-
-    /// Insert the request url into database, this will recored every single request to the database
     async fn insert_request(
         postgres: &PgPool,
         redis: &Pool,
         url: UriMethod,
     ) -> Result<(), AppError> {
-        let (url_version, url_path, url_query) = url.split_into_parts();
+        let split_url = SplitUri::from(&url);
 
         let (version_id, path_id, query_id) = tokio::try_join!(
-            Self::get_version_id(url_version, postgres, redis),
-            Self::get_path_id(url_path, postgres, redis),
-            Self::get_query_id(url_query, postgres, redis)
+            Self::get_version_id(split_url.version.as_deref(), postgres, redis),
+            Self::get_path_id(split_url.path.as_deref(), postgres, redis),
+            Self::get_query_id(split_url.query.as_deref(), postgres, redis)
         )?;
 
-        let request_id =
-            Self::insert_request_url(postgres, redis, version_id, path_id, query_id).await?;
-
-        tokio::try_join!(
-            sqlx::query!(
-                r#"
+        let mut tx = postgres.begin().await?;
+        sqlx::query!(
+            r#"
 INSERT INTO incoming_request (
-    incoming_request_url_id,
+    incoming_request_url_version_id,
+    incoming_request_url_path_id,
+    incoming_request_url_query_id,
     request_method
     )
 VALUES
-    ( $1, ($2::text)::request_method)
-ON CONFLICT
-    (incoming_request_url_id, request_method)
+    ( $1, $2, $3, ($4::text)::request_method)
+ON CONFLICT ON CONSTRAINT incoming_request_pkey
 DO UPDATE SET
     count = incoming_request.count + 1;"#,
-                request_id.get(),
-                url.1.to_string()
-            )
-            .execute(postgres),
-            sqlx::query!(
-                r#"
-INSERT INTO temp_incoming_request (
-    incoming_request_url_id,
-    request_method
-    )
-VALUES
-    ($1,($2::text)::request_method)
-ON CONFLICT
-    (incoming_request_url_id, request_method)
-DO UPDATE SET
-    count = temp_incoming_request.count + 1;"#,
-                request_id.get(),
-                url.1.to_string()
-            )
-            .execute(postgres)
-        )?;
-        Ok(())
-    }
+            version_id.map(|i| i.get()),
+            path_id.map(|i| i.get()),
+            query_id.map(|i| i.get()),
+            url.1.to_string()
+        )
+        .execute(&mut *tx)
+        .await?;
 
-    /// Delete all entries from temp table older than 24 hours
-    async fn delete_temp(db: impl PgExecutor<'_>) -> Result<(), AppError> {
-        sqlx::query!("DELETE FROM temp_incoming_request WHERE timestamp <= (CURRENT_TIMESTAMP - INTERVAL '24 hours');").execute(db).await?;
+        sqlx::query!(
+            r#"
+INSERT INTO request_total (id, total)
+VALUES
+    (1, 1)
+ON CONFLICT
+    (id)
+DO UPDATE SET
+    total = request_total.total + 1;"#
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+
+        increment_temp_stat(redis, split_url).await?;
         Ok(())
     }
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
-    /// TODO This is a slow, think 30 second, query, need to work on it
-    /// Ideally should be using redis instead!
-    #[allow(clippy::too_many_lines)]
-    async fn get_daily(postgres: &PgPool) -> Result<StatsEntry, AppError> {
+    async fn get_daily(redis: &Pool) -> Result<StatsEntry, AppError> {
         let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
-            fetch_temp_stats!(postgres, "aircraft"),
-            fetch_temp_stats!(postgres, "airline"),
-            fetch_temp_stats!(postgres, "callsign"),
-            fetch_temp_stats!(postgres, "mode-s"),
-            fetch_temp_stats!(postgres, "n-number"),
-            fetch_temp_single_stats!(postgres, "online"),
-            fetch_temp_single_stats!(postgres, "stats"),
-            sqlx::query_as!(
-                Count,
-                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM temp_incoming_request;"#
-            )
-            .fetch_one(postgres)
+            fetch_temp_stats(redis, "aircraft"),
+            fetch_temp_stats(redis, "airline"),
+            fetch_temp_stats(redis, "callsign"),
+            fetch_temp_stats(redis, "mode-s"),
+            fetch_temp_stats(redis, "n-number"),
+            fetch_temp_single_stats(redis, "online"),
+            fetch_temp_single_stats(redis, "stats"),
+            get_aggregate_count(redis),
         )?;
         Ok(StatsEntry {
             aircraft,
@@ -474,14 +454,14 @@ DO UPDATE SET
             callsign,
             mode_s,
             n_number,
-            online: Self::single_entry_count(online),
-            stats: Self::single_entry_count(stats),
-            aggregate: aggregate.count,
+            online,
+            stats,
+            aggregate,
         })
     }
 
     /// Return stats for aircraft & flightroutes for previous 24 hours
-    #[allow(clippy::too_many_lines, unused)]
+    #[allow(unused)]
     async fn get_total(postgres: &PgPool) -> Result<StatsEntry, AppError> {
         let (aircraft, airline, callsign, mode_s, n_number, online, stats, aggregate) = tokio::try_join!(
             fetch_stats!(postgres, "aircraft"),
@@ -493,7 +473,7 @@ DO UPDATE SET
             fetch_single_stats!(postgres, "stats"),
             sqlx::query_as!(
                 Count,
-                r#"SELECT COALESCE(SUM(count), 0) AS "count!" FROM incoming_request;"#
+                r#"SELECT COALESCE(MAX(total), 0) AS "count!" FROM request_total WHERE id = 1;"#
             )
             .fetch_one(postgres)
         )?;
@@ -512,24 +492,24 @@ DO UPDATE SET
 
     /// This is slow
     async fn seed_redis(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
-        let statistics = Self::get_daily_total_postgres(postgres).await?;
+        let statistics = Self::get_daily_total_postgres(postgres, redis).await?;
         insert_cache(redis, Some(&statistics), RedisKey::Stats).await?;
         Ok(())
     }
 
     #[cfg(test)]
-    /// Get usage stats from postgres - For testing just return same values for daily and total, else the tests are inordinately slow
-    async fn get_daily_total_postgres(postgres: &PgPool) -> Result<Stats, AppError> {
-        let daily = Self::get_daily(postgres).await?;
+    /// Get usage stats - For testing just return same values for daily and total, else the tests are inordinately slow
+    async fn get_daily_total_postgres(_postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+        let daily = Self::get_daily(redis).await?;
         Ok(Stats {
             daily: daily.clone(),
             total: daily,
         })
     }
     #[cfg(not(test))]
-    /// Get usage stats from postgres - this is a slow query
-    async fn get_daily_total_postgres(postgres: &PgPool) -> Result<Stats, AppError> {
-        let daily = Self::get_daily(postgres).await?;
+    /// Get usage stats - the total is a slow query
+    async fn get_daily_total_postgres(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+        let daily = Self::get_daily(redis).await?;
         let total = Self::get_total(postgres).await?;
         Ok(Stats { daily, total })
     }
@@ -538,7 +518,9 @@ DO UPDATE SET
         if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
             Ok(stats)
         } else {
-            Self::get_daily_total_postgres(postgres).await
+            let stats = Self::get_daily_total_postgres(postgres, redis).await?;
+            insert_cache(redis, Some(&stats), RedisKey::Stats).await?;
+            Ok(stats)
         }
     }
 
@@ -551,10 +533,7 @@ DO UPDATE SET
             *now = std::time::Instant::now();
             let (postgres, redis) = (postgres.clone(), redis.clone());
             tokio::spawn(async move {
-                if let Err(e) = tokio::try_join!(
-                    Self::delete_temp(&postgres),
-                    Self::seed_redis(&postgres, &redis),
-                ) {
+                if let Err(e) = Self::seed_redis(&postgres, &redis).await {
                     tracing::error!("{e:?}");
                 }
             });

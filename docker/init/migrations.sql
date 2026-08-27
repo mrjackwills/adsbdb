@@ -399,3 +399,132 @@ CREATE INDEX IF NOT EXISTS index_iru_path_id ON incoming_request_url (incoming_r
 
 \echo "update RHO municipality"
 UPDATE airport_municipality am SET municipality = 'Rhodes Island' WHERE am.municipality = 'Rodes Island';
+
+-- v0.6.5 - replace temp_incoming_request table with redis time-bucketed stats
+\echo "Drop temp_incoming_request table"
+DROP TABLE IF EXISTS temp_incoming_request CASCADE;
+
+-- v0.7.0 - reduce disk size & speed up queries on incoming_request / incoming_request_url
+\echo "Drop redundant index_incoming_request_comp (indexes count, kills HOT updates)"
+DROP INDEX IF EXISTS index_incoming_request_comp;
+
+\echo "Drop redundant index_incoming_request_url (covered by PK leading column)"
+DROP INDEX IF EXISTS index_incoming_request_url;
+
+\echo "Drop old unique index index_incoming_request_unique_method_url (replaced by PK)"
+DROP INDEX IF EXISTS index_incoming_request_unique_method_url;
+
+\echo "Drop surrogate incoming_request_id (redundant with natural key), remove timestamp"
+ALTER TABLE incoming_request DROP COLUMN IF EXISTS incoming_request_id, DROP COLUMN IF EXISTS timestamp;
+
+\echo "Promote natural key to primary key"
+ALTER TABLE incoming_request ADD CONSTRAINT incoming_request_pkey PRIMARY KEY (incoming_request_url_id, request_method);
+
+\echo "Enable HOT updates via fillfactor"
+ALTER TABLE incoming_request SET (fillfactor = 70);
+
+\echo "Remove timestamps from incoming_request_url & parts tables"
+ALTER TABLE incoming_request_url DROP COLUMN IF EXISTS timestamp;
+ALTER TABLE incoming_request_url_version DROP COLUMN IF EXISTS timestamp;
+ALTER TABLE incoming_request_url_path DROP COLUMN IF EXISTS timestamp;
+ALTER TABLE incoming_request_url_query DROP COLUMN IF EXISTS timestamp;
+
+DROP INDEX IF EXISTS index_incoming_request_url_verion_trgm;
+DROP INDEX IF EXISTS index_incoming_request_url_path_trgm;
+DROP INDEX IF EXISTS index_incoming_request_url_query_trgm;
+
+-- v0.8.0 - conver incoming_request_url to incoming_request & add a counter
+BEGIN;
+
+\echo "Create request counter"
+CREATE TABLE IF NOT EXISTS request_total (
+    id SMALLINT PRIMARY KEY DEFAULT 1,
+    total BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT request_total_single_row CHECK (id = 1)
+);
+GRANT ALL ON request_total TO adsbdb;
+
+\echo "Set work mem"
+SET LOCAL work_mem = '1GB';
+SET LOCAL maintenance_work_mem = '1GB';
+
+\echo "Convert invoming urls"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'incoming_request'
+          AND column_name = 'incoming_request_url_id'
+    ) THEN
+        ALTER TABLE incoming_request
+            ADD COLUMN IF NOT EXISTS incoming_request_url_version_id BIGINT,
+            ADD COLUMN IF NOT EXISTS incoming_request_url_path_id BIGINT,
+            ADD COLUMN IF NOT EXISTS incoming_request_url_query_id BIGINT;
+
+        UPDATE incoming_request ir
+        SET
+            incoming_request_url_version_id = iru.incoming_request_url_version_id,
+            incoming_request_url_path_id    = iru.incoming_request_url_path_id,
+            incoming_request_url_query_id   = iru.incoming_request_url_query_id
+        FROM incoming_request_url iru
+        WHERE iru.incoming_request_url_id = ir.incoming_request_url_id;
+
+        DROP TABLE IF EXISTS incoming_request_new;
+        CREATE TABLE incoming_request_new AS
+        SELECT
+            incoming_request_url_version_id,
+            incoming_request_url_path_id,
+            incoming_request_url_query_id,
+            request_method,
+            SUM(count)::BIGINT AS count
+        FROM incoming_request
+        GROUP BY
+            incoming_request_url_version_id,
+            incoming_request_url_path_id,
+            incoming_request_url_query_id,
+            request_method;
+
+        ALTER TABLE incoming_request RENAME TO incoming_request_old;
+        ALTER TABLE incoming_request_new RENAME TO incoming_request;
+
+        DROP TABLE IF EXISTS incoming_request_old;
+    END IF;
+END
+$$;
+
+GRANT ALL ON incoming_request TO adsbdb;
+ALTER TABLE incoming_request SET (fillfactor = 70);
+
+ALTER TABLE incoming_request
+    ADD COLUMN IF NOT EXISTS ir_version_nk BIGINT GENERATED ALWAYS AS
+        (COALESCE(incoming_request_url_version_id, 0)) STORED,
+    ADD COLUMN IF NOT EXISTS ir_path_nk BIGINT GENERATED ALWAYS AS
+        (COALESCE(incoming_request_url_path_id, 0)) STORED,
+    ADD COLUMN IF NOT EXISTS ir_query_nk BIGINT GENERATED ALWAYS AS
+        (COALESCE(incoming_request_url_query_id, 0)) STORED;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'incoming_request_pkey'
+    ) THEN
+        ALTER TABLE incoming_request
+            ADD CONSTRAINT incoming_request_pkey
+            PRIMARY KEY (request_method, ir_version_nk, ir_path_nk, ir_query_nk);
+    END IF;
+END
+$$;
+
+\echo "Add index"
+CREATE INDEX IF NOT EXISTS index_incoming_request_path_id
+    ON incoming_request (incoming_request_url_path_id);
+
+\echo "Fix counter"
+INSERT INTO request_total (id, total)
+SELECT 1, COALESCE((SELECT SUM(count) FROM incoming_request), 0)
+ON CONFLICT (id) DO NOTHING;
+
+\echo "Drop old table"
+DROP TABLE IF EXISTS incoming_request_url;
+
+COMMIT;

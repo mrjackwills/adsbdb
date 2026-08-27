@@ -11,8 +11,7 @@ pub use model_airline::ModelAirline;
 pub use model_airport::ModelAirport;
 pub use model_flightroute::ModelFlightroute;
 pub use model_incoming_request::{
-    EntryCount, ModelIncomingRequest, MsgIncomingRequest, PathID, QueryID, RE_SEED_TIME, UriMethod,
-    VersionID,
+    EntryCount, ModelIncomingRequest, MsgIncomingRequest, RE_SEED_TIME, UriMethod,
 };
 
 use crate::{api::AppError, parse_env::AppEnv};
