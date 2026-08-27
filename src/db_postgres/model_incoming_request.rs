@@ -528,7 +528,7 @@ DO UPDATE SET
     /// If so, will be spawned into new tokio thread
     /// RE_SEED_TIME is vastly reduced when testing
     fn check_to_re_seed(now: &mut std::time::Instant, postgres: &PgPool, redis: &Pool) {
-        // TODO should calc the time it takes to reseed, and then minus that from re_sseed time?
+        // TODO should calc the time it takes to reseed, and then minus that from re_seed time?
         if now.elapsed().as_secs() >= u64::try_from(RE_SEED_TIME).unwrap_or_default() {
             *now = std::time::Instant::now();
             let (postgres, redis) = (postgres.clone(), redis.clone());

@@ -221,7 +221,7 @@ pub async fn aircraft_patch(
     let Some(current_aircraft) = ModelAircraft::get(
         &state.postgres,
         &super::AircraftSearch::ModeS(mode_s),
-        &state.url_prefix,
+        &state.photo_prefixes,
     )
     .await?
     else {
@@ -278,9 +278,9 @@ pub mod tests {
     use crate::api::tests::CLIENT;
     use crate::api::tests::test_setup;
     use crate::parse_env::AppEnv;
+    use crate::scraper::Scraper;
     use crate::sleep;
     use crate::start_incoming_requests;
-    use crate::start_scraper;
 
     use fred::prelude::{HashesInterface, Pool};
     use reqwest::{Client, StatusCode};
@@ -296,7 +296,7 @@ pub mod tests {
         pub redis: Pool,
     }
 
-    const AIRCRAFT: &str = "8880E1";
+    const AIRCRAFT: &str = "8A043A";
     const CALLSIGN: &str = "CFE37E";
 
     fn callsign_url() -> String {
@@ -327,7 +327,7 @@ pub mod tests {
 
         let redis = setup.redis.clone();
 
-        let tx_scraper = start_scraper(&app_env, &postgres).unwrap();
+        let tx_scraper = Scraper::start(&app_env, &postgres);
         let tx_stats = start_incoming_requests(&postgres, &redis).await.unwrap();
 
         let handle = tokio::spawn(async move {
@@ -357,21 +357,17 @@ pub mod tests {
     /// Test based on this pre-known aircraft
     fn gen_aircraft() -> ResponseAircraft {
         ResponseAircraft {
-            aircraft_type: S!("787 9"),
-            icao_type: S!("B789"),
+            aircraft_type: S!("737NG 8U3/W"),
+            icao_type: S!("B738"),
             manufacturer: S!("Boeing"),
-            mode_s: S!("8880E1"),
-            registration: S!("VN-A863"),
-            registered_owner_country_iso_name: S!("VN"),
-            registered_owner_country_name: S!("Vietnam"),
-            registered_owner_operator_flag_code: Some(S!("HVN")),
-            registered_owner: S!("Vietnam Airlines"),
-            url_photo: Some(S!(
-                "https://airport-data.com/images/aircraft/001/675/001675893.jpg"
-            )),
-            url_photo_thumbnail: Some(S!(
-                "https://airport-data.com/images/aircraft/thumbnails/001/675/001675893.jpg"
-            )),
+            mode_s: S!("8A043A"),
+            registration: S!("PK-GNE"),
+            registered_owner_country_iso_name: S!("ID"),
+            registered_owner_country_name: S!("Indonesia"),
+            registered_owner_operator_flag_code: Some(S!("GIA")),
+            registered_owner: S!("Garuda Indonesia"),
+            url_photo: None,
+            url_photo_thumbnail: None,
         }
     }
 
@@ -476,6 +472,8 @@ pub mod tests {
     async fn http_mod_patch_aircraft_no_change() {
         start_server(Some(())).await;
 
+        // 8A043A
+
         let resp = CLIENT
             .patch(aircraft_url())
             .header("authorization", "password123")
@@ -527,39 +525,9 @@ pub mod tests {
             "invalid body immutable value changed"
         );
 
-        let mut body = gen_aircraft();
-        body.url_photo = None;
-        let resp = CLIENT
-            .patch(aircraft_url())
-            .header("authorization", "password123")
-            .json(&body)
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            resp.json::<TestResponse>().await.unwrap().response,
-            "invalid body immutable value changed"
-        );
-
         // change of url_photo_thumbnail
         let mut body = gen_aircraft();
         body.url_photo_thumbnail = Some(S!("/any/url/here"));
-        let resp = CLIENT
-            .patch(aircraft_url())
-            .header("authorization", "password123")
-            .json(&body)
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            resp.json::<TestResponse>().await.unwrap().response,
-            "invalid body immutable value changed"
-        );
-
-        let mut body = gen_aircraft();
-        body.url_photo_thumbnail = None;
         let resp = CLIENT
             .patch(aircraft_url())
             .header("authorization", "password123")
@@ -611,6 +579,7 @@ pub mod tests {
             "invalid body unknown country"
         );
     }
+
     #[tokio::test]
     /// New values rejected if too long
     async fn http_mod_patch_aircraft_invalid_lengths() {

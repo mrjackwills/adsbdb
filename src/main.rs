@@ -19,7 +19,7 @@ use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
 
 use crate::{
     db_postgres::{ModelIncomingRequest, MsgIncomingRequest},
-    scraper::{MsgScraper, Scraper},
+    scraper::Scraper,
 };
 
 /// Simple macro to create an empty String, or create String from a &str - to get rid of .to_owned() / String::from() etc
@@ -56,7 +56,6 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
         }
     }
 }
-
 
 /// This initial seeding is slow, will block until complete
 /// Ideally put the daily stats into redis, but would a decent amount of work

@@ -91,7 +91,7 @@ impl RouterHelper {
 
     /// Get random aircraft, and insert into cache using mode_s
     async fn find_random_aircraft(state: &ApplicationState) -> Result<ModelAircraft, AppError> {
-        let aircraft = ModelAircraft::get_random(&state.postgres, &state.url_prefix).await?;
+        let aircraft = ModelAircraft::get_random(&state.postgres, &state.photo_prefixes).await?;
 
         tokio::try_join!(
             insert_cache(
@@ -122,7 +122,7 @@ impl RouterHelper {
             })
         } else {
             let mut aircraft =
-                ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
+                ModelAircraft::get(&state.postgres, aircraft_search, &state.photo_prefixes).await?;
             if let Some(craft) = aircraft.as_ref()
                 && craft.url_photo.is_none()
             {
@@ -139,7 +139,8 @@ impl RouterHelper {
                     one_rx.await.ok();
                 }
                 aircraft =
-                    ModelAircraft::get(&state.postgres, aircraft_search, &state.url_prefix).await?;
+                    ModelAircraft::get(&state.postgres, aircraft_search, &state.photo_prefixes)
+                        .await?;
             }
             insert_cache(&state.redis, aircraft.as_ref(), redis_key).await?;
             Ok(aircraft)
@@ -376,17 +377,20 @@ mod tests {
     use axum::http::Uri;
     use fred::interfaces::{ClientLike, HashesInterface, KeysInterface};
 
-    use crate::api::{
-        Registration,
-        input::Validate,
-        response::{Airline, Airport},
-    };
     use crate::db_postgres;
     use crate::db_redis;
     use crate::parse_env;
     use crate::scraper::tests::{TEST_CALLSIGN, remove_scraped_data};
     use crate::sleep;
-    use crate::{S, start_incoming_requests, start_scraper};
+    use crate::{S, start_incoming_requests};
+    use crate::{
+        api::{
+            Registration,
+            input::Validate,
+            response::{Airline, Airport},
+        },
+        scraper::Scraper,
+    };
 
     /// Get application state for test, also delete recent request stats
     async fn get_application_state() -> State<ApplicationState> {
@@ -395,7 +399,7 @@ mod tests {
         let redis = db_redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
 
-        let tx_scraper = start_scraper(&app_env, &postgres).unwrap();
+        let tx_scraper = Scraper::start(&app_env, &postgres);
         let tx_stats = start_incoming_requests(&postgres, &redis).await.unwrap();
 
         State(ApplicationState::new(
@@ -456,13 +460,14 @@ mod tests {
             registered_owner_operator_flag_code: Some(S!("EJA")),
             registered_owner_country_name: S!("United States"),
             registered_owner_country_iso_name: S!("US"),
+            // Err here!
             url_photo: Some(format!(
                 "{}{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                application_state.photo_prefixes.photo, "001572354.jpg"
             )),
             url_photo_thumbnail: Some(format!(
-                "{}thumbnails/{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                "{}{}",
+                application_state.photo_prefixes.thumbnail, "001/572/001572354.jpg"
             )),
         };
 
@@ -496,11 +501,11 @@ mod tests {
             registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                application_state.photo_prefixes.photo, "001572354.jpg"
             )),
             url_photo_thumbnail: Some(format!(
-                "{}thumbnails/{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                "{}{}",
+                application_state.photo_prefixes.thumbnail, "001/572/001572354.jpg"
             )),
         };
 
@@ -1335,11 +1340,11 @@ mod tests {
             registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                application_state.photo_prefixes.photo, "001572354.jpg"
             )),
             url_photo_thumbnail: Some(format!(
-                "{}thumbnails/{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                "{}{}",
+                application_state.photo_prefixes.thumbnail, "001/572/001572354.jpg"
             )),
         };
 
@@ -1418,11 +1423,11 @@ mod tests {
             registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                application_state.photo_prefixes.photo, "001572354.jpg"
             )),
             url_photo_thumbnail: Some(format!(
-                "{}thumbnails/{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                "{}{}",
+                application_state.photo_prefixes.thumbnail, "001/572/001572354.jpg"
             )),
         };
 
@@ -1500,11 +1505,11 @@ mod tests {
             registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                application_state.photo_prefixes.photo, "001572354.jpg"
             )),
             url_photo_thumbnail: Some(format!(
-                "{}thumbnails/{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                "{}{}",
+                application_state.photo_prefixes.thumbnail, "001/572/001572354.jpg"
             )),
         };
 
@@ -1582,11 +1587,11 @@ mod tests {
             registered_owner_country_iso_name: S!("US"),
             url_photo: Some(format!(
                 "{}{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                application_state.photo_prefixes.photo, "001572354.jpg"
             )),
             url_photo_thumbnail: Some(format!(
-                "{}thumbnails/{}",
-                application_state.url_prefix, "001/572/001572354.jpg"
+                "{}{}",
+                application_state.photo_prefixes.thumbnail, "001/572/001572354.jpg"
             )),
         };
 

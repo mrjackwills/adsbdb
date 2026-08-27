@@ -41,6 +41,21 @@ pub use response::{ResponseAircraft, Stats, StatsEntry};
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
 
+#[derive(Debug, Clone)]
+pub struct PhotoPrefixes {
+    pub photo: String,
+    pub thumbnail: String,
+}
+
+impl From<&AppEnv> for PhotoPrefixes {
+    fn from(value: &AppEnv) -> Self {
+        Self {
+            photo: value.url_photo_prefix.clone(),
+            thumbnail: value.url_photo_thumbnail_prefix.clone(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ApplicationState {
     postgres: PgPool,
@@ -48,7 +63,7 @@ pub struct ApplicationState {
     uptime: Instant,
     scraper_tx: async_channel::Sender<MsgScraper>,
     stats_tx: async_channel::Sender<MsgIncomingRequest>,
-    url_prefix: String,
+    photo_prefixes: PhotoPrefixes,
 }
 
 impl ApplicationState {
@@ -65,7 +80,7 @@ impl ApplicationState {
             uptime: Instant::now(),
             scraper_tx,
             stats_tx,
-            url_prefix: app_env.url_photo_prefix.clone(),
+            photo_prefixes: PhotoPrefixes::from(app_env),
         }
     }
 }
@@ -303,8 +318,8 @@ pub mod tests {
     use crate::db_redis;
     use crate::db_redis::RedisKey;
     use crate::parse_env;
+    use crate::scraper::Scraper;
     use crate::start_incoming_requests;
-    use crate::start_scraper;
 
     use fred::interfaces::ClientLike;
     use fred::interfaces::KeysInterface;
@@ -369,7 +384,7 @@ pub mod tests {
         setup.flush_redis().await;
 
         // need to set up scrapers here
-        let tx_scraper = start_scraper(&app_env, &postgres).unwrap();
+        let tx_scraper = Scraper::start(&app_env, &postgres);
         let tx_stats = start_incoming_requests(&postgres, &redis).await.unwrap();
         let handle = tokio::spawn(async {
             serve(app_env, postgres, redis, tx_scraper, tx_stats)

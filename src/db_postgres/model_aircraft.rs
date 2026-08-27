@@ -3,7 +3,7 @@ use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use crate::{
     S,
-    api::{AircraftSearch, AppError, ModeS, Registration, ResponseAircraft},
+    api::{AircraftSearch, AppError, ModeS, PhotoPrefixes, Registration, ResponseAircraft},
     db_postgres::ID,
     generic_id, redis_hash_to_struct,
     scraper::PhotoData,
@@ -46,7 +46,7 @@ pub struct ModelAircraft {
 redis_hash_to_struct!(ModelAircraft);
 
 impl ModelAircraft {
-    pub async fn get_random(db: &PgPool, photo_prefix: &str) -> Result<Self, AppError> {
+    pub async fn get_random(db: &PgPool, photo_prefix: &PhotoPrefixes) -> Result<Self, AppError> {
         Ok(sqlx::query_as!(
             Self,
             r#"
@@ -70,11 +70,11 @@ SELECT
     ait.icao_type,
     CASE 
         WHEN ap.url_photo IS NOT NULL
-        THEN CONCAT($1::TEXT, ap.url_photo)
+		 THEN CONCAT($1::TEXT, substring(ap.url_photo from 9))
     END AS url_photo,
     CASE 
         WHEN ap.url_photo IS NOT NULL 
-        THEN CONCAT($1::TEXT, 'thumbnails/', ap.url_photo) 
+        THEN CONCAT($2::TEXT, ap.url_photo) 
     END AS url_photo_thumbnail
 FROM aircraft aa
 JOIN random_aircraft ra ON ra.aircraft_id = aa.aircraft_id
@@ -87,7 +87,8 @@ JOIN aircraft_icao_type ait USING (aircraft_icao_type_id)
 JOIN aircraft_manufacturer am USING (aircraft_manufacturer_id)
 LEFT JOIN aircraft_operator_flag_code aof USING (aircraft_operator_flag_code_id)
 LEFT JOIN aircraft_photo ap USING (aircraft_photo_id)"#,
-            photo_prefix
+            photo_prefix.photo,
+            photo_prefix.thumbnail
         )
         .fetch_one(db)
         .await?)
@@ -97,7 +98,7 @@ LEFT JOIN aircraft_photo ap USING (aircraft_photo_id)"#,
     async fn query_by_mode_s(
         db: impl PgExecutor<'_>,
         aircraft_search: &AircraftSearch,
-        photo_prefix: &str,
+        photo_prefix: &PhotoPrefixes,
     ) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as!(
             Self,
@@ -114,11 +115,11 @@ SELECT
     at.type AS aircraft_type,
     ait.icao_type,
     CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)
+        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, substring(ap.url_photo from 9))
         ELSE NULL
     END AS url_photo,
     CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo)
+        WHEN ap.url_photo IS NOT NULL THEN CONCAT($3::TEXT, ap.url_photo)
         ELSE NULL
     END AS url_photo_thumbnail
 FROM
@@ -135,7 +136,8 @@ FROM
 WHERE
     ams.mode_s = $1"#,
             aircraft_search.to_string(),
-            photo_prefix
+            photo_prefix.photo,
+            photo_prefix.thumbnail
         )
         .fetch_optional(db)
         .await?)
@@ -145,7 +147,7 @@ WHERE
     async fn query_by_registration(
         db: impl PgExecutor<'_>,
         aircraft_search: &AircraftSearch,
-        photo_prefix: &str,
+        photo_prefix: &PhotoPrefixes,
     ) -> Result<Option<Self>, AppError> {
         Ok(sqlx::query_as!(
             Self,
@@ -162,11 +164,11 @@ SELECT
     at.type AS aircraft_type,
     ait.icao_type,
     CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)
+		WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, substring(ap.url_photo from 9))
         ELSE NULL
     END AS url_photo,
     CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, 'thumbnails/', ap.url_photo)
+        WHEN ap.url_photo IS NOT NULL THEN CONCAT($3::TEXT, ap.url_photo)
         ELSE NULL
     END AS url_photo_thumbnail
 FROM
@@ -183,7 +185,8 @@ FROM
 WHERE
     ar.registration = $1"#,
             aircraft_search.to_string(),
-            photo_prefix
+            photo_prefix.photo,
+            photo_prefix.thumbnail
         )
         .fetch_optional(db)
         .await?)
@@ -192,7 +195,7 @@ WHERE
     pub async fn get(
         db: &PgPool,
         aircraft_search: &AircraftSearch,
-        photo_prefix: &str,
+        photo_prefix: &PhotoPrefixes,
     ) -> Result<Option<Self>, AppError> {
         Ok(match aircraft_search {
             AircraftSearch::ModeS(_) => {
@@ -521,13 +524,21 @@ mod tests {
     use super::*;
     use crate::{S, api::tests::test_setup};
 
+    fn gen_photo_prefix() -> PhotoPrefixes {
+        PhotoPrefixes {
+            photo: "http://photo.example.com/".to_owned(),
+            thumbnail: "http://thumbnail.example.com/".to_owned(),
+        }
+    }
+
     #[tokio::test]
     /// Return a random aircraft, run 1000 time, probaly not enough to check for errors but so far it's passed every time
     async fn aircraft_get_random() {
         let test_setup = test_setup().await;
+        let photo_prefix = gen_photo_prefix();
 
         for _ in 0..=1000 {
-            let result = ModelAircraft::get_random(&test_setup.postgres, "a").await;
+            let result = ModelAircraft::get_random(&test_setup.postgres, &photo_prefix).await;
             assert!(result.is_ok());
         }
     }
@@ -539,10 +550,10 @@ mod tests {
         let mut transaction = test_setup.postgres.begin().await.unwrap();
 
         let photodata = PhotoData {
-            image: S!("example.jpg"),
+            image: S!("001/002/example.jpg"),
         };
 
-        let url_prefix = "http://www.example.com/";
+        let photo_prefix = gen_photo_prefix();
 
         let test_aircraft = ModelAircraft {
             aircraft_id: AircraftId::from(8415),
@@ -566,7 +577,7 @@ mod tests {
         let result = ModelAircraft::query_by_mode_s(
             &mut *transaction,
             &AircraftSearch::ModeS(test_aircraft.mode_s),
-            url_prefix,
+            &photo_prefix,
         )
         .await
         .unwrap()
@@ -583,8 +594,8 @@ mod tests {
             registered_owner_country_name: S!("United States"),
             registered_owner_operator_flag_code: Some(S!("AWI")),
             registered_owner: S!("United Express"),
-            url_photo: Some(S!("http://www.example.com/example.jpg")),
-            url_photo_thumbnail: Some(S!("http://www.example.com/thumbnails/example.jpg")),
+            url_photo: Some(S!("http://photo.example.com/example.jpg")),
+            url_photo_thumbnail: Some(S!("http://thumbnail.example.com/001/002/example.jpg")),
         };
 
         assert_eq!(result, expected);

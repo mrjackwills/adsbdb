@@ -4,6 +4,7 @@ use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 use tokio::sync::{broadcast::Sender as BSender, oneshot};
+use url::Url;
 
 #[cfg(not(test))]
 use crate::api::UnknownAC;
@@ -44,12 +45,15 @@ fn deserialize_url<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let url = String::deserialize(deserializer)?;
-    if url.len() > 56 {
-        Ok(url[56..].to_owned())
-    } else {
-        Err(serde::de::Error::custom("invalid_photo_url"))
-    }
+    let input = String::deserialize(deserializer)?;
+    let url = Url::parse(&input).map_err(|_| serde::de::Error::custom("invalid_photo_url"))?;
+    let segments = url
+        .path_segments()
+        .ok_or_else(|| serde::de::Error::custom("invalid_photo_url"))?;
+
+    let mut final_three = segments.rev().take(3).collect::<Vec<_>>();
+    final_three.reverse();
+    Ok(final_three.join("/"))
 }
 
 #[derive(Debug)]
@@ -390,7 +394,7 @@ impl Scraper {
     #[cfg(not(test))]
     #[allow(clippy::cognitive_complexity)]
     async fn request_photo(mode_s: &ModeS, url: String) -> Option<PhotoResponse> {
-        match Self::client_get(format!("{url}ac_thumb.json?m={mode_s}&n=1")).await {
+        match Self::client_get(format!("{url}{mode_s}&n=1")).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
                     if photo.data.is_some() {
@@ -421,7 +425,7 @@ impl Scraper {
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
     use super::*;
-    use crate::api::{AircraftSearch, ModeS, Validate};
+    use crate::api::{AircraftSearch, ModeS, PhotoPrefixes, Validate};
     use crate::{S, db_postgres, db_redis};
     use fred::interfaces::ClientLike;
     use serde::de::IntoDeserializer;
@@ -480,14 +484,15 @@ pub mod tests {
         let result = deserialize_url(deserializer);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "/000/582/582407.jpg");
+        assert_eq!(result.unwrap(), "000/582/582407.jpg");
 
         let prefix = "https://www.xxxxxxxxxxxx.xxx";
         let suffix = "/000/582/582407.jpg";
         let deserializer: StringDeserializer<ValueError> =
             format!("{prefix}{suffix}").into_deserializer();
         let result = deserialize_url(deserializer);
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "000/582/582407.jpg");
     }
 
     #[test]
@@ -616,14 +621,17 @@ pub mod tests {
     #[tokio::test]
     async fn scraper_get_photo() {
         let setup = test_setup().await;
+        remove_scraped_data(&setup.1).await;
         let sender = Scraper::start(&setup.0, &setup.1);
 
         let mode_s = ModeS::from(S!("393C00"));
 
+        let photo_prefix = PhotoPrefixes::from(&setup.0);
+
         let result = ModelAircraft::get(
             &setup.1,
             &AircraftSearch::ModeS(mode_s.clone()),
-            &setup.0.url_photo_prefix,
+            &photo_prefix,
         )
         .await
         .unwrap()
@@ -643,21 +651,19 @@ pub mod tests {
         let result = ModelAircraft::get(
             &setup.1,
             &AircraftSearch::ModeS(mode_s.clone()),
-            &setup.0.url_photo_prefix,
+            &photo_prefix,
         )
         .await
         .unwrap()
         .unwrap();
 
         assert!(result.url_photo.is_some());
+        let url_photo = result.url_photo.unwrap();
+        assert!(url_photo.ends_with("example.jpg"));
+        assert!(!url_photo.ends_with("/thumbnails/001/001/example.jpg"));
         assert!(result.url_photo_thumbnail.is_some());
-        assert!(result.url_photo.unwrap().ends_with("/001/001/example.jpg"));
-        assert!(
-            result
-                .url_photo_thumbnail
-                .unwrap()
-                .ends_with("/thumbnails/001/001/example.jpg")
-        );
+        let url_photo_thumbnail = result.url_photo_thumbnail.unwrap();
+        assert!(url_photo_thumbnail.ends_with("/thumbnails/001/001/example.jpg"));
         remove_scraped_data(&setup.1).await;
     }
 
@@ -668,11 +674,12 @@ pub mod tests {
         let sender = Scraper::start(&setup.0, &setup.1);
 
         let mode_s = ModeS::from(S!("393C00"));
+        let photo_prefix = PhotoPrefixes::from(&setup.0);
 
         let result = ModelAircraft::get(
             &setup.1,
             &AircraftSearch::ModeS(mode_s.clone()),
-            &setup.0.url_photo_prefix,
+            &photo_prefix,
         )
         .await
         .unwrap()
@@ -692,7 +699,7 @@ pub mod tests {
         let result = ModelAircraft::get(
             &setup.1,
             &AircraftSearch::ModeS(mode_s.clone()),
-            &setup.0.url_photo_prefix,
+            &photo_prefix,
         )
         .await
         .unwrap()
