@@ -111,22 +111,22 @@ restart_base_containers() {
 
 # Check if postgres is operational, ignores pg_restore or migrations, just if the container is up and ready
 wait_for_postgres() {
-	echo "Waiting for postgres"
+	echo -e "\n${YELLOW}Waiting for postgres${RESET}\n"
 	until docker exec "$APP_POSTGRES" pg_isready -U postgres >/dev/null 2>&1; do
 		echo "$APP_POSTGRES not ready - sleeping 2 seconds"
 		sleep 2
 	done
-	echo "PostgreSQL is ready"
+	echo -e "\n${GREEN}Postgres ready${RESET}\n"
 }
 
 # Wait for postgres pg_restore to complete
 wait_for_pg_restore() {
-	echo "Waiting for pg_restore"
+	echo -e "\n${YELLOW}Waiting for pg_restore${RESET}\n"
 	while docker exec "$APP_POSTGRES" pgrep -x pg_restore >/dev/null 2>&1; do
 		echo "$APP_POSTGRES pg_restore still running - sleeping 30 seconds"
 		sleep 30
 	done
-	echo "pg_restore complete"
+	echo -e "\n${GREEN}pg_restore complete${RESET}\n"
 }
 
 # Ask if migrations want to be run, will check for pg_restore beforehand
