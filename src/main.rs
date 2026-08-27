@@ -34,7 +34,7 @@ macro_rules! S {
 }
 
 fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
-    let logfile = tracing_appender::rolling::never(&app_env.location_logs, "api.log");
+    let logfile = tracing_appender::rolling::weekly(&app_env.location_logs, "api.log");
 
     let log_fmt = fmt::Layer::default()
         .json()
