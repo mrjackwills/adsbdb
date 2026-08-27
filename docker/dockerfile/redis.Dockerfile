@@ -16,13 +16,7 @@ WORKDIR /
 
 USER ${DOCKER_APP_USER}
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/init_redis.sh docker/confs/redis.conf /init/
-
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_redis.sh /healthcheck/
-
-RUN chmod +x /healthcheck/health_redis.sh /init/init_redis.sh
-
-ENTRYPOINT [ "/init/init_redis.sh" ]
 
 CMD sh -c 'redis-server \
      --bind ${DOCKER_REDIS_HOST} \

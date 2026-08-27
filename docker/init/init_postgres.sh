@@ -46,7 +46,7 @@ from_pg_dump() {
 }
 
 from_scratch() {
-	create_adsbdb_user
+	create_user
 	bootstrap_from_sql_file
 }
 

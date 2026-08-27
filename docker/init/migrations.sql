@@ -405,22 +405,22 @@ UPDATE airport_municipality am SET municipality = 'Rhodes Island' WHERE am.munic
 DROP TABLE IF EXISTS temp_incoming_request CASCADE;
 
 -- v0.7.0 - reduce disk size & speed up queries on incoming_request / incoming_request_url
-\echo "Drop redundant index_incoming_request_comp (indexes count, kills HOT updates)"
+\echo "Drop index_incoming_request_comp"
 DROP INDEX IF EXISTS index_incoming_request_comp;
 
-\echo "Drop redundant index_incoming_request_url (covered by PK leading column)"
+\echo "Drop index_incoming_request_url"
 DROP INDEX IF EXISTS index_incoming_request_url;
 
-\echo "Drop old unique index index_incoming_request_unique_method_url (replaced by PK)"
+\echo "Drop index index_incoming_request_unique_method_url"
 DROP INDEX IF EXISTS index_incoming_request_unique_method_url;
 
-\echo "Drop surrogate incoming_request_id (redundant with natural key), remove timestamp"
+\echo "Drop incoming_request_id"
 ALTER TABLE incoming_request DROP COLUMN IF EXISTS incoming_request_id, DROP COLUMN IF EXISTS timestamp;
 
-\echo "Promote natural key to primary key"
+\echo "add contstraint incoming_request_pkey PRIMARY KEY (incoming_request_url_id, request_method)"
 ALTER TABLE incoming_request ADD CONSTRAINT incoming_request_pkey PRIMARY KEY (incoming_request_url_id, request_method);
 
-\echo "Enable HOT updates via fillfactor"
+\echo "Set incoming_request fillfactor"
 ALTER TABLE incoming_request SET (fillfactor = 70);
 
 \echo "Remove timestamps from incoming_request_url & parts tables"
@@ -433,7 +433,6 @@ DROP INDEX IF EXISTS index_incoming_request_url_verion_trgm;
 DROP INDEX IF EXISTS index_incoming_request_url_path_trgm;
 DROP INDEX IF EXISTS index_incoming_request_url_query_trgm;
 
--- v0.8.0 - conver incoming_request_url to incoming_request & add a counter
 BEGIN;
 
 \echo "Create request counter"
@@ -448,7 +447,7 @@ GRANT ALL ON request_total TO adsbdb;
 SET LOCAL work_mem = '1GB';
 SET LOCAL maintenance_work_mem = '1GB';
 
-\echo "Convert invoming urls"
+\echo "Convert incoming urls"
 DO $$
 BEGIN
     IF EXISTS (

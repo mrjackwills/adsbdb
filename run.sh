@@ -109,27 +109,33 @@ restart_base_containers() {
 	docker restart "${BASE_CONTAINERS[@]}"
 }
 
-run_migrations() {
+# Check if postgres is operational, ignores pg_restore or migrations, just if the container is up and ready
+wait_for_postgres() {
+	echo "Waiting for postgres"
+	until docker exec "$APP_POSTGRES" pg_isready -U postgres >/dev/null 2>&1; do
+		echo "$APP_POSTGRES not ready - sleeping 2 seconds"
+		sleep 2
+	done
+	echo "PostgreSQL is ready"
+}
 
-# This will only work if there is a file to restore!
-	TARGET_PHRASE="database system is ready to accept connections"
-
-	# Loop until the phrase appears exactly (or at least) twice
-	# TODO this will break if the container is already active!
-	# do a y/n
-	# TODO change this to see if last line is starts pg_restore
-	if ask_yn "wait for restore"; then
-		while [ "$(docker logs "$APP_POSTGRES" 2>&1 | grep -c "$TARGET_PHRASE")" -lt 2 ]; do
-			echo "$APP_POSTGRES not ready - sleeping for 1 minute"
-			sleep 60
-		done
-		fi
+# Wait for postgres pg_restore to complete
+wait_for_pg_restore() {
+	echo "Waiting for pg_restore"
+	while docker exec "$APP_POSTGRES" pgrep -x pg_restore >/dev/null 2>&1; do
+		echo "$APP_POSTGRES pg_restore still running - sleeping 30 seconds"
+		sleep 30
+	done
 	echo "pg_restore complete"
+}
 
+# Ask if migrations want to be run, will check for pg_restore beforehand
+run_migrations() {
+	wait_for_pg_restore
 	if ask_yn "run migrations"; then
 		restart_base_containers
-		sleep 10
-		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
+		wait_for_postgres
+		docker exec -it ${APP_POSTGRES} /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
 	fi
 }
 
