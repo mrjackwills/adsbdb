@@ -130,6 +130,7 @@ pub enum RedisKey<'a> {
     Registration(&'a Registration),
     Stats,
     TempIR((&'a str, i64)),
+    TempIRStats((&'a str, i64)),
     TempIRCount(i64),
 }
 
@@ -157,6 +158,7 @@ impl fmt::Display for RedisKey<'_> {
             Self::RateLimit(ip) => write!(f, "ratelimit::{ip}"),
             Self::Registration(registration) => write!(f, "registration::{registration}"),
             Self::Stats => write!(f, "stats"),
+            Self::TempIRStats((path, minute)) => write!(f, "tir::s::{path}::{minute}"),
             // Do I need to combine this with IR?
             Self::TempIR((path, minute)) => write!(f, "tir::p::{path}::{minute}"),
             Self::TempIRCount(minute) => write!(f, "tir::c::{minute}"),

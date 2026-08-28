@@ -16,9 +16,8 @@ use crate::{
     },
     generic_id, redis_hash_to_struct,
 };
-use std::collections::HashMap;
 
-pub const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC.wrapping_mul(5);
+pub const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC.saturating_mul(5);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UriMethod(Uri, Method);
@@ -186,57 +185,54 @@ fn epoch_minute() -> i64 {
 }
 
 /// Increment the daily stats for a given request
+// This is failing I think, if somethings visist /asdasdasd, it will fail? No, it will add a count, just won't add anything to the TempIR bucket
 async fn increment_temp_stat(redis: &Pool, split_url: SplitUri) -> Result<(), AppError> {
     let minute = epoch_minute();
     let full_url = split_url.build_url();
 
     if let Some(path) = split_url.path.filter(|p| !p.is_empty()) {
         let path_key = RedisKey::TempIR((&path, minute)).to_string();
-        let exists = redis.exists::<bool, _>(&path_key).await?;
         redis.zincrby::<(), _, _>(&path_key, 1.0, &full_url).await?;
-        if !exists {
-            redis
-                .expire::<(), _>(&path_key, ONE_DAY_AS_SEC, None)
-                .await?;
-        }
+        redis
+            .expire::<(), _>(&path_key, ONE_DAY_AS_SEC, None)
+            .await?;
     }
 
     let count_key = RedisKey::TempIRCount(minute).to_string();
-    let exists = redis.exists::<bool, _>(&count_key).await?;
-    redis.zincrby::<(), _, _>(&count_key, 1.0, full_url).await?;
-    if !exists {
-        redis
-            .expire::<(), _>(&count_key, ONE_DAY_AS_SEC, None)
-            .await?;
-    }
+    redis.incr::<i64, _>(&count_key).await?;
+    redis
+        .expire::<(), _>(&count_key, ONE_DAY_AS_SEC, None)
+        .await?;
 
     Ok(())
 }
 
-/// Aggregate the top `limit` url counts for a path
+/// Aggregate the top counts for a given path
 async fn fetch_temp_stats_limit(
     redis: &Pool,
     path: &str,
-    limit: usize,
+    limit: i64,
 ) -> Result<Vec<EntryCount>, AppError> {
     let minute = epoch_minute();
-    let mut counts = HashMap::new();
-    for minute in (minute - 1439)..=minute {
-        let key = RedisKey::TempIR((path, minute)).to_string();
-        let entries = redis
-            .zrevrange::<Vec<(String, i64)>, &str>(&key, 0, -1, true)
-            .await?;
-        for (url, count) in entries {
-            *counts.entry(url).or_default() += count
-        }
-    }
-    let mut out = counts
+    let keys = (minute - 1439..=minute)
+        .map(|minute| RedisKey::TempIR((path, minute)).to_string())
+        .collect::<Vec<String>>();
+    let tmp_key = RedisKey::TempIRStats((path, minute)).to_string();
+
+    redis
+        .zunionstore::<i64, _, _, _>(&tmp_key, keys, None, None)
+        .await?;
+    let entries = redis
+        .zrevrange::<Vec<(String, i64)>, &str>(&tmp_key, 0, limit.saturating_sub(1), true)
+        .await?;
+    redis
+        .expire::<(), _>(&tmp_key, ONE_MINUTE_AS_SEC, None)
+        .await?;
+
+    Ok(entries
         .into_iter()
         .map(|(url, count)| EntryCount { url, count })
-        .collect::<Vec<EntryCount>>();
-    out.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.url.cmp(&b.url)));
-    out.truncate(limit);
-    Ok(out)
+        .collect())
 }
 
 async fn fetch_temp_stats(redis: &Pool, path: &str) -> Result<Vec<EntryCount>, AppError> {
@@ -244,24 +240,22 @@ async fn fetch_temp_stats(redis: &Pool, path: &str) -> Result<Vec<EntryCount>, A
 }
 
 async fn fetch_temp_single_stats(redis: &Pool, path: &str) -> Result<Vec<EntryCount>, AppError> {
+    // TODO I only want /online not /online/xyz?
     fetch_temp_stats_limit(redis, path, 1).await
 }
 
 /// Sum the aggregate request counts over the last 24 hours of minute-buckets
 async fn get_aggregate_count(redis: &Pool) -> Result<i64, AppError> {
-    let now_minute = epoch_minute();
-    let mut total = 0.0;
-    for minute in (now_minute - 1439)..=now_minute {
-        let key = RedisKey::TempIRCount(minute).to_string();
-        let entries = redis
-            .zrevrange::<Vec<(String, f64)>, &str>(&key, 0, -1, true)
-            .await?;
-        for (_, count) in entries {
-            total += count
-        }
-    }
-    // TODO fix this
-    Ok(total as i64)
+    let minute = epoch_minute();
+    let keys = (minute - 1439..=minute)
+        .map(|minute| RedisKey::TempIRCount(minute).to_string())
+        .collect::<Vec<String>>();
+    Ok(redis
+        .mget::<Vec<Option<i64>>, _>(keys)
+        .await?
+        .into_iter()
+        .flatten()
+        .fold(0i64, |acc, count| acc.saturating_add(count)))
 }
 
 impl ModelIncomingRequest {
@@ -540,6 +534,23 @@ DO UPDATE SET
         }
     }
 
+    /// Spawned message handler into own function, mainly so that it can be tested more easily
+    async fn _start(
+        postgres: PgPool,
+        redis: Pool,
+        rx: async_channel::Receiver<MsgIncomingRequest>,
+    ) {
+        let mut now = std::time::Instant::now();
+        while let Ok(msg) = rx.recv().await {
+            if let Err(e) = match msg {
+                MsgIncomingRequest::Url(i) => Self::insert_request(&postgres, &redis, i).await,
+            } {
+                tracing::error!("{e:?}");
+            }
+            Self::check_to_re_seed(&mut now, &postgres, &redis);
+        }
+    }
+
     /// Create a message handler on it's own tokio thread, and return it's message sender
     /// Will insert request_statistics on each message received
     /// Will insert cache stats at interval RE_SEED_TIME - assuming it has recieved any messages at all in that time period
@@ -550,20 +561,180 @@ DO UPDATE SET
     ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
         Self::seed_redis(postgres, redis).await?;
         let (tx, rx) = async_channel::bounded(8192);
-        let postgres = postgres.clone();
-        let redis = redis.clone();
-        tokio::spawn(async move {
-            let mut now = std::time::Instant::now();
-            while let Ok(msg) = rx.recv().await {
-                if let Err(e) = match msg {
-                    MsgIncomingRequest::Url(i) => Self::insert_request(&postgres, &redis, i).await,
-                } {
-                    tracing::error!("{e:?}");
-                }
-                Self::check_to_re_seed(&mut now, &postgres, &redis);
-            }
-        });
-
+        let (postgres, redis) = (postgres.clone(), redis.clone());
+        tokio::spawn(Self::_start(postgres, redis, rx));
         Ok(tx)
+    }
+}
+
+/// http tests - ran via actual requests to a (local) server
+/// cargo watch -q -c -w src/ -x 'test http_mod -- --test-threads=1 --nocapture'
+#[cfg(test)]
+#[allow(clippy::pedantic, clippy::unwrap_used)]
+pub mod tests {
+    use crate::{
+        S,
+        api::{
+            StatsEntry,
+            tests::{random_hex, test_setup},
+        },
+        db_postgres::{EntryCount, ModelIncomingRequest, MsgIncomingRequest, UriMethod},
+        sleep,
+    };
+    use axum::http::Uri;
+    use fred::clients::Pool;
+    use reqwest::Method;
+
+    use super::get_aggregate_count;
+
+    impl From<&str> for UriMethod {
+        fn from(value: &str) -> Self {
+            Self(value.parse::<Uri>().unwrap(), Method::GET)
+        }
+    }
+
+    // Wait til the total counter matches number of messages sent
+    // Break if tkaing more than 1 second
+    async fn wait_for_messages(redis: &Pool, total: i64) {
+        let start = std::time::Instant::now();
+        while get_aggregate_count(redis).await.unwrap() != total {
+            sleep!(100);
+            if start.elapsed().as_secs() >= 1 {
+                break;
+            }
+        }
+    }
+
+    #[tokio::test]
+    /// then get stats an make sure the numbers match
+    async fn model_incoming_request_daily_stats() {
+        let setup = test_setup().await;
+        let (tx, rx) = async_channel::bounded(8192);
+        tokio::spawn(ModelIncomingRequest::_start(
+            setup.postgres.clone(),
+            setup.redis.clone(),
+            rx,
+        ));
+
+        // Send mutliple messages, with a different number of messages per address, so that
+        // each address gets a distinct count. Random hex urls don't match any known path,
+        // so only contribute to the aggregate count.
+        let urls = [
+            ("/v0/aircraft/test", 8),
+            ("/v0/airline/test", 7),
+            ("/v0/callsign/test", 6),
+            ("/v0/mode-s/test", 5),
+            ("/v0/n-number/test", 4),
+            ("/v0/online", 3),
+            ("/v0/stats", 2),
+            (&random_hex(10).to_string(), 1),
+        ];
+        for (url, count) in urls {
+            for _ in 0..count {
+                tx.send(MsgIncomingRequest::Url(UriMethod::from(url)))
+                    .await
+                    .unwrap();
+            }
+        }
+
+        wait_for_messages(&setup.redis, 36).await;
+
+        // then get stats, and make sure the numbers match
+        let stats = ModelIncomingRequest::get_stats(&setup.postgres, &setup.redis)
+            .await
+            .unwrap();
+
+        let expected = StatsEntry {
+            aircraft: vec![EntryCount {
+                url: S!("/v0/aircraft/test"),
+                count: 8,
+            }],
+            airline: vec![EntryCount {
+                url: S!("/v0/airline/test"),
+                count: 7,
+            }],
+            callsign: vec![EntryCount {
+                url: S!("/v0/callsign/test"),
+                count: 6,
+            }],
+            mode_s: vec![EntryCount {
+                url: S!("/v0/mode-s/test"),
+                count: 5,
+            }],
+            n_number: vec![EntryCount {
+                url: S!("/v0/n-number/test"),
+                count: 4,
+            }],
+            online: vec![EntryCount {
+                url: S!("/v0/online"),
+                count: 3,
+            }],
+            stats: vec![EntryCount {
+                url: S!("/v0/stats"),
+                count: 2,
+            }],
+            aggregate: 36,
+        };
+        assert_eq!(stats.daily, expected)
+    }
+
+    #[tokio::test]
+    /// Test stats with multiple queries on different paths
+    async fn model_incoming_request_daily_stats_random() {
+        let setup = test_setup().await;
+        let (tx, rx) = async_channel::bounded(8192);
+        tokio::spawn(ModelIncomingRequest::_start(
+            setup.postgres.clone(),
+            setup.redis.clone(),
+            rx,
+        ));
+
+        let urls = [
+            "/v0/aircraft/",
+            "/v0/airline/",
+            "/v0/callsign/",
+            "/v0/mode-s/",
+            "/v0/n-number/",
+            "/v0/online",
+            "/v0/stats",
+            "/",
+        ];
+        for url in urls {
+            for i in 1..=3 {
+                let url = if url.ends_with('/') {
+                    format!("{url}{}", random_hex(5))
+                } else {
+                    url.to_owned()
+                };
+                for _ in 1..=i {
+                    tx.send(MsgIncomingRequest::Url(UriMethod::from(url.as_str())))
+                        .await
+                        .unwrap();
+                }
+            }
+        }
+
+        wait_for_messages(&setup.redis, 48).await;
+        let stats = ModelIncomingRequest::get_stats(&setup.postgres, &setup.redis)
+            .await
+            .unwrap();
+
+        assert_eq!(stats.daily.aircraft.len(), 3);
+        assert_eq!(stats.daily.airline.len(), 3);
+        assert_eq!(stats.daily.callsign.len(), 3);
+        assert_eq!(stats.daily.mode_s.len(), 3);
+        assert_eq!(stats.daily.n_number.len(), 3);
+        assert_eq!(stats.daily.online.len(), 1);
+        assert_eq!(stats.daily.stats.len(), 1);
+        assert_eq!(stats.daily.aggregate, 48);
+
+        for i in 0..3 {
+            let total = (3 - i) as i64;
+            assert_eq!(stats.daily.aircraft[i].count, total);
+            assert_eq!(stats.daily.airline[i].count, total);
+            assert_eq!(stats.daily.callsign[i].count, total);
+            assert_eq!(stats.daily.mode_s[i].count, total);
+            assert_eq!(stats.daily.n_number[i].count, total);
+        }
     }
 }

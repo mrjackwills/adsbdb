@@ -329,6 +329,16 @@ pub mod tests {
     use serde_json::Value;
     use tokio::task::JoinHandle;
 
+    use rand::Rng; // add this import
+
+    pub fn random_hex(len: usize) -> String {
+        const HEX_CHARS: &[u8] = b"0123456789ABCDEF";
+        let mut rng = rand::thread_rng();
+        (0..len)
+            .map(|_| HEX_CHARS[rng.gen_range(0..HEX_CHARS.len())] as char)
+            .collect()
+    }
+
     pub static CLIENT: LazyLock<reqwest::Client> =
         LazyLock::new(|| reqwest::ClientBuilder::new().build().unwrap());
 
@@ -464,11 +474,10 @@ pub mod tests {
     /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
     /// Check that the stats cache is correctly populated and ttl/expire working as expected
     async fn http_mod_get_stats() {
-        // unimplemented!("fix me");
         let setup = start_server().await;
         assert_empty_stats_cache(&setup.redis).await;
 
-        let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str(),);
+        let url = format!("http://127.0.0.1:8282{}/stats", API_VERSION.as_str());
         let result = CLIENT
             .get(&url)
             .send()
@@ -505,7 +514,7 @@ pub mod tests {
 
         assert_eq!(
             serde_json::to_string(&result.response.daily).unwrap(),
-            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":2}],"aggregate":23}"#
+            r#"{"aircraft":[{"url":"/v0/aircraft/test","count":1}],"airline":[{"url":"/v0/airline/test","count":2}],"callsign":[{"url":"/v0/callsign/test","count":3}],"mode_s":[{"url":"/v0/mode-s/test","count":4}],"n_number":[{"url":"/v0/n-number/test","count":5}],"online":[{"url":"/v0/online","count":6}],"stats":[{"url":"/v0/stats","count":1}],"aggregate":22}"#
         );
     }
 
