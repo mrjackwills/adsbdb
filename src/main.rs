@@ -1,3 +1,4 @@
+use crossfire::mpsc::Array;
 use fred::clients::Pool;
 use mimalloc::MiMalloc;
 
@@ -21,6 +22,21 @@ use crate::{
     db_postgres::{ModelIncomingRequest, MsgIncomingRequest},
     scraper::Scraper,
 };
+
+pub type Tx<T> = crossfire::MAsyncTx<Array<T>>;
+pub type RX<T> = crossfire::AsyncRx<Array<T>>;
+pub type OneTX<T> = crossfire::oneshot::TxOneshot<T>;
+pub type OneRX<T> = crossfire::oneshot::RxOneshot<T>;
+
+/// Create a bounded async channel of x size
+fn create_rx_tx<T: 'static + Send + Sync>(size: usize) -> (Tx<T>, RX<T>) {
+    crossfire::mpsc::bounded_async::<T>(size)
+}
+
+/// Create a onehsot channel
+fn create_oneshot<T: 'static + Send + Sync>() -> (OneTX<T>, OneRX<T>) {
+    crossfire::oneshot::oneshot()
+}
 
 /// Simple macro to create an empty String, or create String from a &str - to get rid of .to_owned() / String::from() etc
 #[macro_export]
@@ -62,7 +78,7 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
 async fn start_incoming_requests(
     postgres: &PgPool,
     redis: &Pool,
-) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
+) -> Result<Tx<MsgIncomingRequest>, AppError> {
     ModelIncomingRequest::start(postgres, redis).await
 }
 

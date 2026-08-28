@@ -14,6 +14,7 @@ use super::{AppError, ApplicationState, app_error::UnknownAC};
 use crate::{
     S,
     api::response::Stats,
+    create_oneshot,
     db_postgres::{ModelAircraft, ModelAirline, ModelFlightroute, ModelIncomingRequest},
     db_redis::{RedisKey, get_cache, insert_cache},
     n_number::{mode_s_to_n_number, n_number_to_mode_s},
@@ -36,7 +37,7 @@ impl RouterHelper {
         } else {
             let mut flightroute = ModelFlightroute::get(&state.postgres, callsign).await;
             if flightroute.is_none() {
-                let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+                let (one_tx, one_rx) = create_oneshot();
 
                 if state
                     .scraper_tx
@@ -126,7 +127,7 @@ impl RouterHelper {
             if let Some(craft) = aircraft.as_ref()
                 && craft.url_photo.is_none()
             {
-                let (one_tx, one_rx) = tokio::sync::oneshot::channel();
+                let (one_tx, one_rx) = create_oneshot();
                 if state
                     .scraper_tx
                     .send(crate::scraper::MsgScraper::Photo((
@@ -317,7 +318,7 @@ impl ApiRoutes {
         Ok((
             StatusCode::OK,
             ResponseJson::new(
-                ModelIncomingRequest::get_stats(&state.postgres, &state.redis).await?,
+                ModelIncomingRequest::get_insert_stats(&state.postgres, &state.redis).await?,
             ),
         ))
     }

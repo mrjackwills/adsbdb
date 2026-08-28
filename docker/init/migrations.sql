@@ -522,8 +522,11 @@ CREATE INDEX IF NOT EXISTS index_incoming_request_path_id
 INSERT INTO request_total (id, total)
 SELECT 1, COALESCE((SELECT SUM(count) FROM incoming_request), 0)
 ON CONFLICT (id) DO NOTHING;
+COMMIT;
+
 
 \echo "Drop old table"
 DROP TABLE IF EXISTS incoming_request_url;
 
-COMMIT;
+\echo "aircraft_photo substring fix"
+UPDATE aircraft_photo SET url_photo = substring(url_photo, 9);

@@ -1,3 +1,4 @@
+use crossfire::AsyncTxTrait;
 use fred::clients::Pool;
 use router::ApiRoutes;
 use sqlx::PgPool;
@@ -28,7 +29,7 @@ mod router;
 mod update_routes;
 
 use crate::{
-    S,
+    S, Tx,
     db_postgres::{MsgIncomingRequest, UriMethod},
     db_redis::ratelimit::RateLimit,
     parse_env::AppEnv,
@@ -40,6 +41,7 @@ pub use response::{ResponseAircraft, Stats, StatsEntry};
 
 const X_REAL_IP: &str = "x-real-ip";
 const X_FORWARDED_FOR: &str = "x-forwarded-for";
+const STATS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5);
 
 #[derive(Debug, Clone)]
 pub struct PhotoPrefixes {
@@ -61,8 +63,8 @@ pub struct ApplicationState {
     postgres: PgPool,
     redis: Pool,
     uptime: Instant,
-    scraper_tx: async_channel::Sender<MsgScraper>,
-    stats_tx: async_channel::Sender<MsgIncomingRequest>,
+    scraper_tx: Tx<MsgScraper>,
+    stats_tx: Tx<MsgIncomingRequest>,
     photo_prefixes: PhotoPrefixes,
 }
 
@@ -71,8 +73,8 @@ impl ApplicationState {
         app_env: &AppEnv,
         postgres: PgPool,
         redis: Pool,
-        scraper_tx: async_channel::Sender<MsgScraper>,
-        stats_tx: async_channel::Sender<MsgIncomingRequest>,
+        scraper_tx: Tx<MsgScraper>,
+        stats_tx: Tx<MsgIncomingRequest>,
     ) -> Self {
         Self {
             postgres,
@@ -111,11 +113,16 @@ async fn insert_stats(
     req: Request<Body>,
     next: Next,
 ) -> Response {
-    state
+    if let Err(e) = state
         .stats_tx
-        .send(MsgIncomingRequest::Url(UriMethod::from(&req)))
+        .send_timeout(
+            MsgIncomingRequest::Url(UriMethod::from(&req)),
+            STATS_TIMEOUT,
+        )
         .await
-        .ok();
+    {
+        tracing::error!("{e}");
+    }
     next.run(req).await
 }
 
@@ -191,8 +198,8 @@ pub async fn serve(
     app_env: AppEnv,
     postgres: PgPool,
     redis: Pool,
-    tx_scraper: async_channel::Sender<MsgScraper>,
-    tx_stats: async_channel::Sender<MsgIncomingRequest>,
+    tx_scraper: Tx<MsgScraper>,
+    tx_stats: Tx<MsgIncomingRequest>,
 ) -> Result<(), AppError> {
     let application_state = ApplicationState::new(&app_env, postgres, redis, tx_scraper, tx_stats);
 

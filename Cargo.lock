@@ -13,8 +13,8 @@ name = "adsbdb"
 version = "0.6.5"
 dependencies = [
  "argon2",
- "async-channel",
  "axum",
+ "crossfire",
  "dotenvy",
  "fred",
  "http-body",
@@ -86,18 +86,6 @@ dependencies = [
  "blake2",
  "cpufeatures 0.2.17",
  "password-hash",
-]
-
-[[package]]
-name = "async-channel"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2"
-dependencies = [
- "concurrent-queue",
- "event-listener-strategy",
- "futures-core",
- "pin-project-lite",
 ]
 
 [[package]]
@@ -518,6 +506,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 
 [[package]]
+name = "crossfire"
+version = "3.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "111ce8f7abfbac38b4bc4f32a3a2dda1a8034b873c90c7899f302cc9dbbc05ec"
+dependencies = [
+ "crossbeam-utils",
+ "futures-core",
+ "parking_lot",
+ "pointers",
+ "smallvec",
+ "tokio",
+]
+
+[[package]]
 name = "crypto-common"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -670,16 +672,6 @@ checksum = "e13b66accf52311f30a0db42147dadea9850cb48cd070028831ae5f5d4b856ab"
 dependencies = [
  "concurrent-queue",
  "parking",
- "pin-project-lite",
-]
-
-[[package]]
-name = "event-listener-strategy"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
-dependencies = [
- "event-listener",
  "pin-project-lite",
 ]
 
@@ -1580,6 +1572,12 @@ name = "pkg-config"
 version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
+
+[[package]]
+name = "pointers"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dcdc93847ad24990939cce6e1804361e903efcb5f99daa5abd87943a9d6d7ba"
 
 [[package]]
 name = "portable-atomic"

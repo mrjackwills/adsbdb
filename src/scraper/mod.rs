@@ -1,16 +1,18 @@
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use reqwest::{Client, Response};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
-use tokio::sync::{broadcast::Sender as BSender, oneshot};
 use url::Url;
 
 #[cfg(not(test))]
 use crate::api::UnknownAC;
 
 use crate::{
+    OneTX, RX, Tx,
     api::{AppError, Callsign, ModeS, Validate},
+    create_rx_tx,
     db_postgres::{ModelAircraft, ModelFlightroute},
     parse_env::AppEnv,
 };
@@ -41,11 +43,20 @@ pub struct ScrapedFlightroute {
     pub destination: String,
 }
 
+// Maybe check if includes 8 '/' ?
+// TODO it needs to be xxxxxxxxx.jpg!
 fn deserialize_url<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
 {
+	// assert ends .jpg
+	// from end, split at '.', make sure it ends .jpg
+	// then split at '/', and make sure is 13 chars
     let input = String::deserialize(deserializer)?;
+    let slash_count = input.matches('/').count();
+    if slash_count != 8 {
+        return Err(serde::de::Error::custom("invalid_photo_url"));
+    }
     let url = Url::parse(&input).map_err(|_| serde::de::Error::custom("invalid_photo_url"))?;
     let segments = url
         .path_segments()
@@ -56,67 +67,58 @@ where
     Ok(final_three.join("/"))
 }
 
-#[derive(Debug)]
+/// Build a reqwest client, with a default timeout, and compression enabled
+pub static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    match Client::builder()
+        .connect_timeout(SCRAPE_TIMEOUT)
+        .gzip(true)
+        .brotli(true)
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("{e}");
+            Client::new()
+        }
+    }
+});
+
+// TODO if want hashset instead of vec, need to impl hash & eq (?) for ModelFlightroute
 pub struct Scraper {
-    callsign_requests: HashMap<Callsign, BSender<Option<ModelFlightroute>>>,
-    photo_requests: HashMap<ModeS, BSender<()>>,
+    callsign_requests: HashMap<Callsign, Vec<OneTX<Option<ModelFlightroute>>>>,
+    photo_requests: HashMap<ModeS, Vec<OneTX<()>>>,
     flight_scrape_url: String,
     allow_scrape_flightroute: Option<()>,
     photo_url: String,
     allow_scrape_photo: Option<()>,
     postgres: PgPool,
-    tx: async_channel::Sender<MsgScraper>,
+    tx: Tx<MsgScraper>,
 }
 
-#[derive(Debug)]
-pub enum ToRemove {
-    Callsign(Callsign),
-    Photo(ModeS),
-}
-
-#[derive(Debug)]
 pub enum MsgScraper {
-    CallSign((oneshot::Sender<Option<ModelFlightroute>>, Callsign)),
-    Remove(ToRemove),
-    Photo((oneshot::Sender<()>, ModeS)),
+    CallSign((OneTX<Option<ModelFlightroute>>, Callsign)),
+    Photo((OneTX<()>, ModeS)),
+    CallSignResult((Callsign, Box<Option<ModelFlightroute>>)),
+    PhotoResult(ModeS),
 }
 
 impl Scraper {
-    /// Remove item from the HashMap
-    fn msg_remove(&mut self, to_remove: ToRemove) {
-        match to_remove {
-            ToRemove::Callsign(callsign) => {
-                self.callsign_requests.remove(&callsign);
-            }
-            ToRemove::Photo(mode_s) => {
-                self.photo_requests.remove(&mode_s);
-            }
-        }
-    }
-
     /// Scrape for a flightroute, or if currently being scraper, wait for response
     fn msg_callsign(
         &mut self,
-        oneshot: oneshot::Sender<Option<ModelFlightroute>>,
+        oneshot: OneTX<Option<ModelFlightroute>>,
         callsign: Callsign,
-        tx: async_channel::Sender<MsgScraper>,
+        tx: Tx<MsgScraper>,
     ) {
         if self.allow_scrape_flightroute.is_none() {
-            oneshot.send(None).ok();
+            oneshot.send(None);
             return;
         }
-        if let Some(int_tx) = self.callsign_requests.get(&callsign) {
-            let mut int_rx = int_tx.subscribe();
-            tokio::spawn(async move {
-                oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
-                tx.send(MsgScraper::Remove(ToRemove::Callsign(callsign)))
-                    .await
-                    .ok();
-            });
+        if let Some(requests) = self.callsign_requests.get_mut(&callsign) {
+            requests.push(oneshot);
         } else {
-            let (int_tx, mut int_rx) = tokio::sync::broadcast::channel(128);
             self.callsign_requests
-                .insert(callsign.clone(), int_tx.clone());
+                .insert(callsign.clone(), vec![oneshot]);
 
             let data = (
                 self.postgres.clone(),
@@ -124,9 +126,8 @@ impl Scraper {
                 self.flight_scrape_url.clone(),
             );
             tokio::spawn(async move {
-                Self::spawn_callsign(data.0, &data.1, data.2, int_tx).await;
-                oneshot.send(int_rx.recv().await.unwrap_or(None)).ok();
-                tx.send(MsgScraper::Remove(ToRemove::Callsign(data.1)))
+                let result = Self::spawn_callsign(data.0, &data.1, data.2).await;
+                tx.send(MsgScraper::CallSignResult((data.1, Box::new(result))))
                     .await
                     .ok();
             });
@@ -134,59 +135,55 @@ impl Scraper {
     }
 
     /// Scrape for a photo, or if currently being scraper, wait for response
-    fn msg_photo(
-        &mut self,
-        oneshot: oneshot::Sender<()>,
-        mode_s: ModeS,
-        tx: async_channel::Sender<MsgScraper>,
-    ) {
+    fn msg_photo(&mut self, oneshot: OneTX<()>, mode_s: ModeS, tx: Tx<MsgScraper>) {
         if self.allow_scrape_photo.is_none() {
-            oneshot.send(()).ok();
+            oneshot.send(());
             return;
         }
 
-        if let Some(int_rx) = self.photo_requests.get(&mode_s) {
-            let mut int_tx = int_rx.subscribe();
-            tokio::spawn(async move {
-                int_tx.recv().await.ok();
-                oneshot.send(()).ok();
-                tx.send(MsgScraper::Remove(ToRemove::Photo(mode_s)))
-                    .await
-                    .ok();
-            });
+        if let Some(requests) = self.photo_requests.get_mut(&mode_s) {
+            requests.push(oneshot);
         } else {
-            // refactor with the scrpagmshCallsignas well
-            let (int_tx, mut int_rx) = tokio::sync::broadcast::channel(128);
-            self.photo_requests.insert(mode_s.clone(), int_tx.clone());
+            self.photo_requests.insert(mode_s.clone(), vec![oneshot]);
             let data = (self.postgres.clone(), mode_s, self.photo_url.clone());
             tokio::spawn(async move {
-                Self::spawn_photo(data.0, &data.1, data.2, int_tx).await;
-                int_rx.recv().await.ok();
-                oneshot.send(()).ok();
-                tx.send(MsgScraper::Remove(ToRemove::Photo(data.1)))
-                    .await
-                    .ok();
+                Self::spawn_photo(data.0, &data.1, data.2).await;
+                tx.send(MsgScraper::PhotoResult(data.1)).await.ok();
             });
         }
     }
 
-    pub async fn listen(&mut self, rx: async_channel::Receiver<MsgScraper>) {
+    pub async fn listen(&mut self, rx: RX<MsgScraper>) {
         while let Ok(msg) = rx.recv().await {
             match msg {
-                MsgScraper::Remove(to_remove) => self.msg_remove(to_remove),
                 MsgScraper::CallSign((oneshot, callsign)) => {
                     self.msg_callsign(oneshot, callsign, self.tx.clone());
                 }
                 MsgScraper::Photo((oneshot, mode_s)) => {
                     self.msg_photo(oneshot, mode_s, self.tx.clone());
                 }
+                MsgScraper::CallSignResult((callsign, result)) => {
+                    if let Some(requests) = self.callsign_requests.remove(&callsign) {
+                        let result = *result;
+                        for oneshot in requests {
+                            oneshot.send(result.clone());
+                        }
+                    }
+                }
+                MsgScraper::PhotoResult(mode_s) => {
+                    if let Some(requests) = self.photo_requests.remove(&mode_s) {
+                        for oneshot in requests {
+                            oneshot.send(());
+                        }
+                    }
+                }
             }
         }
     }
 
     /// Build a new scraper, and spawn in a tokio thread, return a Sender to be inserted into ApplicationState
-    pub fn start(app_env: &AppEnv, postgres: &PgPool) -> async_channel::Sender<MsgScraper> {
-        let (tx, rx) = async_channel::bounded(8192);
+    pub fn start(app_env: &AppEnv, postgres: &PgPool) -> Tx<MsgScraper> {
+        let (tx, rx) = create_rx_tx(8192);
         let mut scraper = Self {
             flight_scrape_url: app_env.url_callsign.clone(),
             photo_url: app_env.url_aircraft_photo.clone(),
@@ -203,17 +200,9 @@ impl Scraper {
         tx
     }
 
-    /// Build a reqwest client, with a default timeout, and compression enabled
-    /// Then send a get request to the url given
-    async fn client_get(url: String) -> Result<Response, AppError> {
-        Ok(Client::builder()
-            .connect_timeout(SCRAPE_TIMEOUT)
-            .gzip(true)
-            .brotli(true)
-            .build()?
-            .get(url)
-            .send()
-            .await?)
+    /// Use static client, send a get request to the url given
+    async fn get_request(url: String) -> Result<Response, AppError> {
+        Ok(CLIENT.get(url).timeout(SCRAPE_TIMEOUT).send().await?)
     }
 
     /// Try to extract the ICAO callsign, IATA callsign, and ICAO origin/destination airports
@@ -283,7 +272,7 @@ impl Scraper {
     #[cfg(not(test))]
     #[allow(clippy::cognitive_complexity)]
     async fn request_callsign(callsign: &Callsign, url: String) -> Result<String, AppError> {
-        match Self::client_get(format!("{url}/{callsign}")).await {
+        match Self::get_request(format!("{url}/{callsign}")).await {
             Ok(response) => match response.text().await {
                 Ok(text) => Ok(text),
                 Err(e) => {
@@ -300,31 +289,18 @@ impl Scraper {
         }
     }
 
-    /// This is spawned in a tokio thread, scrapes the flightroute, inserts into postgres, and sends back modelflightroute
+    /// This is spawned in a tokio thread, scrapes the flightroute, inserts into postgres, and returns modelflightroute
     #[allow(clippy::cognitive_complexity)]
     async fn spawn_callsign(
         postgres: PgPool,
         callsign: &Callsign,
         url: String,
-        b_sender: BSender<Option<ModelFlightroute>>,
-    ) {
-        let return_none = || {
-            b_sender.send(None).ok();
-        };
-
-        let Ok(html) =
-            tokio::time::timeout(SCRAPE_TIMEOUT, Self::request_callsign(callsign, url)).await
-        else {
-            tracing::error!("{callsign}: scrape timeout");
-            return return_none();
-        };
-        let Ok(html) = html else {
+    ) -> Option<ModelFlightroute> {
+        let Ok(html) = Self::request_callsign(callsign, url).await else {
             tracing::error!("{callsign}: request error");
-            return return_none();
+            return None;
         };
-        let Some(scraped_flightroute) = Self::extract_flightroute(&html) else {
-            return return_none();
-        };
+        let scraped_flightroute = Self::extract_flightroute(&html)?;
 
         if scraped_flightroute.origin == scraped_flightroute.destination {
             tracing::error!(
@@ -332,43 +308,27 @@ impl Scraper {
                 o = scraped_flightroute.origin,
                 d = scraped_flightroute.destination
             );
-            return_none();
-        } else {
-            match ModelFlightroute::insert_scraped_flightroute(&postgres, &scraped_flightroute)
-                .await
-            {
-                Ok(flightroute) => {
-                    b_sender.send(flightroute).ok();
-                }
-                Err(e) => {
-                    tracing::error!("{}", e);
-                    return_none();
-                }
+            return None;
+        }
+        match ModelFlightroute::insert_scraped_flightroute(&postgres, &scraped_flightroute).await {
+            Ok(flightroute) => flightroute,
+            Err(e) => {
+                tracing::error!("{}", e);
+                None
             }
         }
     }
 
-    /// This is spawned in a tokio thread, scrapes the flightroute, inserts into postgres, and sends back just a unit
-    async fn spawn_photo(postgres: PgPool, mode_s: &ModeS, url: String, b_sender: BSender<()>) {
-        let send_unit = || {
-            b_sender.send(()).ok();
-        };
-        let Ok(photo) =
-            tokio::time::timeout(SCRAPE_TIMEOUT, Self::request_photo(mode_s, url)).await
-        else {
-            tracing::error!("{}: scrape timeout", mode_s);
-            return send_unit();
-        };
-
-        let Some(photo) = photo else {
-            return send_unit();
+    /// This is spawned in a tokio thread, scrapes the photo, and inserts into postgres
+    async fn spawn_photo(postgres: PgPool, mode_s: &ModeS, url: String) {
+        let Some(photo) = Self::request_photo(mode_s, url).await else {
+            return;
         };
         if let Some([data_0, ..]) = photo.data
             && let Err(e) = ModelAircraft::insert_photo(&postgres, data_0, mode_s).await
         {
             tracing::error!("{e}");
         }
-        send_unit();
     }
 
     /// Scrape photo for testings
@@ -394,7 +354,7 @@ impl Scraper {
     #[cfg(not(test))]
     #[allow(clippy::cognitive_complexity)]
     async fn request_photo(mode_s: &ModeS, url: String) -> Option<PhotoResponse> {
-        match Self::client_get(format!("{url}{mode_s}&n=1")).await {
+        match Self::get_request(format!("{url}{mode_s}&n=1")).await {
             Ok(response) => match response.json::<PhotoResponse>().await {
                 Ok(photo) => {
                     if photo.data.is_some() {
@@ -426,7 +386,7 @@ impl Scraper {
 pub mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, PhotoPrefixes, Validate};
-    use crate::{S, db_postgres, db_redis};
+    use crate::{S, create_oneshot, db_postgres, db_redis};
     use fred::interfaces::ClientLike;
     use serde::de::IntoDeserializer;
     use serde::de::value::{Error as ValueError, StringDeserializer};
@@ -477,22 +437,19 @@ pub mod tests {
 
     #[test]
     fn scraper_deserialize_url() {
-        let prefix = "https://www.xxxxxxxxxxxx.xxx/xxxxxx/xxxxxxxx/xxxxxxxxxxx";
-        let suffix = "/000/582/582407.jpg";
-        let deserializer: StringDeserializer<ValueError> =
-            format!("{prefix}{suffix}").into_deserializer();
+		// TODO just save the name.jpg, can work out the thumbail from that!
+        let url = "https://example.com/foo/bar/another/001/924/001924443.jpg".to_owned();
+        let deserializer: StringDeserializer<ValueError> = url.into_deserializer();
         let result = deserialize_url(deserializer);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "000/582/582407.jpg");
+        assert_eq!(result.unwrap(), "001/924/001924443.jpg");
 
-        let prefix = "https://www.xxxxxxxxxxxx.xxx";
-        let suffix = "/000/582/582407.jpg";
-        let deserializer: StringDeserializer<ValueError> =
-            format!("{prefix}{suffix}").into_deserializer();
+        let url = "https://example.com/foo/bar/001/924/001924443.jpg".to_owned();
+        let deserializer: StringDeserializer<ValueError> = url.into_deserializer();
         let result = deserialize_url(deserializer);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "000/582/582407.jpg");
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -515,12 +472,12 @@ pub mod tests {
     #[allow(unreachable_code)]
     // WARNING - this will test against a live, third party, website
     async fn scraper_extract_flightroute_live() {
+        let setup = test_setup().await;
+        remove_scraped_data(&setup.1).await;
         unimplemented!("`scraper_extract_flightroute_live` test currently disabled");
 
-        let setup = test_setup().await;
-
         let url = format!("{}/{TEST_CALLSIGN}", setup.0.url_callsign);
-        let html = Scraper::client_get(url)
+        let html = Scraper::get_request(url)
             .await
             .unwrap()
             .text()
@@ -547,7 +504,7 @@ pub mod tests {
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
         let sender = Scraper::start(&setup.0, &setup.1);
-        let (s, r) = oneshot::channel();
+        let (s, r) = create_oneshot();
         sender.send(MsgScraper::CallSign((s, callsign))).await.ok();
 
         let result = r.await;
@@ -609,7 +566,7 @@ pub mod tests {
         setup.0.allow_scrape_flightroute = None;
         let sender = Scraper::start(&setup.0, &setup.1);
 
-        let (s, r) = oneshot::channel();
+        let (s, r) = create_oneshot();
         sender.send(MsgScraper::CallSign((s, callsign))).await.ok();
 
         let result = r.await;
@@ -640,7 +597,7 @@ pub mod tests {
         assert!(result.url_photo.is_none());
         assert!(result.url_photo_thumbnail.is_none());
 
-        let (s, r) = oneshot::channel();
+        let (s, r) = create_oneshot();
         sender
             .send(MsgScraper::Photo((s, mode_s.clone())))
             .await
@@ -688,7 +645,7 @@ pub mod tests {
         assert!(result.url_photo.is_none());
         assert!(result.url_photo_thumbnail.is_none());
 
-        let (s, r) = oneshot::channel();
+        let (s, r) = create_oneshot();
         sender
             .send(MsgScraper::Photo((s, mode_s.clone())))
             .await

@@ -43,6 +43,8 @@ pub struct ModelAircraft {
     pub url_photo_thumbnail: Option<String>,
 }
 
+// TODO Probably impl the new image like this
+// SELECT  CASE    WHEN LENGTH(column_name) = 13 THEN      SUBSTRING(column_name, 1, 3) || '/' ||      SUBSTRING(column_name, 4, 3) || '/' ||      SUBSTRING(column_name, 7, 7) || '.jpg'    ELSE      column_name  END AS formatted_valueFROM your_table;
 redis_hash_to_struct!(ModelAircraft);
 
 impl ModelAircraft {
@@ -73,6 +75,7 @@ SELECT
 		 THEN CONCAT($1::TEXT, substring(ap.url_photo from 9))
     END AS url_photo,
     CASE 
+	-- case then length = 13, else null
         WHEN ap.url_photo IS NOT NULL 
         THEN CONCAT($2::TEXT, ap.url_photo) 
     END AS url_photo_thumbnail

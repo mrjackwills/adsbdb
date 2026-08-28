@@ -65,13 +65,13 @@ pub async fn get_cache<T: DeserializeOwned + Send + FromValue>(
     redis: &Pool,
     key: &RedisKey<'_>,
 ) -> Result<Option<Option<T>>, AppError> {
-    let set_expire = key.get_expire();
+    let reset_expire = key.reset_expire();
     let key = key.to_string();
     if let Some(value) = redis
         .hget::<Option<String>, &str, &str>(&key, HASH_FIELD)
         .await?
     {
-        if set_expire {
+        if reset_expire {
             redis
                 .expire::<(), &str>(&key, ONE_WEEK_AS_SEC, None)
                 .await?;
@@ -144,7 +144,7 @@ impl<'a> RedisKey<'a> {
         }
     }
 
-    const fn get_expire(&self) -> bool {
+    const fn reset_expire(&self) -> bool {
         !matches!(self, Self::Stats)
     }
 }

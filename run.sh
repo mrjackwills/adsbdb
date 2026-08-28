@@ -131,6 +131,8 @@ wait_for_pg_restore() {
 
 # Ask if migrations want to be run, will check for pg_restore beforehand
 run_migrations() {
+	# This is flaky
+	sleep 30
 	wait_for_pg_restore
 	if ask_yn "run migrations"; then
 		restart_base_containers

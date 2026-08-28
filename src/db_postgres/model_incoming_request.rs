@@ -8,8 +8,13 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+// TODO seperate this into model and stats
+// TODO check it's getting seeded corretly
+
 use crate::{
+    RX, Tx,
     api::{AppError, Stats, StatsEntry},
+    create_rx_tx,
     db_postgres::ID,
     db_redis::{
         IncomingRequestKey, ONE_DAY_AS_SEC, ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache,
@@ -484,16 +489,9 @@ DO UPDATE SET
         })
     }
 
-    /// This is slow
-    async fn seed_redis(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
-        let statistics = Self::get_daily_total_postgres(postgres, redis).await?;
-        insert_cache(redis, Some(&statistics), RedisKey::Stats).await?;
-        Ok(())
-    }
-
     #[cfg(test)]
     /// Get usage stats - For testing just return same values for daily and total, else the tests are inordinately slow
-    async fn get_daily_total_postgres(_postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+    async fn calculate_stats(_postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
         let daily = Self::get_daily(redis).await?;
         Ok(Stats {
             daily: daily.clone(),
@@ -502,32 +500,43 @@ DO UPDATE SET
     }
     #[cfg(not(test))]
     /// Get usage stats - the total is a slow query
-    async fn get_daily_total_postgres(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+    async fn calculate_stats(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
         let daily = Self::get_daily(redis).await?;
         let total = Self::get_total(postgres).await?;
         Ok(Stats { daily, total })
     }
 
-    pub async fn get_stats(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+    pub async fn get_insert_stats(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
         if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
             Ok(stats)
         } else {
-            let stats = Self::get_daily_total_postgres(postgres, redis).await?;
+            let stats = Self::calculate_stats(postgres, redis).await?;
             insert_cache(redis, Some(&stats), RedisKey::Stats).await?;
             Ok(stats)
         }
+    }
+
+    /// Re-use stats in they exist, else re-calc from origin
+	/// If the applicatin restarts every 5 minutes, the stats would never get updated
+    pub async fn init_stats(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
+		// maybe if ttl < ttl / 2? as in the application hasn't just been restarting constantly
+        let stats = if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
+            stats
+        } else {
+            Self::calculate_stats(postgres, redis).await?
+        };
+        insert_cache(redis, Some(&stats), RedisKey::Stats).await
     }
 
     /// Check if the stats need to be re-seeded into Redis
     /// If so, will be spawned into new tokio thread
     /// RE_SEED_TIME is vastly reduced when testing
     fn check_to_re_seed(now: &mut std::time::Instant, postgres: &PgPool, redis: &Pool) {
-        // TODO should calc the time it takes to reseed, and then minus that from re_seed time?
         if now.elapsed().as_secs() >= u64::try_from(RE_SEED_TIME).unwrap_or_default() {
             *now = std::time::Instant::now();
             let (postgres, redis) = (postgres.clone(), redis.clone());
             tokio::spawn(async move {
-                if let Err(e) = Self::seed_redis(&postgres, &redis).await {
+                if let Err(e) = Self::get_insert_stats(&postgres, &redis).await {
                     tracing::error!("{e:?}");
                 }
             });
@@ -535,11 +544,7 @@ DO UPDATE SET
     }
 
     /// Spawned message handler into own function, mainly so that it can be tested more easily
-    async fn _start(
-        postgres: PgPool,
-        redis: Pool,
-        rx: async_channel::Receiver<MsgIncomingRequest>,
-    ) {
+    async fn msg_handler(postgres: PgPool, redis: Pool, rx: RX<MsgIncomingRequest>) {
         let mut now = std::time::Instant::now();
         while let Ok(msg) = rx.recv().await {
             if let Err(e) = match msg {
@@ -558,11 +563,11 @@ DO UPDATE SET
     pub async fn start(
         postgres: &PgPool,
         redis: &Pool,
-    ) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
-        Self::seed_redis(postgres, redis).await?;
-        let (tx, rx) = async_channel::bounded(8192);
+    ) -> Result<Tx<MsgIncomingRequest>, AppError> {
+        Self::init_stats(postgres, redis).await?;
+        let (tx, rx) = create_rx_tx(8192);
         let (postgres, redis) = (postgres.clone(), redis.clone());
-        tokio::spawn(Self::_start(postgres, redis, rx));
+        tokio::spawn(Self::msg_handler(postgres, redis, rx));
         Ok(tx)
     }
 }
@@ -578,6 +583,7 @@ pub mod tests {
             StatsEntry,
             tests::{random_hex, test_setup},
         },
+        create_rx_tx,
         db_postgres::{EntryCount, ModelIncomingRequest, MsgIncomingRequest, UriMethod},
         sleep,
     };
@@ -609,8 +615,8 @@ pub mod tests {
     /// then get stats an make sure the numbers match
     async fn model_incoming_request_daily_stats() {
         let setup = test_setup().await;
-        let (tx, rx) = async_channel::bounded(8192);
-        tokio::spawn(ModelIncomingRequest::_start(
+        let (tx, rx) = create_rx_tx(8192);
+        tokio::spawn(ModelIncomingRequest::msg_handler(
             setup.postgres.clone(),
             setup.redis.clone(),
             rx,
@@ -640,7 +646,7 @@ pub mod tests {
         wait_for_messages(&setup.redis, 36).await;
 
         // then get stats, and make sure the numbers match
-        let stats = ModelIncomingRequest::get_stats(&setup.postgres, &setup.redis)
+        let stats = ModelIncomingRequest::get_insert_stats(&setup.postgres, &setup.redis)
             .await
             .unwrap();
 
@@ -682,8 +688,8 @@ pub mod tests {
     /// Test stats with multiple queries on different paths
     async fn model_incoming_request_daily_stats_random() {
         let setup = test_setup().await;
-        let (tx, rx) = async_channel::bounded(8192);
-        tokio::spawn(ModelIncomingRequest::_start(
+        let (tx, rx) = create_rx_tx(8192);
+        tokio::spawn(ModelIncomingRequest::msg_handler(
             setup.postgres.clone(),
             setup.redis.clone(),
             rx,
@@ -715,7 +721,7 @@ pub mod tests {
         }
 
         wait_for_messages(&setup.redis, 48).await;
-        let stats = ModelIncomingRequest::get_stats(&setup.postgres, &setup.redis)
+        let stats = ModelIncomingRequest::get_insert_stats(&setup.postgres, &setup.redis)
             .await
             .unwrap();
 
