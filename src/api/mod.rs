@@ -331,18 +331,16 @@ pub mod tests {
     use fred::interfaces::ClientLike;
     use fred::interfaces::KeysInterface;
     use fred::prelude::HashesInterface;
+    use rand::random_range;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use tokio::task::JoinHandle;
 
-    use rand::Rng; // add this import
-
     pub fn random_hex(len: usize) -> String {
         const HEX_CHARS: &[u8] = b"0123456789ABCDEF";
-        let mut rng = rand::thread_rng();
         (0..len)
-            .map(|_| HEX_CHARS[rng.gen_range(0..HEX_CHARS.len())] as char)
+            .map(|_| HEX_CHARS[random_range(0..HEX_CHARS.len())] as char)
             .collect()
     }
 

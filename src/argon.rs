@@ -1,4 +1,7 @@
-use argon2::{Algorithm::Argon2id, Argon2, Params, ParamsBuilder, PasswordHash, Version::V0x13};
+use argon2::{
+    Algorithm::Argon2id, Argon2, Params, ParamsBuilder, PasswordHash, PasswordVerifier,
+    Version::V0x13,
+};
 use std::{fmt, sync::LazyLock};
 
 use crate::S;
@@ -49,7 +52,7 @@ impl fmt::Display for ArgonHash {
 impl TryFrom<String> for ArgonHash {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if argon2::password_hash::PasswordHash::new(&value).is_ok() {
+        if PasswordHash::new(&value).is_ok() {
             Ok(Self(value))
         } else {
             Err(S!("argon hash invalid"))
@@ -58,6 +61,7 @@ impl TryFrom<String> for ArgonHash {
 }
 
 impl ArgonHash {
+    // TODO change this so it always just returns a bool?
     pub async fn verify_password(&self, password: &str) -> Result<bool, String> {
         let password = password.to_owned();
         let argon_hash = self.clone();
@@ -65,14 +69,9 @@ impl ArgonHash {
             PasswordHash::new(&argon_hash.0).map_or_else(
                 |_| Err(S!("verify_password::new_hash")),
                 |hash| {
-                    match hash.verify_password(&[&get_hasher()], password) {
-                        Ok(()) => Ok(true),
-                        Err(e) => match e {
-                            // Could always just return false, no need to worry about internal errors?
-                            argon2::password_hash::Error::Password => Ok(false),
-                            _ => Err(S!("verify_password")),
-                        },
-                    }
+                    Ok(get_hasher()
+                        .verify_password(password.as_bytes(), &hash)
+                        .is_ok())
                 },
             )
         })
@@ -87,22 +86,27 @@ impl ArgonHash {
 #[expect(clippy::pedantic, clippy::unwrap_used)]
 mod tests {
 
+    use crate::api::tests::random_hex;
+
     use super::*;
 
     #[tokio::test]
     async fn argon_mod_verify_known() {
-        let password = "This is a known password";
         let password_hash = ArgonHash("$argon2id$v=19$m=4096,t=5,p=1$rahU5enqn3WcOo9A58Ifjw$I+7yA6+29LuB5jzPUwnxtLoH66Lng7ExWqHdivwj8Es".to_owned());
-
+        let password = "This is a known password";
+        let invalid_password = "this is a known password";
         // Verify true
         let result = password_hash.verify_password(password).await;
         assert!(result.is_ok());
         assert!(result.unwrap());
 
         // Verify false
-        let result = password_hash
-            .verify_password("this is a known password")
-            .await;
+        let result = password_hash.verify_password(invalid_password).await;
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+
+        // Verify false
+        let result = password_hash.verify_password(&random_hex(12)).await;
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }

@@ -23,7 +23,7 @@ module_name_repetitions = "allow"
 doc_markdown = "allow"
 
 [dependencies]
-argon2 = "0.5"
+argon2 = "0.6"
 axum = { version = "0.8", features = ["macros"] }
 crossfire = { version = "3.1", features = ["tokio"] }
 dotenvy = "0.15"
@@ -32,7 +32,7 @@ http-body = "1.0"
 jiff = { version = "0.2", features = ["serde"] }
 jiff-sqlx = { version = "0.2", features = ["postgres"] }
 mimalloc = "0.1"
-rand = { version = "0.8" }
+rand = { version = "0.10" }
 reqwest = { version = "0.13", default-features = false, features = [
 	"brotli",
 	"gzip",
@@ -48,13 +48,13 @@ sqlx = { version = "0.9", features = [
 	"time",
 ] }
 thiserror = "2.0"
-tokio = { version = "1.52", features = ["full"] }
+tokio = { version = "1.53", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.7", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
-url = "2.5.8"
+url = "2.5"
 
 [dev-dependencies]
 regex = "1.13"
