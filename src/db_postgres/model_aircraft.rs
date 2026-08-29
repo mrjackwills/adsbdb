@@ -80,8 +80,7 @@ SELECT
                  SUBSTRING(ap.url_photo, 4, 3), '/', 
                  ap.url_photo
              )
-        WHEN ap.url_photo IS NOT NULL 
-        THEN CONCAT($2::TEXT, ap.url_photo) 
+        ELSE NULL
     END AS url_photo_thumbnail
 FROM aircraft aa
 JOIN random_aircraft ra ON ra.aircraft_id = aa.aircraft_id
@@ -128,13 +127,12 @@ SELECT
     CASE 
         WHEN ap.url_photo IS NOT NULL AND LENGTH(ap.url_photo) = 13
         THEN CONCAT(
-                 $3::TEXT,
+                 $3::TEXT, 
                  SUBSTRING(ap.url_photo, 1, 3), '/', 
                  SUBSTRING(ap.url_photo, 4, 3), '/', 
                  ap.url_photo
              )
-        WHEN ap.url_photo IS NOT NULL 
-        THEN CONCAT($3::TEXT, ap.url_photo) 
+        ELSE NULL
     END AS url_photo_thumbnail
 FROM
     aircraft aa
@@ -189,8 +187,7 @@ SELECT
                  SUBSTRING(ap.url_photo, 4, 3), '/', 
                  ap.url_photo
              )
-        WHEN ap.url_photo IS NOT NULL 
-        THEN CONCAT($3::TEXT, ap.url_photo) 
+        ELSE NULL
     END AS url_photo_thumbnail
 FROM
     aircraft aa
@@ -545,6 +542,8 @@ mod tests {
     use super::*;
     use crate::{S, api::tests::test_setup};
 
+    pub const EXAMPLE_PHOTO_NAME: &str = "987654321.jpg";
+
     fn gen_photo_prefix() -> PhotoPrefixes {
         PhotoPrefixes {
             photo: "http://photo.example.com/".to_owned(),
@@ -571,7 +570,7 @@ mod tests {
         let mut transaction = test_setup.postgres.begin().await.unwrap();
 
         let photodata = PhotoData {
-            image: S!("012345678.jpg"),
+            image: EXAMPLE_PHOTO_NAME.to_owned(),
         };
 
         let photo_prefix = gen_photo_prefix();
@@ -615,8 +614,10 @@ mod tests {
             registered_owner_country_name: S!("United States"),
             registered_owner_operator_flag_code: Some(S!("AWI")),
             registered_owner: S!("United Express"),
-            url_photo: Some(S!("http://photo.example.com/012345678.jpg")),
-            url_photo_thumbnail: Some(S!("http://thumbnail.example.com/012/345/012345678.jpg")),
+            url_photo: Some(format!("http://photo.example.com/{EXAMPLE_PHOTO_NAME}")),
+            url_photo_thumbnail: Some(format!(
+                "http://thumbnail.example.com/987/654/{EXAMPLE_PHOTO_NAME}"
+            )),
         };
 
         assert_eq!(result, expected);

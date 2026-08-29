@@ -28,6 +28,8 @@ pub type RX<T> = crossfire::AsyncRx<Array<T>>;
 pub type OneTX<T> = crossfire::oneshot::TxOneshot<T>;
 pub type OneRX<T> = crossfire::oneshot::RxOneshot<T>;
 
+// TODO backup container needs work, seems to be leaving data in docker overlays
+
 /// Create a bounded async channel of x size
 fn create_rx_tx<T: 'static + Send + Sync>(size: usize) -> (Tx<T>, RX<T>) {
     crossfire::mpsc::bounded_async::<T>(size)
@@ -108,3 +110,5 @@ async fn main() {
     .await
     .ok();
 }
+
+// TODO put common test things here

@@ -61,7 +61,7 @@ impl TryFrom<String> for ArgonHash {
 }
 
 impl ArgonHash {
-    // TODO change this so it always just returns a bool?
+    // TODO change this so it always just returns a bool- rather than Result<bool>?
     pub async fn verify_password(&self, password: &str) -> Result<bool, String> {
         let password = password.to_owned();
         let argon_hash = self.clone();

@@ -339,7 +339,7 @@ impl Scraper {
                 status: 200,
                 count: Some(1),
                 data: Some([PhotoData {
-                    image: S!("001/001/example.jpg"),
+                    image: S!("987654321.jpg"),
                 }]),
             }),
             _ => None,
@@ -387,6 +387,7 @@ pub mod tests {
     use serde::de::IntoDeserializer;
     use serde::de::value::{Error as ValueError, StringDeserializer};
 
+    pub const EXAMPLE_PHOTO_NAME: &str = "987654321.jpg";
     pub const TEST_CALLSIGN: &str = "ANA460";
     const TEST_ORIGIN: &str = "ROAH";
     const TEST_DESTINATION: &str = "RJTT";
@@ -415,13 +416,17 @@ pub mod tests {
             FROM
                 aircraft_photo ap
             WHERE
-                ap.url_photo = '001/001/example.jpg'
+                ap.url_photo = $1
         )"#;
 
-        sqlx::query(query).execute(db).await.unwrap();
+        sqlx::query(query)
+            .bind(EXAMPLE_PHOTO_NAME)
+            .execute(db)
+            .await
+            .unwrap();
         let query = r#"DELETE FROM aircraft_photo WHERE url_photo = $1"#;
         sqlx::query(query)
-            .bind("001/001/example.jpg")
+            .bind(EXAMPLE_PHOTO_NAME)
             .execute(db)
             .await
             .unwrap();
@@ -571,6 +576,7 @@ pub mod tests {
     }
 
     #[tokio::test]
+	/// TODO need to test photo i some and thumnaibail is none
     async fn scraper_get_photo() {
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
@@ -609,13 +615,14 @@ pub mod tests {
         .unwrap()
         .unwrap();
 
+        println!("{result:#?}");
         assert!(result.url_photo.is_some());
         let url_photo = result.url_photo.unwrap();
-        assert!(url_photo.ends_with("example.jpg"));
-        assert!(!url_photo.ends_with("/thumbnails/001/001/example.jpg"));
+        assert!(url_photo.ends_with("987654321.jpg"));
+        assert!(!url_photo.ends_with("/thumbnails/987/654/987654321.jpg"));
         assert!(result.url_photo_thumbnail.is_some());
         let url_photo_thumbnail = result.url_photo_thumbnail.unwrap();
-        assert!(url_photo_thumbnail.ends_with("/thumbnails/001/001/example.jpg"));
+        assert!(url_photo_thumbnail.ends_with("/thumbnails/987/654/987654321.jpg"));
         remove_scraped_data(&setup.1).await;
     }
 
