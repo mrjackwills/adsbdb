@@ -35,11 +35,6 @@ CMD sh -c 'exec redis-server \
 	--tcp-keepalive 300 \
 	--tcp-backlog 511 \
 	--databases 16 \
-	--appendonly yes \
-	--appendfilename appendonly.aof \
-	--appendfsync everysec \
-	--auto-aof-rewrite-percentage 100 \
-	--auto-aof-rewrite-min-size 64mb \
-	--stop-writes-on-bgsave-error yes \
 	--rdbcompression yes \
-	--rdbchecksum yes'
+	--rdbchecksum yes \
+	--stop-writes-on-bgsave-error yes'
