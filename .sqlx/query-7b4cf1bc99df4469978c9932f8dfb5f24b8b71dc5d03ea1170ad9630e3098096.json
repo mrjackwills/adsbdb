@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nWITH random_aircraft AS (\n    SELECT\n        aircraft_id\n    FROM aircraft TABLESAMPLE BERNOULLI(0.01)\n    ORDER BY random()\n    LIMIT 1\n)\nSELECT\n    aa.aircraft_id,\n    ams.mode_s,\n    ar.registration AS \"registration!: _\",\n    aro.registered_owner,\n    aof.operator_flag_code AS \"registered_owner_operator_flag_code?\",\n    co.country_name AS registered_owner_country_name,\n    co.country_iso_name AS registered_owner_country_iso_name,\n    am.manufacturer,\n    at.type AS aircraft_type,\n    ait.icao_type,\n    CASE \n        WHEN ap.url_photo IS NOT NULL\n        THEN CONCAT($1::TEXT, ap.url_photo)\n    END AS url_photo,\n    CASE \n        WHEN ap.url_photo IS NOT NULL \n        THEN CONCAT($1::TEXT, 'thumbnails/', ap.url_photo) \n    END AS url_photo_thumbnail\nFROM aircraft aa\nJOIN random_aircraft ra ON ra.aircraft_id = aa.aircraft_id\nJOIN aircraft_mode_s ams USING (aircraft_mode_s_id)\nJOIN country co USING (country_id)\nJOIN aircraft_registration ar USING (aircraft_registration_id)\nJOIN aircraft_type at USING (aircraft_type_id)\nJOIN aircraft_registered_owner aro USING (aircraft_registered_owner_id)\nJOIN aircraft_icao_type ait USING (aircraft_icao_type_id)\nJOIN aircraft_manufacturer am USING (aircraft_manufacturer_id)\nLEFT JOIN aircraft_operator_flag_code aof USING (aircraft_operator_flag_code_id)\nLEFT JOIN aircraft_photo ap USING (aircraft_photo_id)",
+  "query": "\nSELECT\n    aa.aircraft_id,\n    $1 AS \"mode_s!: _\",\n    ar.registration,\n    aro.registered_owner,\n    aof.operator_flag_code AS \"registered_owner_operator_flag_code?\",\n    co.country_name AS registered_owner_country_name,\n    co.country_iso_name AS registered_owner_country_iso_name,\n    am.manufacturer,\n    at.type AS aircraft_type,\n    ait.icao_type,\n    CASE\n        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)\n        ELSE NULL\n    END AS url_photo,\n    CASE \n        WHEN ap.url_photo IS NOT NULL AND LENGTH(ap.url_photo) = 13\n        THEN CONCAT(\n                 $3::TEXT,\n                 SUBSTRING(ap.url_photo, 1, 3), '/', \n                 SUBSTRING(ap.url_photo, 4, 3), '/', \n                 ap.url_photo\n             )\n        WHEN ap.url_photo IS NOT NULL \n        THEN CONCAT($3::TEXT, ap.url_photo) \n    END AS url_photo_thumbnail\nFROM\n    aircraft aa\n    JOIN aircraft_mode_s ams USING(aircraft_mode_s_id)\n    JOIN country co USING(country_id)\n    JOIN aircraft_registration ar USING(aircraft_registration_id)\n    JOIN aircraft_type at USING(aircraft_type_id)\n    JOIN aircraft_registered_owner aro USING(aircraft_registered_owner_id)\n    JOIN aircraft_icao_type ait USING(aircraft_icao_type_id)\n    JOIN aircraft_manufacturer am USING(aircraft_manufacturer_id)\n    LEFT JOIN aircraft_operator_flag_code aof USING(aircraft_operator_flag_code_id)\n    LEFT JOIN aircraft_photo ap USING(aircraft_photo_id)\nWHERE\n    ams.mode_s = $1",
   "describe": {
     "columns": [
       {
@@ -16,18 +16,13 @@
       },
       {
         "ordinal": 1,
-        "name": "mode_s",
+        "name": "mode_s!: _",
         "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "aircraft_mode_s",
-            "name": "mode_s"
-          }
-        }
+        "origin": "Expression"
       },
       {
         "ordinal": 2,
-        "name": "registration!: _",
+        "name": "registration",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -128,12 +123,14 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
+        "Text",
         "Text"
       ]
     },
     "nullable": [
       false,
-      false,
+      null,
       false,
       false,
       true,
@@ -146,5 +143,5 @@
       null
     ]
   },
-  "hash": "ed321aa9df62a579574cfbcfdae770facfbe612acc45fa30fc6873c590a55868"
+  "hash": "7b4cf1bc99df4469978c9932f8dfb5f24b8b71dc5d03ea1170ad9630e3098096"
 }
