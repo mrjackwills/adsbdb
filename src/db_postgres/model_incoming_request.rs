@@ -517,9 +517,9 @@ DO UPDATE SET
     }
 
     /// Re-use stats in they exist, else re-calc from origin
-	/// If the applicatin restarts every 5 minutes, the stats would never get updated
+    /// If the applicatin restarts every 5 minutes, the stats would never get updated
     pub async fn init_stats(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
-		// maybe if ttl < ttl / 2? as in the application hasn't just been restarting constantly
+        // maybe if ttl < ttl / 2? as in the application hasn't just been restarting constantly
         let stats = if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
             stats
         } else {
