@@ -8,9 +8,6 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-// TODO seperate this into model and stats
-// TODO check it's getting seeded corretly
-
 use crate::{
     RX, Tx,
     api::{AppError, Stats, StatsEntry},
@@ -506,20 +503,23 @@ DO UPDATE SET
         Ok(Stats { daily, total })
     }
 
+    async fn insert_stats(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
+        let stats = Self::calculate_stats(postgres, redis).await?;
+        insert_cache(redis, Some(&stats), RedisKey::Stats).await?;
+        Ok(stats)
+    }
+
     pub async fn get_insert_stats(postgres: &PgPool, redis: &Pool) -> Result<Stats, AppError> {
         if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
             Ok(stats)
         } else {
-            let stats = Self::calculate_stats(postgres, redis).await?;
-            insert_cache(redis, Some(&stats), RedisKey::Stats).await?;
-            Ok(stats)
+            Self::insert_stats(postgres, redis).await
         }
     }
 
     /// Re-use stats in they exist, else re-calc from origin
     /// If the applicatin restarts every 5 minutes, the stats would never get updated
-    pub async fn init_stats(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
-        // maybe if ttl < ttl / 2? as in the application hasn't just been restarting constantly
+    async fn init_stats(postgres: &PgPool, redis: &Pool) -> Result<(), AppError> {
         let stats = if let Some(Some(stats)) = get_cache::<Stats>(redis, &RedisKey::Stats).await? {
             stats
         } else {
@@ -532,11 +532,13 @@ DO UPDATE SET
     /// If so, will be spawned into new tokio thread
     /// RE_SEED_TIME is vastly reduced when testing
     fn check_to_re_seed(now: &mut std::time::Instant, postgres: &PgPool, redis: &Pool) {
+        // Something has gone wrong here, it's not checking
         if now.elapsed().as_secs() >= u64::try_from(RE_SEED_TIME).unwrap_or_default() {
             *now = std::time::Instant::now();
             let (postgres, redis) = (postgres.clone(), redis.clone());
             tokio::spawn(async move {
-                if let Err(e) = Self::get_insert_stats(&postgres, &redis).await {
+                // force re-calc and insert
+                if let Err(e) = Self::insert_stats(&postgres, &redis).await {
                     tracing::error!("{e:?}");
                 }
             });
