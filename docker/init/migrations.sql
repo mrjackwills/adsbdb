@@ -2,34 +2,34 @@
 
 \echo "airport_elevation.elevation to INT"
 ALTER TABLE
-    airport_elevation
+	airport_elevation
 ALTER COLUMN
-    elevation TYPE INT;
+	elevation TYPE INT;
 
 \echo "airport_longitude.longitude to DOUBLE PRECISION"
 ALTER TABLE
-    airport_longitude
+	airport_longitude
 ALTER COLUMN
-    longitude TYPE DOUBLE PRECISION USING longitude :: double precision;
+	longitude TYPE DOUBLE PRECISION USING longitude :: double precision;
 
 \echo "airport_latitude.latitude to DOUBLE PRECISION"
 ALTER TABLE
-    airport_latitude
+	airport_latitude
 ALTER COLUMN
-    latitude TYPE DOUBLE PRECISION USING latitude :: double precision;
+	latitude TYPE DOUBLE PRECISION USING latitude :: double precision;
 
 -- Fix typo in Aircraft table where prefix is ' I', should just be 'I'
 \echo "aircraft ' I' prefix to 'I'"
 UPDATE aircraft
 SET aircraft_registration_country_prefix_id = (
-    SELECT aircraft_registration_country_prefix_id
-    FROM aircraft_registration_country_prefix
-    WHERE registration_country_prefix = 'I'
+	SELECT aircraft_registration_country_prefix_id
+	FROM aircraft_registration_country_prefix
+	WHERE registration_country_prefix = 'I'
 )
 WHERE aircraft_registration_country_prefix_id = (
-    SELECT aircraft_registration_country_prefix_id
-    FROM aircraft_registration_country_prefix
-    WHERE registration_country_prefix = ' I'
+	SELECT aircraft_registration_country_prefix_id
+	FROM aircraft_registration_country_prefix
+	WHERE registration_country_prefix = ' I'
 );
 DELETE FROM aircraft_registration_country_prefix WHERE registration_country_prefix = ' I'; 
 
@@ -37,14 +37,14 @@ DELETE FROM aircraft_registration_country_prefix WHERE registration_country_pref
 \echo "aircraft 'F-0' prefix to 'F'"
 UPDATE aircraft
 SET aircraft_registration_country_prefix_id = (
-    SELECT aircraft_registration_country_prefix_id
-    FROM aircraft_registration_country_prefix
-    WHERE registration_country_prefix = 'F'
+	SELECT aircraft_registration_country_prefix_id
+	FROM aircraft_registration_country_prefix
+	WHERE registration_country_prefix = 'F'
 )
 WHERE aircraft_registration_country_prefix_id = (
-    SELECT aircraft_registration_country_prefix_id
-    FROM aircraft_registration_country_prefix
-    WHERE registration_country_prefix = 'F-O'
+	SELECT aircraft_registration_country_prefix_id
+	FROM aircraft_registration_country_prefix
+	WHERE registration_country_prefix = 'F-O'
 );
 DELETE FROM aircraft_registration_country_prefix WHERE registration_country_prefix = 'F-O'; 
 
@@ -127,31 +127,31 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 \echo "Add method enum, use a DO as can't use IF NOT EXISTS for this"
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 
-        FROM pg_type 
-        WHERE typname = 'request_method'
-    ) THEN
-        CREATE TYPE request_method AS ENUM (
-            'CONNECT',
-            'DELETE',
-            'GET',
-            'HEAD',
-            'OPTIONS',
-            'PATCH',
-            'POST',
-            'PUT',
-            'TRACE'
-        );
-    END IF;
+	IF NOT EXISTS (
+		SELECT 1 
+		FROM pg_type 
+		WHERE typname = 'request_method'
+	) THEN
+		CREATE TYPE request_method AS ENUM (
+			'CONNECT',
+			'DELETE',
+			'GET',
+			'HEAD',
+			'OPTIONS',
+			'PATCH',
+			'POST',
+			'PUT',
+			'TRACE'
+		);
+	END IF;
 END
 $$;
 
 \echo "Create incoming request url table"
 CREATE TABLE incoming_request_url (
-    incoming_request_url_id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    request_url TEXT NOT NULL UNIQUE
+	incoming_request_url_id BIGSERIAL PRIMARY KEY,
+	timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	request_url TEXT NOT NULL UNIQUE
 );
 
 GRANT ALL ON incoming_request_url TO adsbdb;
@@ -163,11 +163,11 @@ CREATE INDEX IF NOT EXISTS index_incoming_request_url_request_url ON incoming_re
 
 \echo "Create temp incoming request table"
 CREATE TABLE temp_incoming_request (
-    temp_incoming_request_id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
-    request_method request_method NOT NULL,
-    count INTEGER NOT NULL DEFAULT 1
+	temp_incoming_request_id BIGSERIAL PRIMARY KEY,
+	timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
+	request_method request_method NOT NULL,
+	count INTEGER NOT NULL DEFAULT 1
 );
 
 GRANT ALL ON temp_incoming_request TO adsbdb;
@@ -182,11 +182,11 @@ CREATE INDEX IF NOT EXISTS index_temp_incoming_request_comp ON temp_incoming_req
 
 \echo "Create incoming request table"
 CREATE TABLE incoming_request (
-    incoming_request_id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
-    request_method request_method NOT NULL,
-    count INTEGER NOT NULL DEFAULT 1
+	incoming_request_id BIGSERIAL PRIMARY KEY,
+	timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	incoming_request_url_id BIGINT REFERENCES incoming_request_url(incoming_request_url_id) NOT NULL,
+	request_method request_method NOT NULL,
+	count INTEGER NOT NULL DEFAULT 1
 );
 
 GRANT ALL ON incoming_request TO adsbdb;
@@ -204,9 +204,9 @@ ALTER INDEX "index_incoming_request_unique_method_minute_url" RENAME TO "index_i
 
 \echo "Create incoming_request_url_version table"
 CREATE TABLE incoming_request_url_version (
-    incoming_request_url_version_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    url_version TEXT NOT NULL UNIQUE
+	incoming_request_url_version_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+	timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	url_version TEXT NOT NULL UNIQUE
 );
 
 GRANT ALL ON incoming_request_url_version TO adsbdb;
@@ -217,9 +217,9 @@ CREATE INDEX IF NOT EXISTS index_incoming_request_url_version ON incoming_reques
 
 \echo "Create incoming_request_url_path table"
 CREATE TABLE incoming_request_url_path (
-    incoming_request_url_path_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    url_path TEXT NOT NULL UNIQUE
+	incoming_request_url_path_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+	timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	url_path TEXT NOT NULL UNIQUE
 );
 
 GRANT ALL ON incoming_request_url_path TO adsbdb;
@@ -230,9 +230,9 @@ CREATE INDEX IF NOT EXISTS index_incoming_request_url_path ON incoming_request_u
 
 \echo "Create incoming_request_url_query table"
 CREATE TABLE incoming_request_url_query (
-    incoming_request_url_query_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    url_query TEXT NOT NULL UNIQUE
+	incoming_request_url_query_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+	timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	url_query TEXT NOT NULL UNIQUE
 );
 
 GRANT ALL ON incoming_request_url_query TO adsbdb;
@@ -248,10 +248,10 @@ ALTER TABLE incoming_request_url ADD COLUMN incoming_request_url_query_id BIGINT
 
 \echo "Insert url_version"
 WITH extracted_segments AS (
-    SELECT 
-        TRIM(split_part(ltrim(request_url, '/'), '/', 1)) AS url_segment
-    FROM incoming_request_url
-    WHERE request_url IS NOT NULL
+	SELECT 
+		TRIM(split_part(ltrim(request_url, '/'), '/', 1)) AS url_segment
+	FROM incoming_request_url
+	WHERE request_url IS NOT NULL
 )
 INSERT INTO incoming_request_url_version (url_version)
 SELECT DISTINCT url_segment
@@ -267,10 +267,10 @@ WHERE iruv.url_version = split_part(ltrim(iru.request_url, '/'), '/', 1);
 
 \echo "Insert url_path"
 WITH extracted_segments AS (
-    SELECT 
-        TRIM(split_part(ltrim(request_url, '/'), '/', 2)) AS url_segment
-    FROM incoming_request_url
-    WHERE request_url IS NOT NULL
+	SELECT 
+		TRIM(split_part(ltrim(request_url, '/'), '/', 2)) AS url_segment
+	FROM incoming_request_url
+	WHERE request_url IS NOT NULL
 )
 INSERT INTO incoming_request_url_path (url_path)
 SELECT DISTINCT url_segment
@@ -286,10 +286,10 @@ WHERE irup.url_path = split_part(ltrim(iru.request_url, '/'), '/', 2);
 
 \echo "Insert url_query"
 WITH extracted_segments AS (
-    SELECT 
-        TRIM(split_part(ltrim(request_url, '/'), '/', 3)) AS url_segment
-    FROM incoming_request_url
-    WHERE request_url IS NOT NULL
+	SELECT 
+		TRIM(split_part(ltrim(request_url, '/'), '/', 3)) AS url_segment
+	FROM incoming_request_url
+	WHERE request_url IS NOT NULL
 )
 INSERT INTO incoming_request_url_query (url_query)
 SELECT DISTINCT url_segment
@@ -310,15 +310,15 @@ BEGIN;
 CREATE TEMP TABLE tmp_incoming_request_url_map AS
 WITH duplicates AS (
   SELECT 
-      incoming_request_url_version_id,
-      incoming_request_url_path_id,
-      incoming_request_url_query_id,
-      MIN(incoming_request_url_id) AS keep_id,
-      ARRAY_AGG(incoming_request_url_id) AS all_ids
+	  incoming_request_url_version_id,
+	  incoming_request_url_path_id,
+	  incoming_request_url_query_id,
+	  MIN(incoming_request_url_id) AS keep_id,
+	  ARRAY_AGG(incoming_request_url_id) AS all_ids
   FROM incoming_request_url
   GROUP BY incoming_request_url_version_id,
-           incoming_request_url_path_id,
-           incoming_request_url_query_id
+		   incoming_request_url_path_id,
+		   incoming_request_url_query_id
   HAVING COUNT(*) > 1
 )
 SELECT 
@@ -387,10 +387,10 @@ WHERE ai.airport_iata_code_id = (SELECT airport_iata_code_id FROM airport_iata_c
 -- v0.6.5
 
 CREATE INDEX IF NOT EXISTS index_incoming_request_id ON incoming_request_url(
-    incoming_request_url_id,
-    incoming_request_url_path_id,
-    incoming_request_url_version_id,
-    incoming_request_url_query_id
+	incoming_request_url_id,
+	incoming_request_url_path_id,
+	incoming_request_url_version_id,
+	incoming_request_url_query_id
 );
 
 CREATE INDEX IF NOT EXISTS index_temp_request_count ON temp_incoming_request(incoming_request_url_id) INCLUDE (count);
@@ -437,9 +437,9 @@ BEGIN;
 
 \echo "Create request counter"
 CREATE TABLE IF NOT EXISTS request_total (
-    id SMALLINT PRIMARY KEY DEFAULT 1,
-    total BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT request_total_single_row CHECK (id = 1)
+	id SMALLINT PRIMARY KEY DEFAULT 1,
+	total BIGINT NOT NULL DEFAULT 0,
+	CONSTRAINT request_total_single_row CHECK (id = 1)
 );
 GRANT ALL ON request_total TO adsbdb;
 
@@ -450,44 +450,44 @@ SET LOCAL maintenance_work_mem = '1GB';
 \echo "Convert incoming urls"
 DO $$
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'incoming_request'
-          AND column_name = 'incoming_request_url_id'
-    ) THEN
-        ALTER TABLE incoming_request
-            ADD COLUMN IF NOT EXISTS incoming_request_url_version_id BIGINT,
-            ADD COLUMN IF NOT EXISTS incoming_request_url_path_id BIGINT,
-            ADD COLUMN IF NOT EXISTS incoming_request_url_query_id BIGINT;
+	IF EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_name = 'incoming_request'
+		  AND column_name = 'incoming_request_url_id'
+	) THEN
+		ALTER TABLE incoming_request
+			ADD COLUMN IF NOT EXISTS incoming_request_url_version_id BIGINT,
+			ADD COLUMN IF NOT EXISTS incoming_request_url_path_id BIGINT,
+			ADD COLUMN IF NOT EXISTS incoming_request_url_query_id BIGINT;
 
-        UPDATE incoming_request ir
-        SET
-            incoming_request_url_version_id = iru.incoming_request_url_version_id,
-            incoming_request_url_path_id    = iru.incoming_request_url_path_id,
-            incoming_request_url_query_id   = iru.incoming_request_url_query_id
-        FROM incoming_request_url iru
-        WHERE iru.incoming_request_url_id = ir.incoming_request_url_id;
+		UPDATE incoming_request ir
+		SET
+			incoming_request_url_version_id = iru.incoming_request_url_version_id,
+			incoming_request_url_path_id    = iru.incoming_request_url_path_id,
+			incoming_request_url_query_id   = iru.incoming_request_url_query_id
+		FROM incoming_request_url iru
+		WHERE iru.incoming_request_url_id = ir.incoming_request_url_id;
 
-        DROP TABLE IF EXISTS incoming_request_new;
-        CREATE TABLE incoming_request_new AS
-        SELECT
-            incoming_request_url_version_id,
-            incoming_request_url_path_id,
-            incoming_request_url_query_id,
-            request_method,
-            SUM(count)::BIGINT AS count
-        FROM incoming_request
-        GROUP BY
-            incoming_request_url_version_id,
-            incoming_request_url_path_id,
-            incoming_request_url_query_id,
-            request_method;
+		DROP TABLE IF EXISTS incoming_request_new;
+		CREATE TABLE incoming_request_new AS
+		SELECT
+			incoming_request_url_version_id,
+			incoming_request_url_path_id,
+			incoming_request_url_query_id,
+			request_method,
+			SUM(count)::BIGINT AS count
+		FROM incoming_request
+		GROUP BY
+			incoming_request_url_version_id,
+			incoming_request_url_path_id,
+			incoming_request_url_query_id,
+			request_method;
 
-        ALTER TABLE incoming_request RENAME TO incoming_request_old;
-        ALTER TABLE incoming_request_new RENAME TO incoming_request;
+		ALTER TABLE incoming_request RENAME TO incoming_request_old;
+		ALTER TABLE incoming_request_new RENAME TO incoming_request;
 
-        DROP TABLE IF EXISTS incoming_request_old;
-    END IF;
+		DROP TABLE IF EXISTS incoming_request_old;
+	END IF;
 END
 $$;
 
@@ -495,28 +495,27 @@ GRANT ALL ON incoming_request TO adsbdb;
 ALTER TABLE incoming_request SET (fillfactor = 70);
 
 ALTER TABLE incoming_request
-    ADD COLUMN IF NOT EXISTS ir_version_nk BIGINT GENERATED ALWAYS AS
-        (COALESCE(incoming_request_url_version_id, 0)) STORED,
-    ADD COLUMN IF NOT EXISTS ir_path_nk BIGINT GENERATED ALWAYS AS
-        (COALESCE(incoming_request_url_path_id, 0)) STORED,
-    ADD COLUMN IF NOT EXISTS ir_query_nk BIGINT GENERATED ALWAYS AS
-        (COALESCE(incoming_request_url_query_id, 0)) STORED;
+	ADD COLUMN IF NOT EXISTS ir_version_nk BIGINT GENERATED ALWAYS AS
+		(COALESCE(incoming_request_url_version_id, 0)) STORED,
+	ADD COLUMN IF NOT EXISTS ir_path_nk BIGINT GENERATED ALWAYS AS
+		(COALESCE(incoming_request_url_path_id, 0)) STORED,
+	ADD COLUMN IF NOT EXISTS ir_query_nk BIGINT GENERATED ALWAYS AS
+		(COALESCE(incoming_request_url_query_id, 0)) STORED;
 
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'incoming_request_pkey'
-    ) THEN
-        ALTER TABLE incoming_request
-            ADD CONSTRAINT incoming_request_pkey
-            PRIMARY KEY (request_method, ir_version_nk, ir_path_nk, ir_query_nk);
-    END IF;
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint WHERE conname = 'incoming_request_pkey'
+	) THEN
+		ALTER TABLE incoming_request
+			ADD CONSTRAINT incoming_request_pkey
+			PRIMARY KEY (request_method, ir_version_nk, ir_path_nk, ir_query_nk);
+	END IF;
 END
 $$;
 
 \echo "Add index"
-CREATE INDEX IF NOT EXISTS index_incoming_request_path_id
-    ON incoming_request (incoming_request_url_path_id);
+CREATE INDEX IF NOT EXISTS index_incoming_request_path_id ON incoming_request (incoming_request_url_path_id);
 
 \echo "Fix counter"
 INSERT INTO request_total (id, total)

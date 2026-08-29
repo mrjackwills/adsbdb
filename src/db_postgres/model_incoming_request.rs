@@ -612,9 +612,14 @@ pub mod tests {
     }
 
     #[tokio::test]
-    /// then get stats an make sure the numbers match
+    /// This is a slow test, as will make two queries to postgres using the big stats query
     async fn model_incoming_request_daily_stats() {
         let setup = test_setup().await;
+
+        let pre_total = ModelIncomingRequest::get_total(&setup.postgres)
+            .await
+            .unwrap();
+
         let (tx, rx) = create_rx_tx(8192);
         tokio::spawn(ModelIncomingRequest::msg_handler(
             setup.postgres.clone(),
@@ -645,7 +650,6 @@ pub mod tests {
 
         wait_for_messages(&setup.redis, 36).await;
 
-        // then get stats, and make sure the numbers match
         let stats = ModelIncomingRequest::get_insert_stats(&setup.postgres, &setup.redis)
             .await
             .unwrap();
@@ -681,14 +685,28 @@ pub mod tests {
             }],
             aggregate: 36,
         };
-        assert_eq!(stats.daily, expected)
+        assert_eq!(stats.daily, expected);
+
+        let post_total = ModelIncomingRequest::get_total(&setup.postgres)
+            .await
+            .unwrap();
+        assert_ne!(pre_total, post_total);
+
+        assert_eq!(post_total.aggregate - pre_total.aggregate, 36);
+        assert_eq!(post_total.online[0].count - pre_total.online[0].count, 3);
+        assert_eq!(post_total.stats[0].count - pre_total.stats[0].count, 2);
     }
 
     #[tokio::test]
     /// Test stats with multiple queries on different paths
+    /// This is a slow test, as will make two queries to postgres using the big stats query
     async fn model_incoming_request_daily_stats_random() {
         let setup = test_setup().await;
         let (tx, rx) = create_rx_tx(8192);
+
+        let pre_total = ModelIncomingRequest::get_total(&setup.postgres)
+            .await
+            .unwrap();
         tokio::spawn(ModelIncomingRequest::msg_handler(
             setup.postgres.clone(),
             setup.redis.clone(),
@@ -742,5 +760,14 @@ pub mod tests {
             assert_eq!(stats.daily.mode_s[i].count, total);
             assert_eq!(stats.daily.n_number[i].count, total);
         }
+
+        let post_total = ModelIncomingRequest::get_total(&setup.postgres)
+            .await
+            .unwrap();
+        assert_ne!(pre_total, post_total);
+
+        assert_eq!(post_total.aggregate - pre_total.aggregate, 48);
+        assert_eq!(post_total.online[0].count - pre_total.online[0].count, 6);
+        assert_eq!(post_total.stats[0].count - pre_total.stats[0].count, 6);
     }
 }
