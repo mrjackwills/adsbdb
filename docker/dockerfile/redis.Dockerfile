@@ -18,6 +18,8 @@ USER ${DOCKER_APP_USER}
 
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/healthcheck/health_redis.sh /healthcheck/
 
+RUN chmod +x /healthcheck/health_redis.sh
+
 CMD sh -c 'exec redis-server \
 	--bind "${DOCKER_REDIS_HOST}" \
 	--port "${DOCKER_REDIS_PORT}" \
