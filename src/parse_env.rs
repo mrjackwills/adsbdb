@@ -19,9 +19,11 @@ pub struct EnvRedis {
     pub host: String,
     pub password: String,
     pub port: u16,
+    pub pool_size: u16,
 }
 #[derive(Debug, Clone)]
 pub struct EnvPostgres {
+    pub max_connections: u16,
     pub database: String,
     pub host: String,
     pub pass: String,
@@ -103,12 +105,14 @@ impl AppEnv {
                 host: Self::parse_string("PG_HOST", &map)?,
                 pass: Self::parse_string("PG_PASS", &map)?,
                 port: Self::parse_number("PG_PORT", &map)?,
+                max_connections: Self::parse_number("PG_MAX_CONNECTIONS", &map)?,
                 user: Self::parse_string("PG_USER", &map)?,
             },
             redis: EnvRedis {
                 database: Self::parse_number("REDIS_DATABASE", &map)?,
                 host: Self::parse_string("REDIS_HOST", &map)?,
                 password: Self::parse_string("REDIS_PASSWORD", &map)?,
+                pool_size: Self::parse_number("REDIS_POOL_SIZE", &map)?,
                 port: Self::parse_number("REDIS_PORT", &map)?,
             },
             url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &map)?,

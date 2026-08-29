@@ -99,7 +99,7 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<Pool, AppError> {
     let config = fred::types::config::Config::from_url(&redis_url)?;
     let pool = fred::types::Builder::from_config(config)
         .set_policy(ReconnectPolicy::new_exponential(0, 100, 30_000, 2))
-        .build_pool(32)?;
+        .build_pool(app_env.redis.pool_size.into())?;
     pool.init().await?;
     Ok(pool)
 }
