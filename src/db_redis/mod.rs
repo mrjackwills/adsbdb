@@ -6,12 +6,11 @@ use crate::{
 };
 use fred::{
     clients::Pool,
-    interfaces::{ClientLike, HashesInterface, KeysInterface},
+    interfaces::{ClientLike, HashesInterface, KeysInterface, TransactionInterface},
     prelude::ReconnectPolicy,
     types::FromValue,
 };
 use serde::{Serialize, de::DeserializeOwned};
-// use tower_http::ServiceExt;
 use std::{collections::HashMap, fmt, net::IpAddr};
 pub mod ratelimit;
 
@@ -52,12 +51,14 @@ pub async fn insert_cache<T: Serialize + Send + Sync>(
     let key = key.to_string();
     let serialized = to_insert
         .as_ref()
-        .map_or_else(|| S!(), |i| serde_json::to_string(&i).unwrap_or_default());
-    redis
+        .map_or_else(|| Ok(S!()), |i| serde_json::to_string(&i))?;
+    let transaction = redis.multi();
+    let _: () = transaction
         .hset::<(), _, _>(&key, HashMap::from([(HASH_FIELD, serialized)]))
         .await?;
-
-    Ok(redis.expire(&key, ttl, None).await?)
+    let _: () = transaction.expire(&key, ttl, None).await?;
+    () = transaction.exec(false).await?;
+    Ok(())
 }
 
 /// See if give value is in cache, if so, extend ttl, and deserialize into T
