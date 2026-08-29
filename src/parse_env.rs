@@ -9,6 +9,8 @@ type EnvHashMap = HashMap<String, String>;
 enum EnvError {
     #[error("missing env: '{0}'")]
     NotFound(String),
+    #[error("unable to parse: '{0}'")]
+    Parse(String),
 }
 
 #[derive(Debug, Clone)]
@@ -60,12 +62,14 @@ impl AppEnv {
         }
     }
 
-    /// Parse string to u32, else return 1
+    /// Parse string to u16, else return 1
     fn parse_number(key: &str, map: &EnvHashMap) -> Result<u16, EnvError> {
-        let default = 1;
         map.get(key).map_or_else(
             || Err(EnvError::NotFound(key.into())),
-            |data| data.parse::<u16>().map_or(Ok(default), Ok),
+            |data| {
+                data.parse::<u16>()
+                    .map_err(|_| EnvError::Parse(key.to_owned()))
+            },
         )
     }
 
@@ -321,13 +325,33 @@ mod tests {
 
     #[test]
     fn env_parse_number_is_err() {
+        let mut map = HashMap::new();
+
+        let result = AppEnv::parse_number("U16_TEST", &map);
+
+        assert!(result.is_err());
+        if let EnvError::NotFound(value) = result.unwrap_err() {
+            assert_eq!(value, "U16_TEST")
+        }
+
+        map.insert("TEST".to_owned(), "TEST".to_owned());
+        let result = AppEnv::parse_number("TEST", &map);
+
+        assert!(result.is_err());
+        if let EnvError::Parse(value) = result.unwrap_err() {
+            assert_eq!(value, "TEST")
+        }
+    }
+
+    #[test]
+    fn env_parses_number_is_err() {
         let map = HashMap::new();
 
         let result = AppEnv::parse_number("U16_TEST", &map);
 
         assert!(result.is_err());
-        match result.unwrap_err() {
-            EnvError::NotFound(value) => assert_eq!(value, "U16_TEST"),
+        if let EnvError::NotFound(value) = result.unwrap_err() {
+            assert_eq!(value, "U16_TEST")
         }
     }
 }
