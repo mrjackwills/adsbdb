@@ -30,7 +30,7 @@ CMD sh -c 'exec redis-server \
 	--repl-diskless-load disabled \
 	--maxmemory 3gb \
 	--maxmemory-policy allkeys-lru \
-	--maxclients 100 \
+	--maxclients 1500 \
 	--timeout 300 \
 	--tcp-keepalive 300 \
 	--tcp-backlog 511 \
