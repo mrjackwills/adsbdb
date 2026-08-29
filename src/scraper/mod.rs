@@ -576,7 +576,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-	/// TODO need to test photo i some and thumnaibail is none
+	/// TODO need to test photo is some and thumnaibail is none
     async fn scraper_get_photo() {
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;

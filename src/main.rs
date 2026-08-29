@@ -1,5 +1,3 @@
-use crossfire::mpsc::Array;
-use fred::clients::Pool;
 use mimalloc::MiMalloc;
 
 #[global_allocator]
@@ -14,6 +12,8 @@ mod parse_env;
 mod scraper;
 
 use api::AppError;
+use crossfire::mpsc::Array;
+use fred::clients::Pool;
 use parse_env::AppEnv;
 use sqlx::PgPool;
 use tracing_subscriber::{fmt, prelude::*};
@@ -23,6 +23,7 @@ use crate::{
     scraper::Scraper,
 };
 
+// TODO create a custom struct for these channels, with a trait etc
 pub type Tx<T> = crossfire::MAsyncTx<Array<T>>;
 pub type RX<T> = crossfire::AsyncRx<Array<T>>;
 pub type OneTX<T> = crossfire::oneshot::TxOneshot<T>;
@@ -111,4 +112,4 @@ async fn main() {
     .ok();
 }
 
-// TODO put common test things here
+// TODO put common test things here, e.g. EXAMPL_PHOTO_NAME
