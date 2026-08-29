@@ -43,8 +43,6 @@ pub struct ModelAircraft {
     pub url_photo_thumbnail: Option<String>,
 }
 
-// TODO Probably impl the new image like this
-// SELECT  CASE    WHEN LENGTH(column_name) = 13 THEN      SUBSTRING(column_name, 1, 3) || '/' ||      SUBSTRING(column_name, 4, 3) || '/' ||      SUBSTRING(column_name, 7, 7) || '.jpg'    ELSE      column_name  END AS formatted_valueFROM your_table;
 redis_hash_to_struct!(ModelAircraft);
 
 impl ModelAircraft {
@@ -72,10 +70,16 @@ SELECT
     ait.icao_type,
     CASE 
         WHEN ap.url_photo IS NOT NULL
-		 THEN CONCAT($1::TEXT, substring(ap.url_photo from 9))
+         THEN CONCAT($1::TEXT, ap.url_photo)
     END AS url_photo,
     CASE 
-	-- case then length = 13, else null
+        WHEN ap.url_photo IS NOT NULL AND LENGTH(ap.url_photo) = 13
+        THEN CONCAT(
+                 $2::TEXT, 
+                 SUBSTRING(ap.url_photo, 1, 3), '/', 
+                 SUBSTRING(ap.url_photo, 4, 3), '/', 
+                 ap.url_photo
+             )
         WHEN ap.url_photo IS NOT NULL 
         THEN CONCAT($2::TEXT, ap.url_photo) 
     END AS url_photo_thumbnail
@@ -118,12 +122,19 @@ SELECT
     at.type AS aircraft_type,
     ait.icao_type,
     CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, substring(ap.url_photo from 9))
+        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)
         ELSE NULL
     END AS url_photo,
-    CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($3::TEXT, ap.url_photo)
-        ELSE NULL
+    CASE 
+        WHEN ap.url_photo IS NOT NULL AND LENGTH(ap.url_photo) = 13
+        THEN CONCAT(
+                 $3::TEXT,
+                 SUBSTRING(ap.url_photo, 1, 3), '/', 
+                 SUBSTRING(ap.url_photo, 4, 3), '/', 
+                 ap.url_photo
+             )
+        WHEN ap.url_photo IS NOT NULL 
+        THEN CONCAT($3::TEXT, ap.url_photo) 
     END AS url_photo_thumbnail
 FROM
     aircraft aa
@@ -167,12 +178,19 @@ SELECT
     at.type AS aircraft_type,
     ait.icao_type,
     CASE
-		WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, substring(ap.url_photo from 9))
+        WHEN ap.url_photo IS NOT NULL THEN CONCAT($2::TEXT, ap.url_photo)
         ELSE NULL
     END AS url_photo,
-    CASE
-        WHEN ap.url_photo IS NOT NULL THEN CONCAT($3::TEXT, ap.url_photo)
-        ELSE NULL
+    CASE 
+        WHEN ap.url_photo IS NOT NULL AND LENGTH(ap.url_photo) = 13
+        THEN CONCAT(
+                 $3::TEXT, 
+                 SUBSTRING(ap.url_photo, 1, 3), '/', 
+                 SUBSTRING(ap.url_photo, 4, 3), '/', 
+                 ap.url_photo
+             )
+        WHEN ap.url_photo IS NOT NULL 
+        THEN CONCAT($3::TEXT, ap.url_photo) 
     END AS url_photo_thumbnail
 FROM
     aircraft aa
@@ -553,7 +571,7 @@ mod tests {
         let mut transaction = test_setup.postgres.begin().await.unwrap();
 
         let photodata = PhotoData {
-            image: S!("001/002/example.jpg"),
+            image: S!("012345678.jpg"),
         };
 
         let photo_prefix = gen_photo_prefix();
@@ -597,8 +615,8 @@ mod tests {
             registered_owner_country_name: S!("United States"),
             registered_owner_operator_flag_code: Some(S!("AWI")),
             registered_owner: S!("United Express"),
-            url_photo: Some(S!("http://photo.example.com/example.jpg")),
-            url_photo_thumbnail: Some(S!("http://thumbnail.example.com/001/002/example.jpg")),
+            url_photo: Some(S!("http://photo.example.com/012345678.jpg")),
+            url_photo_thumbnail: Some(S!("http://thumbnail.example.com/012/345/012345678.jpg")),
         };
 
         assert_eq!(result, expected);

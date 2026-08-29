@@ -24,7 +24,7 @@ use crate::sleep;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct PhotoData {
-    #[serde(deserialize_with = "deserialize_url")]
+    #[serde(deserialize_with = "deserialize_image_name")]
     pub image: String,
 }
 
@@ -43,28 +43,24 @@ pub struct ScrapedFlightroute {
     pub destination: String,
 }
 
-// Maybe check if includes 8 '/' ?
-// TODO it needs to be xxxxxxxxx.jpg!
-fn deserialize_url<'de, D>(deserializer: D) -> Result<String, D::Error>
+// Check it's a URL, and then convert to just the filename as required
+fn deserialize_image_name<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
 {
-	// assert ends .jpg
-	// from end, split at '.', make sure it ends .jpg
-	// then split at '/', and make sure is 13 chars
     let input = String::deserialize(deserializer)?;
-    let slash_count = input.matches('/').count();
-    if slash_count != 8 {
-        return Err(serde::de::Error::custom("invalid_photo_url"));
-    }
-    let url = Url::parse(&input).map_err(|_| serde::de::Error::custom("invalid_photo_url"))?;
-    let segments = url
-        .path_segments()
-        .ok_or_else(|| serde::de::Error::custom("invalid_photo_url"))?;
+    Url::parse(&input).map_err(|_| serde::de::Error::custom("unparsable URL"))?;
 
-    let mut final_three = segments.rev().take(3).collect::<Vec<_>>();
-    final_three.reverse();
-    Ok(final_three.join("/"))
+    let Some(filename) = input.rsplit_once('/').map(|(_, suffix)| suffix) else {
+        return Err(serde::de::Error::custom("rplit /"));
+    };
+    let Some((filename, ext)) = filename.split_once('.') else {
+        return Err(serde::de::Error::custom("split ."));
+    };
+    if !filename.chars().all(|c| c.is_ascii_digit()) {
+        return Err(serde::de::Error::custom("char digits"));
+    }
+    Ok(format!("{filename}.{ext}"))
 }
 
 /// Build a reqwest client, with a default timeout, and compression enabled
@@ -437,17 +433,16 @@ pub mod tests {
 
     #[test]
     fn scraper_deserialize_url() {
-		// TODO just save the name.jpg, can work out the thumbail from that!
         let url = "https://example.com/foo/bar/another/001/924/001924443.jpg".to_owned();
         let deserializer: StringDeserializer<ValueError> = url.into_deserializer();
-        let result = deserialize_url(deserializer);
+        let result = deserialize_image_name(deserializer);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "001/924/001924443.jpg");
+        assert_eq!(result.unwrap(), "001924443.jpg");
 
-        let url = "https://example.com/foo/bar/001/924/001924443.jpg".to_owned();
+        let url = "https://example.com/foo/bar/001/924/001924443jpg".to_owned();
         let deserializer: StringDeserializer<ValueError> = url.into_deserializer();
-        let result = deserialize_url(deserializer);
+        let result = deserialize_image_name(deserializer);
 
         assert!(result.is_err());
     }
