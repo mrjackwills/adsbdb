@@ -22,6 +22,8 @@ use crate::{
     db_postgres::{ModelIncomingRequest, MsgIncomingRequest},
     scraper::Scraper,
 };
+// TODO backup container needs work, seems to be leaving data in docker overlays
+// TODO .psql config should just get generated in postgres.Dockerfile
 
 // TODO create a custom struct for these channels, with a trait etc
 pub type Tx<T> = crossfire::MAsyncTx<Array<T>>;
@@ -29,7 +31,6 @@ pub type RX<T> = crossfire::AsyncRx<Array<T>>;
 pub type OneTX<T> = crossfire::oneshot::TxOneshot<T>;
 pub type OneRX<T> = crossfire::oneshot::RxOneshot<T>;
 
-// TODO backup container needs work, seems to be leaving data in docker overlays
 
 /// Create a bounded async channel of x size
 fn create_rx_tx<T: 'static + Send + Sync>(size: usize) -> (Tx<T>, RX<T>) {

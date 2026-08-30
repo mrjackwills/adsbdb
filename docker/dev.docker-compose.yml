@@ -82,13 +82,13 @@ services:
       resources:
         limits:
           memory: 1024MB
-  adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.6.5
-    container_name: adsbdb_postgres_backup
+  adsbdb_backup:
+    image: adsbdb_backup:0.6.5
+    container_name: adsbdb_backup
     build:
       context: /workspaces/backend/
-      dockerfile: /workspaces/backend/docker/dockerfile/postgres_backup.Dockerfile
-    env_file: /workspaces/backend/docker/env/.postgres_backup.env
+      dockerfile: /workspaces/backend/docker/dockerfile/backup.Dockerfile
+    env_file: /workspaces/backend/docker/env/.backup.env
     cap_drop:
       - all
     security_opt:
@@ -96,7 +96,7 @@ services:
     ipc: private
     volumes:
       - /data/adsbdb/backups:/backups
-      - /data/adsbdb/redis_data:/redis_data:ro
+      - /data/adsbdb/temp_backup:/temp_backup
       - /data/adsbdb/logs:/logs
     networks:
       - dev-adsbdb-net

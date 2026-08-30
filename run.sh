@@ -73,7 +73,7 @@ DOCKER_DIR="${APP_DIR}/docker"
 # Containers
 API="${APP_NAME}_api"
 APP_POSTGRES="${APP_NAME}_postgres"
-BACKUP_CONTAINER="${APP_NAME}_postgres_backup"
+BACKUP_CONTAINER="${APP_NAME}_backup"
 BASE_CONTAINERS=("${APP_POSTGRES}" "${APP_NAME}_redis")
 ALL=("${BASE_CONTAINERS[@]}" "${API}" "${BACKUP_CONTAINER}")
 TO_RUN=("${BASE_CONTAINERS[@]}")
@@ -83,7 +83,8 @@ make_db_data_directories() {
 	local pg_data="${BASE_DIR}/databases.d/${APP_NAME}/pg_data"
 	local redis_data="${BASE_DIR}/databases.d/${APP_NAME}/redis_data"
 	local backups="${BASE_DIR}/databases.d/${APP_NAME}/backups"
-	for DIRECTORY in $pg_data $redis_data $backups; do
+	local temp_backup="${BASE_DIR}/databases.d/${APP_NAME}/temp_backup"
+	for DIRECTORY in $pg_data $redis_data $backups $temp_backup; do
 		if [[ ! -d "$DIRECTORY" ]]; then
 			echo -e "${GREEN}making directory:${RESET} \"$DIRECTORY\""
 			mkdir -p "$DIRECTORY"
