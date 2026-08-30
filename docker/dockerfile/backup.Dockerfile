@@ -10,7 +10,7 @@ RUN apk add --update --no-cache age postgresql18-client redis \
 	&& adduser -u ${DOCKER_UID} -S -G ${DOCKER_APP_GROUP} ${DOCKER_APP_USER} \
 	&& mkdir /backups /logs /temp_backup
 
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/backup/create_backup.sh /create_backup.sh
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} docker/init/create_backup.sh /create_backup.sh
 
 RUN chown -R ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /backups /logs /temp_backup
 

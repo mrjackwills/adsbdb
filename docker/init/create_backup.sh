@@ -1,7 +1,6 @@
 #!/bin/sh
 set -e -o pipefail
 
-
 # Check the required env's are present
 check_env() {
 	missing=false
@@ -15,17 +14,7 @@ check_env() {
 		PGPASSWORD \
 		REDISCLI_AUTH
 	do
-		case "$env_var" in
-			AGE_RECIPIENT) value="$AGE_RECIPIENT" ;;
-			DB_NAME) value="$DB_NAME" ;;
-			DOCKER_PG_HOST) value="$DOCKER_PG_HOST" ;;
-			DOCKER_PG_PORT) value="$DOCKER_PG_PORT" ;;
-			DOCKER_REDIS_HOST) value="$DOCKER_REDIS_HOST" ;;
-			DOCKER_REDIS_PORT) value="$DOCKER_REDIS_PORT" ;;
-			PGPASSWORD) value="$PGPASSWORD" ;;
-			REDISCLI_AUTH) value="$REDISCLI_AUTH" ;;
-		esac
-
+		eval "value=\${$env_var}"
 		if [ -z "$value" ]; then
 			echo "ERROR: environment variable $env_var is not set" >&2
 			missing=true
@@ -36,7 +25,6 @@ check_env() {
 		exit 1
 	fi
 }
-
 
 # Verify a file is a non-empty, intact gzip stream
 check_gzip() {

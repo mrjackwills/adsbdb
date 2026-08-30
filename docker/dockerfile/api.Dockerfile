@@ -1,7 +1,7 @@
 #############
 ## Builder ##
 #############
-FROM --platform=$BUILDPLATFORM rust:1-slim-bookworm AS builder
+FROM --platform=${BUILDPLATFORM} rust:1-slim-bookworm AS builder
 
 WORKDIR /usr/src
 
@@ -33,7 +33,7 @@ RUN cargo build --release
 ## Runtime Ubuntu ##
 ####################
 
-FROM --platform=$BUILDPLATFORM ubuntu:24.04
+FROM --platform=${BUILDPLATFORM} ubuntu:24.04
 
 RUN userdel -r ubuntu
 
@@ -48,6 +48,7 @@ RUN apt-get update \
 	&& groupadd --gid ${DOCKER_GUID} ${DOCKER_APP_GROUP} \
 	&& useradd --no-create-home --no-log-init --uid ${DOCKER_UID} --gid ${DOCKER_GUID} ${DOCKER_APP_USER} \
 	&& mkdir /healthcheck /logs \
+	&& rm -rf /var/lib/apt/lists/* \
 	&& chown ${DOCKER_APP_USER}:${DOCKER_APP_GROUP} /logs
 
 WORKDIR /app

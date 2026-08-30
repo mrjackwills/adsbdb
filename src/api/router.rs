@@ -393,6 +393,24 @@ mod tests {
         scraper::Scraper,
     };
 
+    const MODE_S_NO_PHOTO: &str = "ADC1F0";
+
+    fn gen_aircraft_no_mode_s() -> ResponseAircraft {
+        ResponseAircraft {
+            aircraft_type: S!("208 B"),
+            icao_type: S!("C208"),
+            manufacturer: S!("Cessna"),
+            mode_s: MODE_S_NO_PHOTO.to_owned(),
+            registration: S!("N986FE"),
+            registered_owner: S!("FedEx Feeder"),
+            registered_owner_operator_flag_code: Some(S!("IRO")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
+            url_photo: None,
+            url_photo_thumbnail: None,
+        }
+    }
+
     /// Get application state for test, also delete recent request stats
     async fn get_application_state() -> State<ApplicationState> {
         let app_env = parse_env::AppEnv::get_env();
@@ -520,8 +538,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_mode_s_ok_no_photo() {
-        let mode_s = "A44917";
-        let path = AircraftSearch::ModeS(ModeS::validate(mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(MODE_S_NO_PHOTO).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
         let response = ApiRoutes::aircraft_get(application_state.clone(), path, hm).await;
@@ -529,22 +546,9 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let aircraft = ResponseAircraft {
-            aircraft_type: S!("737MAX 9"),
-            icao_type: S!("B39M"),
-            manufacturer: S!("Boeing"),
-            mode_s: mode_s.to_owned(),
-            registration: S!("N37522"),
-            registered_owner: S!("United Airlines"),
-            registered_owner_operator_flag_code: Some(S!("UAL")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
 
         match &response.1.response.aircraft {
-            Some(x) => assert_eq!(x, &aircraft),
+            Some(x) => assert_eq!(x, &gen_aircraft_no_mode_s()),
             None => unreachable!(),
         }
 
@@ -553,7 +557,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_api_get_registration_ok_no_photo() {
-        let registration = "N37522";
+        let registration = "N986FE";
         let path = AircraftSearch::Registration(Registration::validate(registration).unwrap());
         let application_state = get_application_state().await;
         let hm = axum::extract::Query(HashMap::new());
@@ -562,22 +566,9 @@ mod tests {
         assert!(response.is_ok());
         let response = response.unwrap();
         assert_eq!(response.0, axum::http::StatusCode::OK);
-        let aircraft = ResponseAircraft {
-            aircraft_type: S!("737MAX 9"),
-            icao_type: S!("B39M"),
-            manufacturer: S!("Boeing"),
-            mode_s: S!("A44917"),
-            registration: registration.to_owned(),
-            registered_owner: S!("United Airlines"),
-            registered_owner_operator_flag_code: Some(S!("UAL")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
 
         match &response.1.response.aircraft {
-            Some(x) => assert_eq!(x, &aircraft),
+            Some(x) => assert_eq!(x, &gen_aircraft_no_mode_s()),
             None => unreachable!(),
         }
 
@@ -1610,9 +1601,9 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_icao_callsign_mode_s_and_flightroute_ok_no_photo() {
         let callsign = S!("ACA959");
-        let mode_s = S!("A44917");
+        let known_aircraft = gen_aircraft_no_mode_s();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(&known_aircraft.mode_s).unwrap());
 
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
@@ -1660,27 +1651,13 @@ mod tests {
             },
         };
 
-        let aircraft = ResponseAircraft {
-            aircraft_type: S!("737MAX 9"),
-            icao_type: S!("B39M"),
-            manufacturer: S!("Boeing"),
-            mode_s: mode_s.clone(),
-            registration: S!("N37522"),
-            registered_owner: S!("United Airlines"),
-            registered_owner_operator_flag_code: Some(S!("UAL")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
-
         match &response.1.response.flightroute {
             Some(d) => assert_eq!(d, &flightroute),
             None => unreachable!(),
         }
 
         match &response.1.response.aircraft {
-            Some(d) => assert_eq!(d, &aircraft),
+            Some(d) => assert_eq!(d, &known_aircraft),
             None => unreachable!(),
         }
     }
@@ -1688,9 +1665,8 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_iata_callsign_mode_s_and_flightroute_ok_no_photo() {
         let callsign = S!("AC959");
-        let mode_s = S!("A44917");
         let application_state = get_application_state().await;
-        let path = AircraftSearch::ModeS(ModeS::validate(&mode_s).unwrap());
+        let path = AircraftSearch::ModeS(ModeS::validate(MODE_S_NO_PHOTO).unwrap());
 
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
@@ -1738,37 +1714,26 @@ mod tests {
             },
         };
 
-        let aircraft = ResponseAircraft {
-            aircraft_type: S!("737MAX 9"),
-            icao_type: S!("B39M"),
-            manufacturer: S!("Boeing"),
-            mode_s: mode_s.clone(),
-            registration: S!("N37522"),
-            registered_owner: S!("United Airlines"),
-            registered_owner_operator_flag_code: Some(S!("UAL")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
-
         match &response.1.response.flightroute {
             Some(d) => assert_eq!(d, &flightroute),
             None => unreachable!(),
         }
 
         match &response.1.response.aircraft {
-            Some(d) => assert_eq!(d, &aircraft),
+            Some(d) => assert_eq!(d, &gen_aircraft_no_mode_s()),
             None => unreachable!(),
         }
     }
 
     #[tokio::test]
     async fn http_api_get_icao_callsign_registration_and_flightroute_ok_no_photo() {
+        let known_aircraft = gen_aircraft_no_mode_s();
+
         let callsign = S!("ACA959");
-        let registration = S!("N37522");
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
+        let path = AircraftSearch::Registration(
+            Registration::validate(&known_aircraft.registration).unwrap(),
+        );
 
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
@@ -1816,27 +1781,13 @@ mod tests {
             },
         };
 
-        let aircraft = ResponseAircraft {
-            aircraft_type: S!("737MAX 9"),
-            icao_type: S!("B39M"),
-            manufacturer: S!("Boeing"),
-            mode_s: S!("A44917"),
-            registration: registration.clone(),
-            registered_owner: S!("United Airlines"),
-            registered_owner_operator_flag_code: Some(S!("UAL")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
-
         match &response.1.response.flightroute {
             Some(d) => assert_eq!(d, &flightroute),
             None => unreachable!(),
         }
 
         match &response.1.response.aircraft {
-            Some(d) => assert_eq!(d, &aircraft),
+            Some(d) => assert_eq!(d, &known_aircraft),
             None => unreachable!(),
         }
     }
@@ -1844,9 +1795,12 @@ mod tests {
     #[tokio::test]
     async fn http_api_get_iata_callsign_registration_and_flightroute_ok_no_photo() {
         let callsign = S!("AC959");
-        let registration = S!("N37522");
+
+        let known_aircraft = gen_aircraft_no_mode_s();
         let application_state = get_application_state().await;
-        let path = AircraftSearch::Registration(Registration::validate(&registration).unwrap());
+        let path = AircraftSearch::Registration(
+            Registration::validate(&known_aircraft.registration).unwrap(),
+        );
 
         let mut hm = HashMap::new();
         hm.insert(S!("callsign"), callsign.clone());
@@ -1894,27 +1848,13 @@ mod tests {
             },
         };
 
-        let aircraft = ResponseAircraft {
-            aircraft_type: S!("737MAX 9"),
-            icao_type: S!("B39M"),
-            manufacturer: S!("Boeing"),
-            mode_s: S!("A44917"),
-            registration: registration.clone(),
-            registered_owner: S!("United Airlines"),
-            registered_owner_operator_flag_code: Some(S!("UAL")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        };
-
         match &response.1.response.flightroute {
             Some(d) => assert_eq!(d, &flightroute),
             None => unreachable!(),
         }
 
         match &response.1.response.aircraft {
-            Some(d) => assert_eq!(d, &aircraft),
+            Some(d) => assert_eq!(d, &known_aircraft),
             None => unreachable!(),
         }
     }
