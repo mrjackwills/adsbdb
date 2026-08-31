@@ -20,6 +20,7 @@ use crate::{
 };
 
 pub const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC.saturating_mul(5);
+const OTHER_PATH:&str = "other";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UriMethod(Uri, Method);
@@ -187,18 +188,20 @@ fn epoch_minute() -> i64 {
 }
 
 /// Increment the daily stats for a given request
-// This is failing I think, if somethings visist /asdasdasd, it will fail? No, it will add a count, just won't add anything to the TempIR bucket
+// Urls that arent in format /v0/x will go in the "other" bucket - mainly for dev purposes
 async fn increment_temp_stat(redis: &Pool, split_url: SplitUri) -> Result<(), AppError> {
     let minute = epoch_minute();
     let full_url = split_url.build_url();
 
-    if let Some(path) = split_url.path.filter(|p| !p.is_empty()) {
-        let path_key = RedisKey::TempIR((&path, minute)).to_string();
-        redis.zincrby::<(), _, _>(&path_key, 1.0, &full_url).await?;
-        redis
-            .expire::<(), _>(&path_key, ONE_DAY_AS_SEC, None)
-            .await?;
-    }
+    let path = split_url
+        .path
+        .filter(|p| !p.is_empty())
+        .unwrap_or(OTHER_PATH.to_owned());
+    let path_key = RedisKey::TempIR((&path, minute)).to_string();
+    redis.zincrby::<(), _, _>(&path_key, 1.0, &full_url).await?;
+    redis
+        .expire::<(), _>(&path_key, ONE_DAY_AS_SEC, None)
+        .await?;
 
     let count_key = RedisKey::TempIRCount(minute).to_string();
     redis.incr::<i64, _>(&count_key).await?;
