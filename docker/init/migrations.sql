@@ -576,10 +576,14 @@ $$;
 CREATE INDEX IF NOT EXISTS index_incoming_request_path_id ON incoming_request (incoming_request_url_path_id);
 
 \echo "Fix counter"
+-WITH new_total AS (
+	SELECT COALESCE(SUM(count), 0) AS total
+	FROM incoming_request
+	WHERE NOT EXISTS (SELECT 1 FROM request_total WHERE id = 1)
+)
 INSERT INTO request_total (id, total)
-SELECT 1, COALESCE((SELECT SUM(count) FROM incoming_request), 0)
-ON CONFLICT (id) DO NOTHING;
-COMMIT;
+SELECT 1, total
+FROM new_total;
 
 \echo "Drop old table"
 DROP TABLE IF EXISTS incoming_request_url;
