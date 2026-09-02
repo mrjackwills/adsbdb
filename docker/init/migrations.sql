@@ -590,3 +590,7 @@ DROP TABLE IF EXISTS incoming_request_url;
 
 \echo "aircraft_photo substring fix"
 UPDATE aircraft_photo SET url_photo = substring(url_photo, 9) WHERE url_photo LIKE 'https://%';
+
+-- todo
+\echo "recombine the aircraft table, it's pointless haveing it seperated, only need foreign keys for country & municipality"
+-- make new table, make usre has unique

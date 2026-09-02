@@ -13,7 +13,7 @@ use crate::{
     OneTX, RX, Tx,
     api::{AppError, Callsign, ModeS, Validate},
     create_rx_tx,
-    db_postgres::{ModelAircraft, ModelFlightroute},
+    db::postgres::{ModelAircraft, ModelFlightroute},
     parse_env::AppEnv,
 };
 
@@ -382,7 +382,7 @@ impl Scraper {
 pub mod tests {
     use super::*;
     use crate::api::{AircraftSearch, ModeS, PhotoPrefixes, Validate};
-    use crate::{S, create_oneshot, db_postgres, db_redis};
+    use crate::{S, create_oneshot, db};
     use fred::interfaces::ClientLike;
     use serde::de::IntoDeserializer;
     use serde::de::value::{Error as ValueError, StringDeserializer};
@@ -394,7 +394,7 @@ pub mod tests {
 
     async fn test_setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
-        let db = db_postgres::get_pool(&app_env).await.unwrap();
+        let db = db::postgres::get_pool(&app_env).await.unwrap();
         (app_env, db)
     }
 
@@ -432,7 +432,7 @@ pub mod tests {
             .unwrap();
 
         let app_env = AppEnv::get_env();
-        let redis = db_redis::get_pool(&app_env).await.unwrap();
+        let redis = db::redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
     }
 

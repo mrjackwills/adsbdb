@@ -14,9 +14,10 @@ use super::response::ResponseJson;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnknownAC {
     Aircraft,
-    Callsign,
     Airline,
     Airport(String),
+    Callsign,
+    ModeS,
 }
 
 impl fmt::Display for UnknownAC {
@@ -24,8 +25,9 @@ impl fmt::Display for UnknownAC {
         match self {
             Self::Aircraft => write!(f, "aircraft"),
             Self::Airline => write!(f, "airline"),
-            Self::Callsign => write!(f, "callsign"),
             Self::Airport(icao) => write!(f, "airport: {icao}"),
+            Self::Callsign => write!(f, "callsign"),
+            Self::ModeS => write!(f, "mode-s conversion"),
         }
     }
 }
@@ -48,9 +50,9 @@ pub enum AppError {
     Internal(String),
     #[error("io error")]
     Io(#[from] std::io::Error),
-    #[error("invalid modeS:")]
+    #[error("invalid mode-s:")]
     ModeS(String),
-    #[error("invalid n_number:")]
+    #[error("invalid n-number:")]
     NNumber(String),
     #[error("parse int")]
     ParseInt(#[from] ParseIntError),

@@ -138,7 +138,7 @@ FROM
 
     INNER JOIN flightroute_callsign flc USING(flightroute_callsign_id)
     INNER JOIN flightroute_callsign_inner fci_icao ON fci_icao.flightroute_callsign_inner_id = flc.icao_prefix_id
-    INNER JOIN airline ai USING(airline_id)
+    LEFT JOIN airline ai USING(airline_id)
     LEFT JOIN flightroute_callsign_inner fci_iata ON fci_iata.flightroute_callsign_inner_id = flc.iata_prefix_id
 
     LEFT JOIN country co_airline ON co_airline.country_id = ai.country_id
@@ -232,7 +232,7 @@ LIMIT
     FROM
         flightroute fl
     INNER JOIN flightroute_callsign flc USING(flightroute_callsign_id)
-    INNER JOIN airline ai USING(airline_id)
+    LEFT JOIN airline ai USING(airline_id)
     LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
             
     INNER JOIN airport apo ON apo.airport_id = fl.airport_origin_id
@@ -537,11 +537,11 @@ VALUES
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crate::{S, api::Validate, db_postgres, parse_env::AppEnv};
+    use crate::{S, api::Validate, db, parse_env::AppEnv};
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
-        let db = db_postgres::get_pool(&app_env).await.unwrap();
+        let db = db::postgres::get_pool(&app_env).await.unwrap();
         (app_env, db)
     }
 

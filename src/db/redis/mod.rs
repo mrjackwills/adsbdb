@@ -1,9 +1,10 @@
+use crate::db::postgres::RE_SEED_TIME;
 use crate::{
     S,
     api::{AircraftSearch, AirlineCode, AppError, Callsign, ModeS, Registration},
-    db_postgres::RE_SEED_TIME,
     parse_env::AppEnv,
 };
+
 use fred::{
     clients::Pool,
     interfaces::{ClientLike, HashesInterface, KeysInterface, TransactionInterface},

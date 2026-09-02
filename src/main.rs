@@ -5,8 +5,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod api;
 mod argon;
-mod db_postgres;
-mod db_redis;
+mod db;
 mod n_number;
 mod parse_env;
 mod scraper;
@@ -19,11 +18,9 @@ use sqlx::PgPool;
 use tracing_subscriber::{fmt, prelude::*};
 
 use crate::{
-    db_postgres::{ModelIncomingRequest, MsgIncomingRequest},
+    db::postgres::{ModelIncomingRequest, MsgIncomingRequest},
     scraper::Scraper,
 };
-// TODO incoming request in redis, use a sorted set for all others than aren't /v0/known etc
-
 // TODO create a custom struct for these channels, with a trait etc
 pub type Tx<T> = crossfire::MAsyncTx<Array<T>>;
 pub type RX<T> = crossfire::AsyncRx<Array<T>>;
@@ -90,8 +87,8 @@ async fn start() -> Result<(), AppError> {
     tracing::info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 
     let (postgres, redis) = tokio::try_join!(
-        db_postgres::get_pool(&app_env),
-        db_redis::get_pool(&app_env),
+        db::postgres::get_pool(&app_env),
+        db::redis::get_pool(&app_env),
     )?;
 
     let tx_scraper = Scraper::start(&app_env, &postgres);
@@ -110,5 +107,3 @@ async fn main() {
     .await
     .ok();
 }
-
-// TODO put common test things here, e.g. EXAMPL_PHOTO_NAME

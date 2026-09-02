@@ -12,15 +12,15 @@ use crate::{
     RX, Tx,
     api::{AppError, Stats, StatsEntry},
     create_rx_tx,
-    db_postgres::ID,
-    db_redis::{
+    db::postgres::ID,
+    db::redis::{
         IncomingRequestKey, ONE_DAY_AS_SEC, ONE_MINUTE_AS_SEC, RedisKey, get_cache, insert_cache,
     },
     generic_id, redis_hash_to_struct,
 };
 
 pub const RE_SEED_TIME: i64 = ONE_MINUTE_AS_SEC.saturating_mul(5);
-const OTHER_PATH:&str = "other";
+const OTHER_PATH: &str = "other";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UriMethod(Uri, Method);
@@ -589,7 +589,7 @@ pub mod tests {
             tests::{random_hex, test_setup},
         },
         create_rx_tx,
-        db_postgres::{EntryCount, ModelIncomingRequest, MsgIncomingRequest, UriMethod},
+        db::postgres::{EntryCount, ModelIncomingRequest, MsgIncomingRequest, UriMethod},
         sleep,
     };
     use axum::http::Uri;

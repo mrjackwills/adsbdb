@@ -1,4 +1,4 @@
-use crate::{api::AppError, db_redis::RedisKey};
+use crate::{api::AppError, db::redis::RedisKey};
 use fred::{clients::Pool, interfaces::KeysInterface};
 use std::net::IpAddr;
 
