@@ -176,7 +176,7 @@ BEGIN
 			ALTER COLUMN airport_name SET NOT NULL,
 			-- ALTER COLUMN airport_name SET NOT NULL,
 			-- This can, and will, fail if the elevation's haven't been updated
-			ALTER COLUMN elevation SET NOT NULL,
+			-- ALTER COLUMN elevation SET NOT NULL,
 			ALTER COLUMN latitude SET NOT NULL,
 			ALTER COLUMN longitude SET NOT NULL,
 			ADD CONSTRAINT airport_iata_code_check CHECK (iata_code ~ '^[A-Z0-9]{3}$'),
