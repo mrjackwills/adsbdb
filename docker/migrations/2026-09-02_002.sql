@@ -174,6 +174,7 @@ BEGIN
 
 		ALTER TABLE airport
 			ALTER COLUMN airport_name SET NOT NULL,
+			-- todo
 			-- ALTER COLUMN airport_name SET NOT NULL,
 			-- This can, and will, fail if the elevation's haven't been updated
 			-- ALTER COLUMN elevation SET NOT NULL,
