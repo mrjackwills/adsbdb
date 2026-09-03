@@ -269,220 +269,17 @@ pub async fn aircraft_patch(
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
     use std::collections::HashMap;
-    use std::sync::LazyLock;
 
     use super::*;
 
     use crate::S;
+    use crate::api::tests::{DEFAULT_AIRCRAFT_PATH, VALID_AUTH_HEADER, send_patch_request};
     use crate::api::{
-        API_VERSION, Registration, Validate,
         response::{AircraftAndRoute, Airport, ResponseFlightRoute, ResponseJson},
-        serve,
-        tests::{CLIENT, test_setup},
-        tests::{FLIGHTROUTE, UNKNOWN_CALLSIGN_ICAO, get_response_200, random_hex},
+        tests::*,
     };
-    use crate::db::redis::{HASH_FIELD, RedisKey};
-    use crate::parse_env::AppEnv;
-    use crate::scraper::Scraper;
-    use crate::sleep;
-    use crate::start_incoming_requests;
 
-    use fred::prelude::{HashesInterface, Pool};
     use reqwest::StatusCode;
-    use serde::Serialize;
-    use sqlx::PgPool;
-    use tokio::task::JoinHandle;
-
-    pub struct TestSetup {
-        pub _handle: Option<JoinHandle<()>>,
-        pub _app_env: AppEnv,
-        pub _postgres: PgPool,
-        pub redis: Pool,
-    }
-
-    async fn send_patch_request<T: Serialize>(
-        path: &str,
-        headers: Option<(&str, &str)>,
-        body: Option<T>,
-    ) -> reqwest::Response {
-        let mut request = CLIENT.patch(format!(
-            "http://127.0.0.1:8282{}/{path}",
-            API_VERSION.as_str()
-        ));
-
-        if let Some(headers) = headers {
-            request = request.header(headers.0, headers.1);
-        }
-
-        if let Some(body) = body {
-            request = request.json(&body);
-        }
-
-        let response = request.send().await;
-        assert!(response.is_ok());
-        response.unwrap()
-    }
-
-    /// Start the server, if allow_update is some, then set the environmental variable to allow PATCH update requests
-    async fn start_server(allow_update: Option<()>) -> TestSetup {
-        let setup = test_setup().await;
-        let mut app_env = setup.app_env.clone();
-
-        if allow_update.is_none() {
-            app_env.allow_update = None;
-        }
-        let spawn_env = app_env.clone();
-
-        let postgres = setup.postgres.clone();
-
-        let redis = setup.redis.clone();
-
-        let tx_scraper = Scraper::start(&app_env, &postgres);
-        let tx_stats = start_incoming_requests(&postgres, &redis).await.unwrap();
-
-        let handle = tokio::spawn(async move {
-            serve(spawn_env, postgres, redis, tx_scraper, tx_stats)
-                .await
-                .unwrap();
-        });
-        // just sleep to make sure the server is running - 1ms is enough
-        sleep!(100);
-        TestSetup {
-            _handle: Some(handle),
-            _app_env: app_env,
-            _postgres: setup.postgres,
-            redis: setup.redis,
-        }
-    }
-
-    /// Test based on this pre-known aircraft
-    fn gen_aircraft() -> ResponseAircraft {
-        ResponseAircraft {
-            aircraft_type: S!("737NG 8U3/W"),
-            icao_type: S!("B738"),
-            manufacturer: S!("Boeing"),
-            mode_s: S!("8A043A"),
-            registration: S!("PK-GNE"),
-            registered_owner_country_iso_name: S!("ID"),
-            registered_owner_country_name: S!("Indonesia"),
-            registered_owner_operator_flag_code: Some(S!("GIA")),
-            registered_owner: S!("Garuda Indonesia"),
-            url_photo: None,
-            url_photo_thumbnail: None,
-        }
-    }
-
-    const AIRCRAFT: &str = "8A043A";
-    // const CALLSIGN: &str = "CFE37E";
-
-    static DEFAULT_AIRCRAFT_PATH: LazyLock<String> =
-        LazyLock::new(|| format!("aircraft/{AIRCRAFT}"));
-
-    static DEFAULT_CALLSIGN_PATH: LazyLock<String> =
-        LazyLock::new(|| format!("callsign/{}", FLIGHTROUTE.callsign));
-
-    /// Test based on this pre-known aircraft
-    static DEFAULT_AIRCRAFT_BODY: LazyLock<ResponseAircraft> = LazyLock::new(|| ResponseAircraft {
-        aircraft_type: S!("737NG 8U3/W"),
-        icao_type: S!("B738"),
-        manufacturer: S!("Boeing"),
-        mode_s: S!("8A043A"),
-        registration: S!("PK-GNE"),
-        registered_owner_country_iso_name: S!("ID"),
-        registered_owner_country_name: S!("Indonesia"),
-        registered_owner_operator_flag_code: Some(S!("GIA")),
-        registered_owner: S!("Garuda Indonesia"),
-        url_photo: None,
-        url_photo_thumbnail: None,
-    });
-
-    const VALID_AUTH_HEADER: (&str, &str) = ("Authorization", "password123");
-
-    async fn cache_aircraft_exists(redis: &Pool) -> bool {
-        redis
-            .hexists(
-                RedisKey::ModeS(&ModeS::validate(AIRCRAFT).unwrap()).to_string(),
-                HASH_FIELD,
-            )
-            .await
-            .unwrap()
-            && redis
-                .hexists(
-                    RedisKey::Registration(
-                        &Registration::validate(&DEFAULT_AIRCRAFT_BODY.registration).unwrap(),
-                    )
-                    .to_string(),
-                    HASH_FIELD,
-                )
-                .await
-                .unwrap()
-    }
-
-    async fn cache_callsign_exists(redis: &Pool) -> bool {
-        let flightroute = FLIGHTROUTE.clone();
-        redis
-            .hexists(
-                RedisKey::Callsign(&Callsign::validate(&flightroute.callsign).unwrap()).to_string(),
-                HASH_FIELD,
-            )
-            .await
-            .unwrap()
-            && redis
-                .hexists(
-                    RedisKey::Callsign(
-                        &Callsign::validate(&flightroute.callsign_iata.unwrap()).unwrap(),
-                    )
-                    .to_string(),
-                    HASH_FIELD,
-                )
-                .await
-                .unwrap()
-    }
-
-    /// Return the aircraft details from redis
-    async fn get_aircraft_cache(redis: &Pool) -> ModelAircraft {
-        redis
-            .hget(
-                RedisKey::ModeS(&ModeS::validate(AIRCRAFT).unwrap()).to_string(),
-                HASH_FIELD,
-            )
-            .await
-            .unwrap()
-    }
-
-    /// Return the aircraft details from redis
-    async fn get_callsign_cache(redis: &Pool) -> ModelFlightroute {
-        redis
-            .hget(
-                RedisKey::Callsign(&Callsign::validate(&FLIGHTROUTE.callsign).unwrap()).to_string(),
-                HASH_FIELD,
-            )
-            .await
-            .unwrap()
-    }
-
-    /// Reset aircraft details back to original
-    async fn reset_aircraft() {
-        send_patch_request(
-            &DEFAULT_AIRCRAFT_PATH,
-            Some(VALID_AUTH_HEADER),
-            Some(DEFAULT_AIRCRAFT_BODY.clone()),
-        )
-        .await;
-    }
-
-    /// Reset callsign back to original
-    async fn reset_callsign() {
-        send_patch_request(
-            &DEFAULT_CALLSIGN_PATH,
-            Some(VALID_AUTH_HEADER),
-            Some(HashMap::from([
-                ("origin", FLIGHTROUTE.origin.icao_code.as_str()),
-                ("destination", FLIGHTROUTE.destination.icao_code.as_str()),
-            ])),
-        )
-        .await;
-    }
 
     async fn invalid_aircraft_body_test(body: ResponseAircraft, msg: &str) {
         let response =
@@ -520,7 +317,7 @@ pub mod tests {
         assert_eq!(airport.elevation, 242);
         assert_eq!(airport.iata_code, Some(S!("DUB")));
         assert_eq!(airport.icao_code, "EIDW");
-        assert_eq!(airport.latitude, 53.421299);
+        assert_eq!(airport.latitude, 53.4213);
         assert_eq!(airport.longitude, -6.27007);
         assert_eq!(airport.municipality, "Dublin");
         assert_eq!(airport.name, "Dublin Airport");
@@ -533,7 +330,7 @@ pub mod tests {
         assert_eq!(airport.iata_code, Some(S!("SJO")));
         assert_eq!(airport.icao_code, S!("MROC"));
         assert_eq!(airport.latitude, 9.99386);
-        assert_eq!(airport.longitude, -84.208801);
+        assert_eq!(airport.longitude, -84.2088);
         assert_eq!(airport.municipality, S!("San José (Alajuela)"));
         assert_eq!(airport.name, S!("Juan Santamaría International Airport"));
     }
@@ -544,8 +341,8 @@ pub mod tests {
         assert_eq!(airport.elevation, 118);
         assert_eq!(airport.iata_code, Some(S!("YUL")));
         assert_eq!(airport.icao_code, "CYUL");
-        assert_eq!(airport.latitude, 45.4706001282);
-        assert_eq!(airport.longitude, -73.7407989502);
+        assert_eq!(airport.latitude, 45.4706);
+        assert_eq!(airport.longitude, -73.7408);
         assert_eq!(airport.municipality, "Montréal");
         assert_eq!(
             airport.name,
@@ -562,10 +359,11 @@ pub mod tests {
     async fn http_mod_patch_aircraft_no_update() {
         start_server(None).await;
 
+        // default aircraft body
         let response = send_patch_request(
             &DEFAULT_AIRCRAFT_PATH,
             Some(VALID_AUTH_HEADER),
-            Some(DEFAULT_AIRCRAFT_BODY.clone()),
+            Some(AIRCRAFT_NO_PHOTO.clone()),
         )
         .await;
 
@@ -580,7 +378,7 @@ pub mod tests {
         let response = send_patch_request(
             &DEFAULT_AIRCRAFT_PATH,
             None,
-            Some(DEFAULT_AIRCRAFT_BODY.clone()),
+            Some(AIRCRAFT_NO_PHOTO.clone()), // Some(AIRCRAFT_NO_PHOTO.clone()),
         )
         .await;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -594,7 +392,8 @@ pub mod tests {
         let response = send_patch_request(
             &DEFAULT_AIRCRAFT_PATH,
             Some(("Authorization", "authorization")),
-            Some(DEFAULT_AIRCRAFT_BODY.clone()),
+            // Some(AIRCRAFT_NO_PHOTO.clone()),
+            Some(AIRCRAFT_NO_PHOTO.clone()),
         )
         .await;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -626,7 +425,7 @@ pub mod tests {
         let response = send_patch_request(
             "aircraft/101010",
             Some(VALID_AUTH_HEADER),
-            Some(DEFAULT_AIRCRAFT_BODY.clone()),
+            Some(AIRCRAFT_NO_PHOTO.clone()),
         )
         .await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -666,8 +465,7 @@ pub mod tests {
     /// No change to data, return 400
     async fn http_mod_patch_aircraft_no_change() {
         start_server(Some(())).await;
-
-        invalid_aircraft_body_test(DEFAULT_AIRCRAFT_BODY.clone(), "invalid body no change").await;
+        invalid_aircraft_body_test(AIRCRAFT_NO_PHOTO.clone(), "invalid body no change").await;
     }
 
     #[tokio::test]
@@ -676,15 +474,15 @@ pub mod tests {
         start_server(Some(())).await;
         let msg = "invalid body immutable value changed";
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.mode_s = S!("AAAAAA");
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.url_photo = Some(random_hex(10));
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.url_photo_thumbnail = Some(random_hex(10));
         invalid_aircraft_body_test(body, msg).await;
     }
@@ -696,11 +494,11 @@ pub mod tests {
 
         let msg = "invalid body unknown country";
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registered_owner_country_name = S!("AAAAAA");
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registered_owner_country_iso_name = S!("XX");
         invalid_aircraft_body_test(body, msg).await;
     }
@@ -712,27 +510,27 @@ pub mod tests {
 
         let msg = "invalid body value too long";
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.aircraft_type = random_hex(66);
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.icao_type = random_hex(7);
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registration = random_hex(15);
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.manufacturer = random_hex(81);
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registered_owner = random_hex(122);
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registered_owner_operator_flag_code = Some(random_hex(6));
         invalid_aircraft_body_test(body, msg).await;
     }
@@ -744,11 +542,11 @@ pub mod tests {
 
         let msg = "invalid body unknown registration prefix";
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registration = S!("XXXXXXX");
         invalid_aircraft_body_test(body, msg).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.registration = S!("G1");
         invalid_aircraft_body_test(body, msg).await;
     }
@@ -758,7 +556,7 @@ pub mod tests {
     async fn http_mod_patch_aircraft_env_not_set() {
         start_server(None).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.aircraft_type = S!("XXX");
         body.icao_type = S!("XXX");
         body.manufacturer = S!("XXX");
@@ -782,7 +580,7 @@ pub mod tests {
         get_response_200::<AircraftAndRoute>(&DEFAULT_AIRCRAFT_PATH).await;
         let pre_cache = get_aircraft_cache(&state.redis).await;
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.aircraft_type = S!("XXX");
         body.icao_type = S!("XXX");
         body.manufacturer = S!("XXX");
@@ -799,6 +597,7 @@ pub mod tests {
         )
         .await;
 
+        // Err here?
         assert_eq!(response.status(), StatusCode::OK);
 
         let response = get_response_200::<AircraftAndRoute>(&DEFAULT_AIRCRAFT_PATH).await;
@@ -818,18 +617,17 @@ pub mod tests {
     /// All aircraft details updated, cache cleared
     async fn http_mod_patch_aircraft_ok() {
         let state = start_server(Some(())).await;
-
         get_response_200::<AircraftAndRoute>(&DEFAULT_AIRCRAFT_PATH).await;
         get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}",
-            DEFAULT_AIRCRAFT_BODY.registration
+            AIRCRAFT_NO_PHOTO.registration
         ))
         .await;
         let pre_cache = get_aircraft_cache(&state.redis).await;
 
         assert!(cache_aircraft_exists(&state.redis).await);
 
-        let mut body = DEFAULT_AIRCRAFT_BODY.clone();
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.aircraft_type = S!("XXX");
         body.icao_type = S!("XXX");
         body.manufacturer = S!("XXX");
@@ -867,7 +665,8 @@ pub mod tests {
     async fn http_mod_patch_aircraft_ok_ireland() {
         start_server(Some(())).await;
 
-        let mut body = gen_aircraft();
+        // gen_aircraft
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.aircraft_type = S!("XXX");
         body.icao_type = S!("XXX");
         body.manufacturer = S!("XXX");
@@ -893,8 +692,8 @@ pub mod tests {
         assert_eq!(response.aircraft.unwrap(), body);
 
         reset_aircraft().await;
-
-        let mut body = gen_aircraft();
+        // gen aircraft
+        let mut body = AIRCRAFT_NO_PHOTO.clone();
         body.aircraft_type = S!("XXX");
         body.icao_type = S!("XXX");
         body.manufacturer = S!("XXX");

@@ -624,8 +624,7 @@ mod tests {
             assert!(response.is_ok());
             let response = response.unwrap();
             validate_response_ok(&response);
-            // Check cache
-            let _cache = validate_get_cache::<ModelFlightroute>(
+            let cache = validate_get_cache::<ModelFlightroute>(
                 &state.redis,
                 &RedisKey::Callsign(
                     &Callsign::validate(
@@ -637,13 +636,13 @@ mod tests {
             )
             .await;
 
-            // TODO this is broken due to long/lat, maybe switch to 5 dp is 1m accuracry?
-            // assert_eq!(
-            //     response.1.response.flightroute,
-            //     ResponseFlightRoute::from_model(Some(&cache))
-            // );
+            assert_eq!(
+                response.1.response.flightroute,
+                ResponseFlightRoute::from_model(Some(&cache))
+            );
 
             // TODO!(this is failing)
+            // fix with callsign de-normalization
 
             // if let Some(iata_callsign) = &response
             //     .1
@@ -653,11 +652,16 @@ mod tests {
             //     .unwrap()
             //     .callsign_iata
             // {
-            //     let _cache = validate_get_cache::<ModelFlightroute>(
+            //     let cache = validate_get_cache::<ModelFlightroute>(
             //         &state.redis,
             //         &RedisKey::Callsign(&Callsign::validate(iata_callsign).unwrap()).to_string(),
             //     )
             //     .await;
+            //     // Might need to cahgne call to iata callsign?
+            //     assert_eq!(
+            //         response.1.response.flightroute,
+            //         ResponseFlightRoute::from_model(Some(&cache))
+            //     );
             // }
         }
     }
@@ -1628,8 +1632,8 @@ mod tests {
                 elevation: 12,
                 iata_code: Some(S!("OKA")),
                 icao_code: S!("ROAH"),
-                latitude: 26.195_801,
-                longitude: 127.646_004,
+                latitude: 26.1958,
+                longitude: 127.646,
                 municipality: S!("Naha"),
                 name: S!("Naha Airport / JASDF Naha Air Base"),
             },
@@ -1640,8 +1644,8 @@ mod tests {
                 elevation: 35,
                 iata_code: Some(S!("HND")),
                 icao_code: S!("RJTT"),
-                latitude: 35.552_299,
-                longitude: 139.779_999,
+                latitude: 35.5523,
+                longitude: 139.78,
                 municipality: S!("Tokyo"),
                 name: S!("Tokyo Haneda International Airport"),
             },

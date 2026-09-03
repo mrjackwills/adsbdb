@@ -5,7 +5,6 @@ use axum::{
 use fred::error::ErrorKind;
 use std::{fmt, num::ParseIntError};
 use thiserror::Error;
-use tracing::error;
 
 use crate::S;
 
@@ -74,6 +73,12 @@ pub enum AppError {
 
 /// Return the internal server error, with a basic { response: "$prefix" }
 macro_rules! internal {
+    () => {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseJson::new(S!("internal error")),
+        )
+    };
     ($prefix:expr) => {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -86,15 +91,15 @@ impl IntoResponse for AppError {
     #[allow(clippy::cognitive_complexity)]
     fn into_response(self) -> Response {
         let exit = || {
-            error!("EXITING");
+            tracing::error!("EXITING");
             std::process::exit(1);
         };
 
         let prefix = self.to_string();
         let (status, body) = match self {
             Self::AxumExtension(e) => {
-                error!("{e:?}");
-                internal!(prefix)
+                tracing::error!("{e:?}");
+                internal!()
             }
             Self::Authorization => (
                 StatusCode::UNAUTHORIZED,
@@ -112,51 +117,45 @@ impl IntoResponse for AppError {
             ),
 
             Self::Internal(e) => {
-                error!("internal: {e:?}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ResponseJson::new(format!("{prefix} {e}")),
-                )
+                tracing::error!("internal: {e:?}");
+                internal!()
             }
             Self::Io(e) => {
-                error!("io: {e:?}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ResponseJson::new(format!("{prefix} {e}")),
-                )
+                tracing::error!("io: {e:?}");
+                internal!()
             }
             Self::ParseInt(e) => {
-                error!("parseint: {e:?}");
-                internal!(prefix)
+                tracing::error!("parseint: {e:?}");
+                internal!()
             }
             Self::RateLimited(limit) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 ResponseJson::new(format!("{prefix} {limit} seconds")),
             ),
             Self::RedisError(e) => {
-                error!("{e:?}");
+                tracing::error!("{e:?}");
                 if e.kind() == &ErrorKind::IO {
                     exit();
                 }
-                internal!(prefix)
+                internal!()
             }
             Self::Reqwest(e) => {
-                error!("{e:?}");
-                internal!(prefix)
+                tracing::error!("{e:?}");
+                internal!()
             }
             Self::SerdeJson(e) => {
-                error!("serde: {e:?}");
-                internal!(prefix)
+                tracing::error!("serde: {e:?}");
+                internal!(S!("incoming json error"))
             }
             Self::SqlxError(e) => {
-                error!("{e:?}");
+                tracing::error!("sqlx:: {e:?}");
                 match e {
                     sqlx::Error::Io(_) | sqlx::Error::PoolClosed | sqlx::Error::PoolTimedOut => {
                         exit();
                     }
                     _ => (),
                 }
-                internal!(prefix)
+                internal!(S!("database error"))
             }
 
             Self::UnknownInDb(variety) => (

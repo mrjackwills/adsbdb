@@ -20,6 +20,7 @@ check_env() {
 }
 
 main() {
+	check_env
 	PONG=$(redis-cli -h "$DOCKER_REDIS_HOST" -p "$DOCKER_REDIS_PORT" ping)
 	if expr "$PONG" : 'PONG' >/dev/null; then
 		exit 0

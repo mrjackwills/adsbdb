@@ -88,6 +88,9 @@ impl ApplicationState {
     }
 }
 
+// todo imple me
+// pub struct Api;
+
 /// Get a users ip address, application should always be behind an nginx reverse proxy
 /// so header x-forwarded-for should always be valid, but if not, then try x-real-ip
 /// if neither headers work, use the optional socket address from axum
@@ -327,6 +330,8 @@ pub mod tests {
     use crate::api::response::{
         AircraftAndRoute, Airport, Online, ResponseAirline, ResponseFlightRoute, ResponseJson,
     };
+    use crate::db::postgres::{ModelAircraft, ModelFlightroute};
+    use crate::db::redis::HASH_FIELD;
     use crate::parse_env;
     use crate::scraper::Scraper;
     use crate::start_incoming_requests;
@@ -342,35 +347,23 @@ pub mod tests {
     };
     use rand::random_range;
     use reqwest::StatusCode;
+    use serde::Serialize;
     use serde::de::DeserializeOwned;
     use tokio::task::JoinHandle;
 
+    /// Sleep for a given number of milliseconds, is an async fn.
+    /// If no parameter supplied, defaults to 1000ms
+    #[macro_export]
+    macro_rules! sleep {
+        () => {
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        };
+        ($ms:expr) => {
+            tokio::time::sleep(std::time::Duration::from_millis($ms)).await;
+        };
+    }
+
     const RATE_LIMIT_KEY: &str = "ratelimit::127.0.0.1";
-
-    /// Get the ratelimit ttl for RATE_LIMIT_KEY
-    async fn get_rate_limit_ttl(redis: &Pool) -> usize {
-        redis.ttl(RATE_LIMIT_KEY).await.unwrap()
-    }
-
-    /// Get the ratelimit points count for RATE_LIMIT_KEY
-    async fn get_rate_limit_count(redis: &Pool) -> usize {
-        redis.get(RATE_LIMIT_KEY).await.unwrap()
-    }
-
-    /// This is an aircraft in the DB with no photo attached
-    pub static AIRCRAFT_NO_PHOTO: LazyLock<ResponseAircraft> = LazyLock::new(|| ResponseAircraft {
-        aircraft_type: S!("208 B"),
-        icao_type: S!("C208"),
-        manufacturer: S!("Cessna"),
-        mode_s: S!("ADC1F0"),
-        registration: S!("N986FE"),
-        registered_owner: S!("FedEx Feeder"),
-        registered_owner_operator_flag_code: Some(S!("IRO")),
-        registered_owner_country_name: S!("United States"),
-        registered_owner_country_iso_name: S!("US"),
-        url_photo: None,
-        url_photo_thumbnail: None,
-    });
 
     /// This is a valid mode_s, but has no mathcin n_number
     pub const VALID_MODE_S_NO_N_NUMBER: &str = "CCD2D3";
@@ -392,6 +385,48 @@ pub mod tests {
     pub const UNKNOWN_AIRCRAFT_MODE_S: &str = "000000";
     pub const UNKNOWN_AIRCRAFT_REGISTRATION: &str = "00-000";
 
+    pub const AIRCRAFT_MODE_S: &str = "ADC1F0";
+
+    pub static DEFAULT_AIRCRAFT_PATH: LazyLock<String> =
+        LazyLock::new(|| format!("aircraft/{AIRCRAFT_MODE_S}"));
+
+    pub static DEFAULT_CALLSIGN_PATH: LazyLock<String> =
+        LazyLock::new(|| format!("callsign/{}", FLIGHTROUTE.callsign));
+
+    /// This is an aircraft in the DB with no photo attached
+    pub static AIRCRAFT_NO_PHOTO: LazyLock<ResponseAircraft> = LazyLock::new(|| ResponseAircraft {
+        aircraft_type: S!("208 B"),
+        icao_type: S!("C208"),
+        manufacturer: S!("Cessna"),
+        mode_s: S!("ADC1F0"),
+        registration: S!("N986FE"),
+        registered_owner: S!("FedEx Feeder"),
+        registered_owner_operator_flag_code: Some(S!("IRO")),
+        registered_owner_country_name: S!("United States"),
+        registered_owner_country_iso_name: S!("US"),
+        url_photo: None,
+        url_photo_thumbnail: None,
+    });
+
+    /// This is an aircraft in the DB with a photo attached
+    pub fn gen_aircraft_with_photo(pp: &PhotoPrefixes) -> ResponseAircraft {
+        ResponseAircraft {
+            aircraft_type: S!("Citation Sovereign"),
+            icao_type: S!("C680"),
+            manufacturer: S!("Cessna"),
+            mode_s: S!("A44F3B"),
+            registration: S!("N377QS"),
+            registered_owner: S!("NetJets"),
+            registered_owner_operator_flag_code: Some(S!("EJA")),
+            registered_owner_country_name: S!("United States"),
+            registered_owner_country_iso_name: S!("US"),
+            url_photo: Some(format!("{}{}", pp.photo, "001572354.jpg")),
+            url_photo_thumbnail: Some(format!("{}{}", pp.thumbnail, "001/572/001572354.jpg")),
+        }
+    }
+
+    pub const VALID_AUTH_HEADER: (&str, &str) = ("Authorization", "password123");
+
     pub static KNOWN_AIRLINE: LazyLock<ResponseAirline> = LazyLock::new(|| ResponseAirline {
         name: S!("Air Canada"),
         icao: S!("ACA"),
@@ -412,8 +447,8 @@ pub mod tests {
             elevation: 118,
             iata_code: Some(S!("YUL")),
             icao_code: S!("CYUL"),
-            latitude: 45.4706001282,
-            longitude: -73.7407989502,
+            latitude: 45.4706,
+            longitude: -73.7408,
             municipality: S!("Montréal"),
             name: S!("Montreal / Pierre Elliott Trudeau International Airport"),
         },
@@ -425,7 +460,7 @@ pub mod tests {
             iata_code: Some(S!("SJO")),
             icao_code: S!("MROC"),
             latitude: 9.99386,
-            longitude: -84.208801,
+            longitude: -84.2088,
             municipality: S!("San José (Alajuela)"),
             name: S!("Juan Santamaría International Airport"),
         },
@@ -444,7 +479,7 @@ pub mod tests {
                 iata_code: Some(S!("BDL")),
                 icao_code: S!("KBDL"),
                 latitude: 41.93851,
-                longitude: -72.688066,
+                longitude: -72.68807,
                 municipality: S!("Hartford"),
                 name: S!("Bradley International Airport"),
             },
@@ -455,8 +490,8 @@ pub mod tests {
                 elevation: 822,
                 iata_code: None,
                 icao_code: S!("KHFY"),
-                latitude: 39.628399,
-                longitude: -86.087898,
+                latitude: 39.6284,
+                longitude: -86.0879,
                 municipality: S!("Indianapolis"),
                 name: S!("Indy South Greenwood Airport"),
             },
@@ -482,8 +517,8 @@ pub mod tests {
                 elevation: 21,
                 iata_code: Some(S!("SYD")),
                 icao_code: S!("YSSY"),
-                latitude: -33.946_098_327_636_72,
-                longitude: 151.177_001_953_125,
+                latitude: -33.9461,
+                longitude: 151.177,
                 municipality: S!("Sydney"),
                 name: S!("Sydney Kingsford Smith International Airport"),
             },
@@ -494,7 +529,7 @@ pub mod tests {
                 iata_code: Some(S!("SIN")),
                 icao_code: S!("WSSS"),
                 latitude: 1.35019,
-                longitude: 103.994_003,
+                longitude: 103.994,
                 municipality: S!("Singapore"),
                 name: S!("Singapore Changi Airport"),
             }),
@@ -505,27 +540,133 @@ pub mod tests {
                 iata_code: Some(S!("LHR")),
                 icao_code: S!("EGLL"),
                 latitude: 51.4706,
-                longitude: -0.461_941,
+                longitude: -0.46194,
                 municipality: S!("London"),
                 name: S!("London Heathrow Airport"),
             },
         });
 
-    /// This is an aircraft in the DB with a photo attached
-    pub fn gen_aircraft_with_photo(pp: &PhotoPrefixes) -> ResponseAircraft {
-        ResponseAircraft {
-            aircraft_type: S!("Citation Sovereign"),
-            icao_type: S!("C680"),
-            manufacturer: S!("Cessna"),
-            mode_s: S!("A44F3B"),
-            registration: S!("N377QS"),
-            registered_owner: S!("NetJets"),
-            registered_owner_operator_flag_code: Some(S!("EJA")),
-            registered_owner_country_name: S!("United States"),
-            registered_owner_country_iso_name: S!("US"),
-            url_photo: Some(format!("{}{}", pp.photo, "001572354.jpg")),
-            url_photo_thumbnail: Some(format!("{}{}", pp.thumbnail, "001/572/001572354.jpg")),
+    fn gen_ttl_msg(x: u16) -> String {
+        format!("rate limited for {} seconds", x)
+    }
+    /// Get the ratelimit ttl for RATE_LIMIT_KEY
+    async fn get_rate_limit_ttl(redis: &Pool) -> usize {
+        redis.ttl(RATE_LIMIT_KEY).await.unwrap()
+    }
+
+    /// Get the ratelimit points count for RATE_LIMIT_KEY
+    async fn get_rate_limit_count(redis: &Pool) -> usize {
+        redis.get(RATE_LIMIT_KEY).await.unwrap()
+    }
+
+    pub async fn send_patch_request<T: Serialize>(
+        path: &str,
+        headers: Option<(&str, &str)>,
+        body: Option<T>,
+    ) -> reqwest::Response {
+        let mut request = CLIENT.patch(format!(
+            "http://127.0.0.1:8282{}/{path}",
+            API_VERSION.as_str()
+        ));
+
+        if let Some(headers) = headers {
+            request = request.header(headers.0, headers.1);
         }
+
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+
+        let response = request.send().await;
+        assert!(response.is_ok());
+        response.unwrap()
+    }
+
+    pub async fn cache_aircraft_exists(redis: &Pool) -> bool {
+        redis
+            .hexists(
+                RedisKey::ModeS(&ModeS::validate(AIRCRAFT_MODE_S).unwrap()).to_string(),
+                HASH_FIELD,
+            )
+            .await
+            .unwrap()
+            && redis
+                .hexists(
+                    RedisKey::Registration(
+                        &Registration::validate(&AIRCRAFT_NO_PHOTO.registration).unwrap(),
+                    )
+                    .to_string(),
+                    HASH_FIELD,
+                )
+                .await
+                .unwrap()
+    }
+
+    pub async fn cache_callsign_exists(redis: &Pool) -> bool {
+        let flightroute = FLIGHTROUTE.clone();
+        redis
+            .hexists(
+                RedisKey::Callsign(&Callsign::validate(&flightroute.callsign).unwrap()).to_string(),
+                HASH_FIELD,
+            )
+            .await
+            .unwrap()
+            && redis
+                .hexists(
+                    RedisKey::Callsign(
+                        &Callsign::validate(&flightroute.callsign_iata.unwrap()).unwrap(),
+                    )
+                    .to_string(),
+                    HASH_FIELD,
+                )
+                .await
+                .unwrap()
+    }
+
+    /// Return the aircraft details from redis
+    pub async fn get_aircraft_cache(redis: &Pool) -> ModelAircraft {
+        redis
+            .hget(
+                RedisKey::ModeS(&ModeS::validate(AIRCRAFT_MODE_S).unwrap()).to_string(),
+                HASH_FIELD,
+            )
+            .await
+            .unwrap()
+    }
+
+    /// Return the aircraft details from redis
+    pub async fn get_callsign_cache(redis: &Pool) -> ModelFlightroute {
+        redis
+            .hget(
+                RedisKey::Callsign(&Callsign::validate(&FLIGHTROUTE.callsign).unwrap()).to_string(),
+                HASH_FIELD,
+            )
+            .await
+            .unwrap()
+    }
+
+    /// Reset aircraft details back to original
+    pub async fn reset_aircraft() {
+        send_patch_request(
+            &DEFAULT_AIRCRAFT_PATH,
+            Some(VALID_AUTH_HEADER),
+            // AIRCRAFT_NO_PHOTO
+            Some(AIRCRAFT_NO_PHOTO.clone()),
+        )
+        .await;
+    }
+
+    /// Reset callsign back to original
+    pub async fn reset_callsign() {
+        send_patch_request(
+            &DEFAULT_CALLSIGN_PATH,
+            Some(VALID_AUTH_HEADER),
+            Some(HashMap::from([
+                ("origin", FLIGHTROUTE.origin.icao_code.as_str()),
+                ("destination", FLIGHTROUTE.destination.icao_code.as_str()),
+            ])),
+        )
+        .await;
     }
 
     /// Generate a ranomd hex string of length x
@@ -535,7 +676,6 @@ pub mod tests {
             .map(|_| HEX_CHARS[random_range(0..HEX_CHARS.len())] as char)
             .collect()
     }
-
     /// Reqwest client
     pub static CLIENT: LazyLock<reqwest::Client> =
         LazyLock::new(|| reqwest::ClientBuilder::new().build().unwrap());
@@ -571,24 +711,17 @@ pub mod tests {
         setup
     }
 
-    #[macro_export]
-    /// Sleep for a given number of milliseconds, is an async fn.
-    /// If no parameter supplied, defaults to 1000ms
-    macro_rules! sleep {
-        () => {
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-        };
-        ($ms:expr) => {
-            tokio::time::sleep(std::time::Duration::from_millis($ms)).await;
-        };
-    }
-
     /// Start the server, so can test over http, with all layers applied etc
-    async fn start_server() -> TestSetup {
+    pub async fn start_server(allow_update: Option<()>) -> TestSetup {
         let setup = test_setup().await;
+        let mut app_env = setup.app_env.clone();
+
+        if allow_update.is_none() {
+            app_env.allow_update = None;
+        }
 
         let postgres = setup.postgres.clone();
-        let app_env = setup.app_env.clone();
+        // let app_env = setup.app_env.clone();
         let redis = setup.redis.clone();
         setup.flush_redis().await;
 
@@ -654,7 +787,7 @@ pub mod tests {
         let cache = serde_json::from_str::<Stats>(&stats_cache.unwrap()).unwrap();
 
         assert_eq!(cache.daily.aircraft, vec![]);
-        assert_eq!(cache.daily.aircraft, vec![]);
+        assert_eq!(cache.daily.airline, vec![]);
         assert_eq!(cache.daily.callsign, vec![]);
         assert_eq!(cache.daily.n_number, vec![]);
         assert_eq!(cache.daily.mode_s, vec![]);
@@ -715,7 +848,7 @@ pub mod tests {
     /// Test the stats endpoint, can only really test the "daily" key, as the "total" key will have real data in it
     /// Check that the stats cache is correctly populated and ttl/expire working as expected
     async fn http_mod_get_stats() {
-        let setup = start_server().await;
+        let setup = start_server(None).await;
         assert_empty_stats_cache(&setup.redis).await;
 
         let response = get_response_200::<Stats>("stats").await;
@@ -747,7 +880,7 @@ pub mod tests {
     #[tokio::test]
     /// Check that request ids are correctly stores in the redis cache, with valid TTLs, and also inserted in postgres
     async fn http_mod_stats_cache() {
-        let setup = start_server().await;
+        let setup = start_server(None).await;
 
         test_seed_stats().await;
 
@@ -816,7 +949,7 @@ pub mod tests {
     /// /v[API_VERSION]/callsign/[ICAO]
     #[tokio::test]
     async fn http_mod_get_callsign_icao() {
-        start_server().await;
+        start_server(None).await;
         let known_flightroute = FLIGHTROUTE.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "callsign/{}",
@@ -825,14 +958,14 @@ pub mod tests {
         .await;
         assert!(response.aircraft.is_none());
         assert!(response.flightroute.is_some());
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Callsign route
     /// /v[API_VERSION]/callsign/[IATA]
     #[tokio::test]
     async fn http_mod_get_callsign_iata() {
-        start_server().await;
+        start_server(None).await;
         let mut known_flightroute = FLIGHTROUTE.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "callsign/{}",
@@ -842,14 +975,14 @@ pub mod tests {
         known_flightroute.callsign = known_flightroute.callsign_iata.as_ref().unwrap().to_owned();
         assert!(response.aircraft.is_none());
         assert!(response.flightroute.is_some());
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Callsign route
     /// /v[API_VERSION]/callsign/[OTHER]
     #[tokio::test]
     async fn http_mod_get_callsign_other() {
-        start_server().await;
+        start_server(None).await;
         let known_flightroute = FLIGHTROUTE_OTHER.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "callsign/{}",
@@ -858,14 +991,14 @@ pub mod tests {
         .await;
         assert!(response.aircraft.is_none());
         assert!(response.flightroute.is_some());
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Callsign route
     /// /v[API_VERSION]/callsign/[ICAO]
     #[tokio::test]
     async fn http_mod_get_callsign_midpoint_icao() {
-        start_server().await;
+        start_server(None).await;
         let known_flightroute = FLIGHTROUTE_MIDPOINT.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "callsign/{}",
@@ -874,14 +1007,14 @@ pub mod tests {
         .await;
         assert!(response.aircraft.is_none());
         assert!(response.flightroute.is_some());
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Callsign route
     /// /v[API_VERSION]/callsign/[IATA]
     #[tokio::test]
     async fn http_mod_get_callsign_midpoint_iata() {
-        start_server().await;
+        start_server(None).await;
         let mut known_flightroute = FLIGHTROUTE_MIDPOINT.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "callsign/{}",
@@ -891,14 +1024,14 @@ pub mod tests {
         known_flightroute.callsign = known_flightroute.callsign_iata.as_ref().unwrap().to_owned();
         assert!(response.aircraft.is_none());
         assert!(response.flightroute.is_some());
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Callsign route
     /// /v[API_VERSION]/callsign/[ICAO]
     #[tokio::test]
     async fn http_mod_get_callsign_icao_unknown() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("callsign/{}", UNKNOWN_CALLSIGN_ICAO)).await;
         assert_eq!(response, "unknown callsign");
@@ -908,7 +1041,7 @@ pub mod tests {
     /// /v[API_VERSION]/callsign/[IATA]
     #[tokio::test]
     async fn http_mod_get_callsign_iata_unknown() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("callsign/{}", UNKNOWN_CALLSIGN_IATA)).await;
         assert_eq!(response, "unknown callsign");
@@ -916,10 +1049,9 @@ pub mod tests {
 
     /// Callsign route
     /// /v[API_VERSION]/callsign/[OTHER]
-
     #[tokio::test]
     async fn http_mod_get_callsign_other_unknown() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("callsign/{}", UNKNOWN_CALLSIGN_OTHER)).await;
         assert_eq!(response, "unknown callsign");
@@ -929,7 +1061,7 @@ pub mod tests {
     /// /v[API_VERSION]/callsign/[random_string]
     #[tokio::test]
     async fn http_mod_get_callsign_malformed() {
-        start_server().await;
+        start_server(None).await;
         let random_hex = random_hex(10);
         let response = get_response_400::<String>(&format!("callsign/{}", random_hex)).await;
         assert_eq!(response, format!("invalid callsign: {random_hex}"));
@@ -939,7 +1071,7 @@ pub mod tests {
     /// /v[API_VERSION]/callsign/random
     #[tokio::test]
     async fn http_mod_get_callsign_random() {
-        start_server().await;
+        start_server(None).await;
         for _ in 0..20 {
             let response = get_response_200::<AircraftAndRoute>("callsign/random").await;
             assert!(response.aircraft.is_none());
@@ -955,7 +1087,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/random
     #[tokio::test]
     async fn http_mod_get_aircraft_random() {
-        start_server().await;
+        start_server(None).await;
         for _ in 0..20 {
             let response = get_response_200::<AircraftAndRoute>("aircraft/random").await;
             assert!(response.aircraft.is_some());
@@ -967,7 +1099,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[UNKNOWN_ICAO]
     #[tokio::test]
     async fn http_mod_get_aircraft_unknown_icao() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("aircraft/{UNKNOWN_AIRCRAFT_MODE_S}",)).await;
         assert_eq!(response, "unknown aircraft");
@@ -977,7 +1109,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[UNKNOWN_ICAO]
     #[tokio::test]
     async fn http_mod_get_aircraft_unknown_registration() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("aircraft/{UNKNOWN_AIRCRAFT_REGISTRATION}",)).await;
         assert_eq!(response, "unknown aircraft");
@@ -987,7 +1119,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[malformed]
     #[tokio::test]
     async fn http_mod_get_aircraft_malformed() {
-        start_server().await;
+        start_server(None).await;
         let response = get_response_404::<String>(&format!("aircraft/{}", random_hex(8))).await;
         assert_eq!(response, "unknown aircraft");
     }
@@ -996,7 +1128,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[MODE_S]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response =
             get_response_200::<AircraftAndRoute>(&format!("aircraft/{}", known_aircraft.mode_s))
@@ -1010,7 +1142,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[MODE_S]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let response =
             get_response_200::<AircraftAndRoute>(&format!("aircraft/{}", known_aircraft.mode_s))
@@ -1024,7 +1156,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[registration]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}",
@@ -1040,7 +1172,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[registration]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_s_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}",
@@ -1056,7 +1188,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[MODE_S]?callsign=[UNKNOWN_ICAO]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_unknown_flightroute_icao() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}?callsign={}",
@@ -1072,7 +1204,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[MODE_S]?callsign=[UNKNOWN_IATA]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_unknown_flightroute_iata() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}?callsign={}",
@@ -1088,7 +1220,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[MODE_S]?callsign=[UNKNOWN_OTHER]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_unknown_flightroute_other() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}?callsign={}",
@@ -1103,7 +1235,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[REGISTRATION]?callsign=[UNKNOWN_ICAO]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_unknown_flightroute_icao() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}?callsign={}",
@@ -1119,7 +1251,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[REGISTRATION]?callsign=[UNKNOWN_IATA]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_unknown_flightroute_iata() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}?callsign={}",
@@ -1135,7 +1267,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[REGISTRATION]?callsign=[UNKNOWN_OTHER]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_unknown_flightroute_other() {
-        let state = start_server().await;
+        let state = start_server(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
             "aircraft/{}?callsign={}",
@@ -1151,7 +1283,7 @@ pub mod tests {
     /// /v[API_VERSION]/aircraft/[MODE_S]?callsign=[ICAO]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_callsign_icao_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let known_flightroute = FLIGHTROUTE.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
@@ -1163,14 +1295,14 @@ pub mod tests {
         assert!(response.aircraft.is_some());
         assert!(response.flightroute.is_some());
         assert_eq!(response.aircraft.unwrap(), known_aircraft);
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Aircraft route
     /// /v[API_VERSION]/aircraft/[MODE_S]?callsign=[IATA]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_callsign_iata_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let mut known_flightroute = FLIGHTROUTE.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
@@ -1183,14 +1315,14 @@ pub mod tests {
         assert!(response.flightroute.is_some());
         known_flightroute.callsign = known_flightroute.callsign_iata.as_ref().unwrap().to_owned();
         assert_eq!(response.aircraft.unwrap(), known_aircraft);
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Aircraft route
     /// /v[API_VERSION]/aircraft/[MODE_S]?callsign=[OTHER]
     #[tokio::test]
     async fn http_mod_get_aircraft_mode_s_callsign_other_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let known_flightroute = FLIGHTROUTE_OTHER.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
@@ -1201,13 +1333,14 @@ pub mod tests {
         assert!(response.aircraft.is_some());
         assert!(response.flightroute.is_some());
         assert_eq!(response.aircraft.unwrap(), known_aircraft);
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
+
     /// Aircraft route
     /// /v[API_VERSION]/aircraft/[REGISTRATION]?callsign=[ICAO]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_callsign_icao_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let known_flightroute = FLIGHTROUTE.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
@@ -1219,14 +1352,14 @@ pub mod tests {
         assert!(response.aircraft.is_some());
         assert!(response.flightroute.is_some());
         assert_eq!(response.aircraft.unwrap(), known_aircraft);
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Aircraft route
     /// /v[API_VERSION]/aircraft/[REGISTRATION]?callsign=[IATA]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_callsign_iata_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let mut known_flightroute = FLIGHTROUTE.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
@@ -1239,14 +1372,14 @@ pub mod tests {
         assert!(response.flightroute.is_some());
         known_flightroute.callsign = known_flightroute.callsign_iata.as_ref().unwrap().to_owned();
         assert_eq!(response.aircraft.unwrap(), known_aircraft);
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     /// Aircraft route
     /// /v[API_VERSION]/aircraft/[REGISTRATION]?callsign=[OTHER]
     #[tokio::test]
     async fn http_mod_get_aircraft_registration_callsign_other_no_photo() {
-        start_server().await;
+        start_server(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let known_flightroute = FLIGHTROUTE_OTHER.clone();
         let response = get_response_200::<AircraftAndRoute>(&format!(
@@ -1257,7 +1390,7 @@ pub mod tests {
         assert!(response.aircraft.is_some());
         assert!(response.flightroute.is_some());
         assert_eq!(response.aircraft.unwrap(), known_aircraft);
-        assert_eq!(response.flightroute.unwrap(), known_flightroute);
+        assert_eq!(known_flightroute, response.flightroute.unwrap());
     }
 
     ///***************
@@ -1268,7 +1401,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/random
     #[tokio::test]
     async fn http_mod_get_airline_random() {
-        start_server().await;
+        start_server(None).await;
         for _ in 0..20 {
             let response = get_response_200::<Vec<ResponseAirline>>("airline/random").await;
             assert!(response.len() == 1);
@@ -1280,7 +1413,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/[UNKNOWN_ICAO]
     #[tokio::test]
     async fn http_mod_get_airline_unknown_icao() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("airline/{UNKNOWN_AIRLINE_ICAO}",)).await;
         assert_eq!(response, "unknown airline");
@@ -1290,7 +1423,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/[UNKNOWN_IATA]
     #[tokio::test]
     async fn http_mod_get_airline_unknown_iata() {
-        start_server().await;
+        start_server(None).await;
         let response = get_response_404::<String>(&format!("airline/{UNKNOWN_AIRLINE_IATA}")).await;
         assert_eq!(response, "unknown airline");
     }
@@ -1299,7 +1432,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/[random]
     #[tokio::test]
     async fn http_mod_get_airline_unknown_random() {
-        start_server().await;
+        start_server(None).await;
         let response = get_response_404::<String>(&format!("airline/{}", random_hex(3))).await;
         assert_eq!(response, "unknown airline");
     }
@@ -1308,7 +1441,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/[malformed]
     #[tokio::test]
     async fn http_mod_get_airline_unknown_malformed() {
-        start_server().await;
+        start_server(None).await;
         let random_hex = random_hex(10);
         let response = get_response_400::<String>(&format!("airline/{}", random_hex)).await;
         assert_eq!(response, format!("invalid airline: {random_hex}"));
@@ -1318,7 +1451,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/[ICAO]
     #[tokio::test]
     async fn http_mod_get_airline_icao() {
-        start_server().await;
+        start_server(None).await;
         let airline = KNOWN_AIRLINE.clone();
         let response =
             get_response_200::<Vec<ResponseAirline>>(&format!("airline/{}", airline.icao)).await;
@@ -1329,7 +1462,7 @@ pub mod tests {
     /// /v[API_VERSION]/airline/[IATA]
     #[tokio::test]
     async fn http_mod_get_airline_iata() {
-        start_server().await;
+        start_server(None).await;
         let airline = KNOWN_AIRLINE.clone();
         let response = get_response_200::<Vec<ResponseAirline>>(&format!(
             "airline/{}",
@@ -1347,7 +1480,7 @@ pub mod tests {
     /// /v[API_VERSION]/n-number/[VALID-N-NUMBER]
     #[tokio::test]
     async fn http_mod_get_n_number_valid() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_200::<String>(&format!("n-number/{}", AIRCRAFT_NO_PHOTO.registration))
                 .await;
@@ -1358,7 +1491,7 @@ pub mod tests {
     /// /v[API_VERSION]/n-number/[VALID-N-NUMBER]
     #[tokio::test]
     async fn http_mod_get_n_number_invalid() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_400::<String>(&format!("n-number/{}", AIRCRAFT_NO_PHOTO.mode_s)).await;
         assert_eq!(
@@ -1371,7 +1504,7 @@ pub mod tests {
     /// /v[API_VERSION]/n-number/[VALID-N-NUMBER]/[random_hex]
     #[tokio::test]
     async fn http_mod_get_n_number_404() {
-        start_server().await;
+        start_server(None).await;
         let aircraft = AIRCRAFT_NO_PHOTO.clone();
         let random_hex = random_hex(10);
         let response = get_response_404::<String>(&format!(
@@ -1396,7 +1529,7 @@ pub mod tests {
     /// /v[API_VERSION]/mode-s/[VALID-MODE-S]
     #[tokio::test]
     async fn http_mod_get_mode_s_valid() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_200::<String>(&format!("mode-s/{}", AIRCRAFT_NO_PHOTO.mode_s)).await;
         assert_eq!(response, AIRCRAFT_NO_PHOTO.registration);
@@ -1406,7 +1539,7 @@ pub mod tests {
     /// /v[API_VERSION]/mode-s/[INVALID-MODE-S]
     #[tokio::test]
     async fn http_mod_get_mode_s_invalid() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_400::<String>(&format!("mode-s/{}", AIRCRAFT_NO_PHOTO.registration)).await;
         assert_eq!(
@@ -1419,7 +1552,7 @@ pub mod tests {
     /// /v[API_VERSION]/mode-s/[VALID-MODE-S-INVALID-CONVERSION]
     #[tokio::test]
     async fn http_mod_get_mode_s_valid_invalid_n_number() {
-        start_server().await;
+        start_server(None).await;
         let response =
             get_response_404::<String>(&format!("mode-s/{VALID_MODE_S_NO_N_NUMBER}")).await;
         assert_eq!(response, "unknown mode-s conversion");
@@ -1429,7 +1562,7 @@ pub mod tests {
     /// /v[API_VERSION]/mode-s/[VALID-MODE-S]/[RANDOM_HEX]
     #[tokio::test]
     async fn http_mod_get_mode_s_404() {
-        start_server().await;
+        start_server(None).await;
         let random_hex = random_hex(10);
         let response = get_response_404::<String>(&format!(
             "mode-s/{}/{}",
@@ -1453,7 +1586,7 @@ pub mod tests {
     /// /v[API_VERSION]/mode-s/[VALID-MODE-S]
     #[tokio::test]
     async fn http_mod_get_online() {
-        start_server().await;
+        start_server(None).await;
         sleep!();
         let response = get_response_200::<Online>("online").await;
 
@@ -1465,7 +1598,7 @@ pub mod tests {
     /// /v[API_VERSION]/online/[RANDOM_HEX]
     #[tokio::test]
     async fn http_mod_get_online_404() {
-        start_server().await;
+        start_server(None).await;
         let random_hex = random_hex(10);
         let response = get_response_404::<String>(&format!("online/{}", random_hex)).await;
         assert_eq!(
@@ -1481,8 +1614,7 @@ pub mod tests {
     #[tokio::test]
     /// Not rate limited, but rate limit points = number of requests, and ttl 60
     async fn http_mod_rate_limit() {
-        let setup = start_server().await;
-
+        let setup = start_server(None).await;
         for _ in 1..=45 {
             get_response_200::<Online>("online").await;
         }
@@ -1493,7 +1625,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn http_mod_rate_limit_small() {
-        let setup = start_server().await;
+        let setup = start_server(None).await;
 
         for _ in 1..=511 {
             send_request("online").await;
@@ -1504,7 +1636,7 @@ pub mod tests {
 
         // 512th+ request is rate limited
         let response = get_response_429().await;
-        assert_eq!(response, "rate limited for 60 seconds");
+        assert_eq!(response, gen_ttl_msg(60));
 
         assert_eq!(get_rate_limit_ttl(&setup.redis).await, 60);
 
@@ -1516,7 +1648,7 @@ pub mod tests {
 
         // TTL doesn't get reset on further requwest
         let response = get_response_429().await;
-        assert_eq!(response, "rate limited for 58 seconds");
+        assert_eq!(response, gen_ttl_msg(58));
         assert_eq!(get_rate_limit_ttl(&setup.redis).await, 58);
 
         // points increased
@@ -1525,9 +1657,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn http_mod_rate_limit_big() {
-        let setup = start_server().await;
-
-        let rl_300 = "rate limited for 300 seconds";
+        let setup = start_server(None).await;
 
         for _ in 1..=1023 {
             send_request("online").await;
@@ -1535,11 +1665,11 @@ pub mod tests {
 
         // 1023rd request is rate limited
         let response = get_response_429().await;
-        assert_eq!(response, "rate limited for 60 seconds");
+        assert!([gen_ttl_msg(59), gen_ttl_msg(60)].contains(&response));
 
         // 1024th + request is rate limited for 300 seconds
         let response = get_response_429().await;
-        assert_eq!(response, rl_300);
+        assert_eq!(response, gen_ttl_msg(300));
 
         assert_eq!(get_rate_limit_ttl(&setup.redis).await, 300);
 
@@ -1550,7 +1680,7 @@ pub mod tests {
 
         // TTL is reset to 300 on one more request
         let response = get_response_429().await;
-        assert_eq!(response, rl_300);
+        assert_eq!(response, gen_ttl_msg(300));
         assert_eq!(get_rate_limit_ttl(&setup.redis).await, 300);
 
         // points increased

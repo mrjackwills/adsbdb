@@ -1,4 +1,5 @@
 use axum::Json;
+use bigdecimal::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::db::postgres::{EntryCount, ModelAircraft, ModelAirline, ModelFlightroute};
@@ -135,8 +136,14 @@ impl Airport {
             elevation: flightroute.origin_airport_elevation,
             iata_code: flightroute.origin_airport_iata_code.clone(),
             icao_code: flightroute.origin_airport_icao_code.clone(),
-            latitude: flightroute.origin_airport_latitude,
-            longitude: flightroute.origin_airport_longitude,
+            latitude: flightroute
+                .origin_airport_latitude
+                .to_f64()
+                .unwrap_or_default(),
+            longitude: flightroute
+                .origin_airport_longitude
+                .to_f64()
+                .unwrap_or_default(),
             municipality: flightroute.origin_airport_municipality.clone(),
         };
 
@@ -162,8 +169,18 @@ impl Airport {
                     .midpoint_airport_icao_code
                     .clone()
                     .unwrap_or_default(),
-                latitude: flightroute.midpoint_airport_latitude.unwrap_or_default(),
-                longitude: flightroute.midpoint_airport_longitude.unwrap_or_default(),
+                latitude: flightroute
+                    .midpoint_airport_latitude
+                    .clone()
+                    .unwrap_or_default()
+                    .to_f64()
+                    .unwrap_or_default(),
+                longitude: flightroute
+                    .midpoint_airport_longitude
+                    .clone()
+                    .unwrap_or_default()
+                    .to_f64()
+                    .unwrap_or_default(),
                 municipality: flightroute
                     .midpoint_airport_municipality
                     .clone()
@@ -180,8 +197,14 @@ impl Airport {
             elevation: flightroute.destination_airport_elevation,
             iata_code: flightroute.destination_airport_iata_code.clone(),
             icao_code: flightroute.destination_airport_icao_code.clone(),
-            latitude: flightroute.destination_airport_latitude,
-            longitude: flightroute.destination_airport_longitude,
+            latitude: flightroute
+                .destination_airport_latitude
+                .to_f64()
+                .unwrap_or_default(),
+            longitude: flightroute
+                .destination_airport_longitude
+                .to_f64()
+                .unwrap_or_default(),
             municipality: flightroute.destination_airport_municipality.clone(),
         };
         (origin, midpoint, destination)

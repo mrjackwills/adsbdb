@@ -15,7 +15,9 @@ RUN addgroup -g ${DOCKER_GUID} -S ${DOCKER_APP_GROUP} \
 COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/init_postgres.sh /docker-entrypoint-initdb.d/
 
 # This is a bit of a hack, for pg_dump.tar, this can fail if pg_dump.tar doesn't exist!
-COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/init_db.sql ./docker/init/migrations.sql ./docker/data/pg_dump.tar* /init/
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/init/init_db.sql ./docker/data/pg_dump.tar* /init/
+
+COPY --chown=${DOCKER_APP_USER}:${DOCKER_APP_GROUP} ./docker/migrations /migrations
 
 # Create .psqlrc file
 RUN printf '\\timing\n\\x auto\n\\pset null [NULL]\n' > "/home/${DOCKER_APP_USER}/.psqlrc"

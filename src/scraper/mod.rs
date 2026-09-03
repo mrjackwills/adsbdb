@@ -380,9 +380,12 @@ impl Scraper {
 #[cfg(test)]
 #[allow(clippy::pedantic, clippy::unwrap_used)]
 pub mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use crate::api::{AircraftSearch, ModeS, PhotoPrefixes, Validate};
     use crate::{S, create_oneshot, db};
+    use bigdecimal::BigDecimal;
     use fred::interfaces::ClientLike;
     use serde::de::IntoDeserializer;
     use serde::de::value::{Error as ValueError, StringDeserializer};
@@ -530,8 +533,8 @@ pub mod tests {
             origin_airport_elevation: 12,
             origin_airport_iata_code: Some(S!("OKA")),
             origin_airport_icao_code: S!("ROAH"),
-            origin_airport_latitude: 26.195_801,
-            origin_airport_longitude: 127.646_004,
+            origin_airport_latitude: BigDecimal::from_str("26.1958").unwrap(),
+            origin_airport_longitude: BigDecimal::from_str("127.6460").unwrap(),
             origin_airport_municipality: S!("Naha"),
             origin_airport_name: S!("Naha Airport / JASDF Naha Air Base"),
             midpoint_airport_country_iso_name: None,
@@ -548,12 +551,12 @@ pub mod tests {
             destination_airport_elevation: 35,
             destination_airport_iata_code: Some(S!("HND")),
             destination_airport_icao_code: S!("RJTT"),
-            destination_airport_latitude: 35.552_299,
-            destination_airport_longitude: 139.779_999,
+            destination_airport_latitude: BigDecimal::from_str("35.5523").unwrap(),
+            destination_airport_longitude: BigDecimal::from_str("139.7800").unwrap(),
             destination_airport_municipality: S!("Tokyo"),
             destination_airport_name: S!("Tokyo Haneda International Airport"),
         };
-        assert_eq!(result, expected);
+        assert_eq!(expected, result);
         remove_scraped_data(&setup.1).await;
     }
 
@@ -577,6 +580,7 @@ pub mod tests {
 
     #[tokio::test]
     /// TODO need to test photo is some and thumnaibail is none
+    /// TODO is the above still valid?
     async fn scraper_get_photo() {
         let setup = test_setup().await;
         remove_scraped_data(&setup.1).await;
@@ -615,7 +619,6 @@ pub mod tests {
         .unwrap()
         .unwrap();
 
-        println!("{result:#?}");
         assert!(result.url_photo.is_some());
         let url_photo = result.url_photo.unwrap();
         assert!(url_photo.ends_with("987654321.jpg"));

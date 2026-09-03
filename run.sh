@@ -133,7 +133,9 @@ wait_for_pg_restore() {
 # Ask if migrations want to be run, will check for pg_restore beforehand
 run_migrations() {
 	# This is flaky
-	sleep 30
+	if [[ "$1" != "1" ]]; then
+		sleep 30
+	fi
 	wait_for_pg_restore
 	if ask_yn "run migrations"; then
 		restart_base_containers
@@ -290,7 +292,7 @@ main() {
 			pull_branch
 			;;
 		7)
-			run_migrations
+			run_migrations 1
 			;;
 		esac
 	done

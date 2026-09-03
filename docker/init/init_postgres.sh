@@ -39,13 +39,16 @@ bootstrap_from_sql_file() {
 	psql -U "${POSTGRES_USER}" -d "${POSTGRES_USER}" -f /init/init_db.sql
 }
 
-# Run any & all migrations
+# Run any & all migrations in filename order
 run_migrations() {
-	# need env port here!
-	if ! psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${DB_NAME}" -f "/init/migrations.sql"; then
-		echo "Error: Failed to run migrations.sql" >&2
-		exit 1
-	fi
+	local LC_ALL=C
+	for file in /migrations/*.sql; do
+		[ -f "$file" ] || continue
+		echo "Running $(basename "${file}")"
+		if ! psql -v ON_ERROR_STOP=0 -U "${POSTGRES_USER}" -d "${DB_NAME}" -f "${file}"; then
+			echo "Error: Failed to run ${file}" >&2
+		fi
+	done
 }
 
 # # restore a db from a pg_dump file
