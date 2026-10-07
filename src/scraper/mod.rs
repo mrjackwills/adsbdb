@@ -335,7 +335,7 @@ impl Scraper {
 
         sleep!(500);
         match mode_s.to_string().as_str() {
-            "393C00" => Some(PhotoResponse {
+            "AD66C4" => Some(PhotoResponse {
                 status: 200,
                 count: Some(1),
                 data: Some([PhotoData {
@@ -391,6 +391,7 @@ pub mod tests {
     use serde::de::value::{Error as ValueError, StringDeserializer};
 
     pub const EXAMPLE_PHOTO_NAME: &str = "987654321.jpg";
+    // This will fail!
     pub const TEST_CALLSIGN: &str = "ANA460";
     const TEST_ORIGIN: &str = "ROAH";
     const TEST_DESTINATION: &str = "RJTT";
@@ -504,7 +505,8 @@ pub mod tests {
     /// in test mode, live site is actually just include_str()
     async fn scraper_scrape_for_route_insert() {
         let callsign = Callsign::validate(TEST_CALLSIGN).unwrap();
-        let setup = test_setup().await;
+        let mut setup = test_setup().await;
+        setup.0.allow_scrape_flightroute = Some(());
         remove_scraped_data(&setup.1).await;
         let sender = Scraper::start(&setup.0, &setup.1);
         let (s, r) = create_oneshot();
@@ -579,14 +581,12 @@ pub mod tests {
     }
 
     #[tokio::test]
-    /// TODO need to test photo is some and thumnaibail is none
-    /// TODO is the above still valid?
     async fn scraper_get_photo() {
-        let setup = test_setup().await;
+        let mut setup = test_setup().await;
+        setup.0.allow_scrape_photo = Some(());
         remove_scraped_data(&setup.1).await;
         let sender = Scraper::start(&setup.0, &setup.1);
-
-        let mode_s = ModeS::from(S!("393C00"));
+        let mode_s = ModeS::from(S!("AD66C4"));
 
         let photo_prefix = PhotoPrefixes::from(&setup.0);
 
@@ -608,6 +608,7 @@ pub mod tests {
             .await
             .unwrap();
         let result = r.await;
+
         assert!(result.is_ok());
 
         let result = ModelAircraft::get(
@@ -618,7 +619,6 @@ pub mod tests {
         .await
         .unwrap()
         .unwrap();
-
         assert!(result.url_photo.is_some());
         let url_photo = result.url_photo.unwrap();
         assert!(url_photo.ends_with("987654321.jpg"));
@@ -635,7 +635,7 @@ pub mod tests {
         setup.0.allow_scrape_photo = None;
         let sender = Scraper::start(&setup.0, &setup.1);
 
-        let mode_s = ModeS::from(S!("393C00"));
+        let mode_s = ModeS::from(S!("AD66C4"));
         let photo_prefix = PhotoPrefixes::from(&setup.0);
 
         let result = ModelAircraft::get(

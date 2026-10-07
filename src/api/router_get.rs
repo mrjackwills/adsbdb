@@ -406,8 +406,10 @@ mod tests {
     }
 
     /// Get application state for test, also delete recent request stats
-    async fn get_application_state() -> State<ApplicationState> {
-        let app_env = parse_env::AppEnv::get_env();
+    async fn get_application_state(scrape: Option<()>) -> State<ApplicationState> {
+        let mut app_env = parse_env::AppEnv::get_env();
+        app_env.allow_scrape_flightroute = scrape;
+        app_env.allow_scrape_photo = scrape;
         let postgres = db::postgres::get_pool(&app_env).await.unwrap();
         let redis = db::redis::get_pool(&app_env).await.unwrap();
         redis.flushall::<()>(true).await.unwrap();
@@ -456,7 +458,7 @@ mod tests {
     // /v[API_VERSION]/online
     #[tokio::test]
     async fn api_router_online_route() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
 
         sleep!();
         let response = ApiRoutes::online_get(state).await;
@@ -509,7 +511,7 @@ mod tests {
     /// /v[API_VERSION]/stats
     #[tokio::test]
     async fn api_router_get_stats() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
 
         let response = ApiRoutes::stats_get(state.clone()).await;
 
@@ -522,7 +524,7 @@ mod tests {
     /// /v[API_VERSION]/airline/[airline_icao]
     #[tokio::test]
     async fn api_router_airline_get_icao() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_flightroute = FLIGHTROUTE.clone();
         let airline_code = AirlineCode::Icao(known_flightroute.airline.clone().unwrap().icao);
         let response = ApiRoutes::airline_get(state.clone(), airline_code.clone()).await;
@@ -545,7 +547,7 @@ mod tests {
     /// /v[API_VERSION]/airline/[airline_iata]
     #[tokio::test]
     async fn api_router_airline_get_iata() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_flightroute = FLIGHTROUTE.clone();
         let airline_code =
             AirlineCode::Iata(known_flightroute.airline.clone().unwrap().iata.unwrap());
@@ -569,7 +571,7 @@ mod tests {
     /// /v[API_VERSION]/airline/[unknown_icao]
     #[tokio::test]
     async fn api_router_airline_get_icao_unknown() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let airline_code = AirlineCode::Icao(UNKNOWN_AIRLINE_ICAO.to_owned());
         let response = ApiRoutes::airline_get(state.clone(), airline_code.clone()).await;
 
@@ -586,7 +588,7 @@ mod tests {
     /// /v[API_VERSION]/airline/[unknown_iata]
     #[tokio::test]
     async fn api_router_airline_get_iata_unknown() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let airline_code = AirlineCode::Iata(UNKNOWN_AIRLINE_IATA.to_owned());
         let response = ApiRoutes::airline_get(state.clone(), airline_code.clone()).await;
 
@@ -603,7 +605,7 @@ mod tests {
     /// /v[API_VERSION]/airline/random
     #[tokio::test]
     async fn api_router_airline_get_random() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
 
         for _ in 0..=20 {
             let response = ApiRoutes::airline_random_get(state.clone()).await;
@@ -618,7 +620,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/random
     #[tokio::test]
     async fn api_router_callsign_get_random() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         for _ in 0..=20 {
             let response = ApiRoutes::callsign_random_get(state.clone()).await;
             assert!(response.is_ok());
@@ -670,7 +672,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[icao_callsign]
     #[tokio::test]
     async fn api_router_callsign_get_icao() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_flightroute = FLIGHTROUTE.clone();
         let callsign =
             Callsign::validate(&known_flightroute.callsign_icao.clone().unwrap()).unwrap();
@@ -699,7 +701,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[icao_callsign]
     #[tokio::test]
     async fn api_router_callsign_get_icao_404() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let callsign = Callsign::validate(UNKNOWN_CALLSIGN_ICAO).unwrap();
         let response = ApiRoutes::callsign_get(state.clone(), callsign.clone()).await;
         assert!(response.is_err());
@@ -716,7 +718,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[iata_callsign]
     #[tokio::test]
     async fn api_router_callsign_get_iata() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let mut known_flightroute = FLIGHTROUTE.clone();
         let callsign =
             Callsign::validate(&known_flightroute.callsign_iata.clone().unwrap()).unwrap();
@@ -744,7 +746,7 @@ mod tests {
 
     #[tokio::test]
     async fn api_router_callsign_get_iata_404() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let callsign = Callsign::validate(UNKNOWN_CALLSIGN_IATA).unwrap();
         let response = ApiRoutes::callsign_get(state.clone(), callsign.clone()).await;
         assert!(response.is_err());
@@ -761,7 +763,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[other - aka n-number flights]
     #[tokio::test]
     async fn api_router_callsign_get_other() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_flightroute = FLIGHTROUTE_OTHER.clone();
         let callsign = Callsign::validate(&known_flightroute.callsign.clone()).unwrap();
         let response = ApiRoutes::callsign_get(state.clone(), callsign.clone()).await;
@@ -791,7 +793,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[other - aka n-number flights]
     #[tokio::test]
     async fn api_router_callsign_get_other_404() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let callsign = Callsign::validate(UNKNOWN_CALLSIGN_OTHER).unwrap();
         let response = ApiRoutes::callsign_get(state.clone(), callsign.clone()).await;
         assert!(response.is_err());
@@ -808,7 +810,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[icao_callsign]
     #[tokio::test]
     async fn api_router_callsign_get_icao_midpoint() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_flightroute = FLIGHTROUTE_MIDPOINT.clone();
         let callsign =
             Callsign::validate(&known_flightroute.callsign_icao.clone().unwrap()).unwrap();
@@ -837,7 +839,7 @@ mod tests {
     /// /v[API_VERSION]/callsign/[iata_callsign]
     #[tokio::test]
     async fn api_router_callsign_get_iata_midpoint() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let mut known_flightroute = FLIGHTROUTE_MIDPOINT.clone();
         let callsign =
             Callsign::validate(&known_flightroute.callsign_iata.clone().unwrap()).unwrap();
@@ -867,7 +869,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/random
     #[tokio::test]
     async fn api_router_aircraft_random() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         for _ in 0..=20 {
             let response = ApiRoutes::aircraft_random_get(state.clone()).await;
             assert!(response.is_ok());
@@ -912,7 +914,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_404() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let mode_s = ModeS::validate("FFFFFF").unwrap();
         let aircraft_search = AircraftSearch::ModeS(mode_s.clone());
 
@@ -932,7 +934,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]
     #[tokio::test]
     async fn api_router_aircraft_registration_404() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let registration = Registration::validate("FFFFFF").unwrap();
         let aircraft_search = AircraftSearch::Registration(registration.clone());
 
@@ -956,7 +958,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_no_photo() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let mode_s = ModeS::validate(&known_aircraft.mode_s).unwrap();
         let aircraft_search = AircraftSearch::ModeS(mode_s.clone());
@@ -984,7 +986,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let mode_s = ModeS::validate(&known_aircraft.mode_s).unwrap();
         let aircraft_search = AircraftSearch::ModeS(mode_s.clone());
@@ -1012,7 +1014,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]
     #[tokio::test]
     async fn api_router_aircraft_registration_no_photo() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = AIRCRAFT_NO_PHOTO.clone();
         let registration = Registration::validate(&known_aircraft.registration).unwrap();
         let aircraft_search = AircraftSearch::Registration(registration.clone());
@@ -1040,7 +1042,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let registration = Registration::validate(&known_aircraft.registration).unwrap();
         let aircraft_search = AircraftSearch::Registration(registration.clone());
@@ -1068,7 +1070,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]?callsign=[icao]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo_flightroute_icao() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let known_flightroute = FLIGHTROUTE.clone();
 
@@ -1119,7 +1121,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]?callsign=[iata]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo_flightroute_iata() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let mut known_flightroute = FLIGHTROUTE.clone();
 
@@ -1173,7 +1175,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]?callsign=[other]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo_flightroute_other() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let known_flightroute = FLIGHTROUTE_OTHER.clone();
 
@@ -1221,7 +1223,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]?callsign=[unknown_icao]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo_flightroute_unknown_icao() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
 
         let mut query = EMPTY_QUERY.clone();
@@ -1259,7 +1261,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]?callsign=[unknown_iata]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo_flightroute_unknown_iata() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
 
         let mut query = EMPTY_QUERY.clone();
@@ -1297,7 +1299,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[mode_s]?callsign=[unknown_other]
     #[tokio::test]
     async fn api_router_aircraft_mode_s_with_photo_flightroute_unknown_other() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
 
         let mut query = EMPTY_QUERY.clone();
@@ -1337,7 +1339,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]?callsign=[icao]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo_flightroute_icao() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let known_flightroute = FLIGHTROUTE.clone();
 
@@ -1388,7 +1390,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]?callsign=[iata]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo_flightroute_iata() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let mut known_flightroute = FLIGHTROUTE.clone();
 
@@ -1443,7 +1445,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]?callsign=[other]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo_flightroute_other() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
         let known_flightroute = FLIGHTROUTE_OTHER.clone();
 
@@ -1491,7 +1493,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]?callsign=[unknown_icao]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo_flightroute_unknown_icao() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
 
         let mut query = EMPTY_QUERY.clone();
@@ -1529,7 +1531,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]?callsign=[unknown_iata]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo_flightroute_unknown_iata() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
 
         let mut query = EMPTY_QUERY.clone();
@@ -1567,7 +1569,7 @@ mod tests {
     /// /v[API_VERSION]/aircraft/[registration]?callsign=[unknown_other]
     #[tokio::test]
     async fn api_router_aircraft_registration_with_photo_flightroute_unknown_other() {
-        let state = get_application_state().await;
+        let state = get_application_state(None).await;
         let known_aircraft = gen_aircraft_with_photo(&state.photo_prefixes).clone();
 
         let mut query = EMPTY_QUERY.clone();
@@ -1606,8 +1608,7 @@ mod tests {
     #[tokio::test]
     /// Insert a new flightroute using the scraper
     async fn api_router_get_callsign_scraper() {
-        let state = get_application_state().await;
-        remove_scraped_data(&state.postgres).await;
+        let state = get_application_state(Some(())).await;
         let path = Callsign::validate(TEST_CALLSIGN).unwrap();
         let response = ApiRoutes::callsign_get(state.clone(), path).await;
         assert!(response.is_ok());

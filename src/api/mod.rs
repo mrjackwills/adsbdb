@@ -385,7 +385,8 @@ pub mod tests {
     pub const UNKNOWN_AIRCRAFT_MODE_S: &str = "000000";
     pub const UNKNOWN_AIRCRAFT_REGISTRATION: &str = "00-000";
 
-    pub const AIRCRAFT_MODE_S: &str = "ADC1F0";
+    // This needs to match AIRCRAFT_NO_PHOTO mode_s
+    pub const AIRCRAFT_MODE_S: &str = "A29F25";
 
     pub static DEFAULT_AIRCRAFT_PATH: LazyLock<String> =
         LazyLock::new(|| format!("aircraft/{AIRCRAFT_MODE_S}"));
@@ -394,14 +395,15 @@ pub mod tests {
         LazyLock::new(|| format!("callsign/{}", FLIGHTROUTE.callsign));
 
     /// This is an aircraft in the DB with no photo attached
+    /// NEeds to be US registered, for n-number mode-s converstions!
     pub static AIRCRAFT_NO_PHOTO: LazyLock<ResponseAircraft> = LazyLock::new(|| ResponseAircraft {
-        aircraft_type: S!("208 B"),
-        icao_type: S!("C208"),
-        manufacturer: S!("Cessna"),
-        mode_s: S!("ADC1F0"),
-        registration: S!("N986FE"),
-        registered_owner: S!("FedEx Feeder"),
-        registered_owner_operator_flag_code: Some(S!("IRO")),
+        aircraft_type: S!("7GCBC"),
+        icao_type: S!("CH7B"),
+        manufacturer: S!("Bellanca"),
+        mode_s: S!("A29F25"),
+        registration: S!("N2680Z"),
+        registered_owner: S!("EASTON CHRISTOPHER J"),
+        registered_owner_operator_flag_code: None,
         registered_owner_country_name: S!("United States"),
         registered_owner_country_iso_name: S!("US"),
         url_photo: None,
