@@ -80,7 +80,6 @@ impl ModelFlightroute {
     }
 
     #[allow(clippy::too_many_lines)]
-    /// TODO try to convert to a query_as! macro
     async fn _get_random(db: &PgPool) -> Result<Vec<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>("
 WITH random_flightroute AS (
