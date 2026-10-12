@@ -1,4 +1,4 @@
-### CHores
+### Chores
 + .dev.docker-compose.yml updated, [af43c8d71a4465783b85f25acc3c79d814cd7fcd]
 + .gitignore updated, [1241745ec829e2637b7898bd74538c03e43c8a98]
 + create_release updated, [a8c2d5bbf6fe8fb8220a6a9bc45c3c4918a11237]
