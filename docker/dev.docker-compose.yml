@@ -3,12 +3,12 @@ networks:
     name: dev-adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.6.5
+    image: adsbdb_postgres:0.7.0
     container_name: adsbdb_postgres
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/postgres.Dockerfile
-    env_file: /workspaces/adsbdb/docker/env/.postgres.env
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/postgres.Dockerfile
+    env_file: /workspaces/backend/docker/env/.postgres.env
     cap_drop:
       - all
     security_opt:
@@ -24,18 +24,20 @@ services:
       - dev-adsbdb-net
     command: >
       postgres
-      -c autovacuum_vacuum_scale_factor=0.1
-      -c autovacuum_analyze_scale_factor=0.05
-      -c autovacuum_vacuum_cost_limit=1000
-      -c checkpoint_completion_target=0.9
-      -c effective_cache_size=3GB
-      -c effective_io_concurrency=200
-      -c max_wal_size=8GB
-      -c min_wal_size=2GB
-      -c random_page_cost=1.1
-      -c shared_buffers=1GB
-      -c wal_compression=on
-      -c work_mem=16MB
+       -c autovacuum_vacuum_scale_factor=0.1
+       -c autovacuum_analyze_scale_factor=0.05
+       -c autovacuum_vacuum_cost_limit=1000
+       -c checkpoint_completion_target=0.9
+       -c effective_cache_size=3GB
+       -c effective_io_concurrency=200
+       -c max_wal_size=4GB
+       -c min_wal_size=1GB
+       -c random_page_cost=1.1
+       -c shared_buffers=1GB
+       -c wal_compression=on
+       -c work_mem=32MB
+       -c max_connections=100
+       -c huge_pages=off
     healthcheck:
       test: ["CMD", "/healthcheck/health_postgres.sh"]
       start_period: 2m
@@ -45,16 +47,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2048MB
+          memory: 4096MB
 
   adsbdb_redis:
-    image: adsbdb_redis:0.6.5
+    image: adsbdb_redis:0.7.0
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/redis.Dockerfile
-    env_file: /workspaces/adsbdb/docker/env/.redis.env
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/redis.Dockerfile
+    env_file: /workspaces/backend/docker/env/.redis.env
     volumes:
       - /data/adsbdb/redis_data:/redis_data
     cap_drop:
@@ -80,13 +82,13 @@ services:
       resources:
         limits:
           memory: 1024MB
-  adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.6.5
-    container_name: adsbdb_postgres_backup
+  adsbdb_backup:
+    image: adsbdb_backup:0.7.0
+    container_name: adsbdb_backup
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/postgres_backup.Dockerfile
-    env_file: /workspaces/adsbdb/docker/env/.postgres_backup.env
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/backup.Dockerfile
+    env_file: /workspaces/backend/docker/env/.backup.env
     cap_drop:
       - all
     security_opt:
@@ -94,7 +96,7 @@ services:
     ipc: private
     volumes:
       - /data/adsbdb/backups:/backups
-      - /data/adsbdb/redis_data:/redis_data:ro
+      - /data/adsbdb/temp_backup:/temp_backup
       - /data/adsbdb/logs:/logs
     networks:
       - dev-adsbdb-net
@@ -111,15 +113,15 @@ services:
         limits:
           memory: 32M
   adsbdb_api:
-    image: adsbdb_api:0.6.5
+    image: adsbdb_api:0.7.0
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:
-      context: /workspaces/adsbdb/
-      dockerfile: /workspaces/adsbdb/docker/dockerfile/api.Dockerfile
+      context: /workspaces/backend/
+      dockerfile: /workspaces/backend/docker/dockerfile/api.Dockerfile
     volumes:
       - /data/adsbdb/logs:/logs
-      - /workspaces/adsbdb/docker/env/.api.env:/app_env/.api.env:ro
+      - /workspaces/backend/docker/env/.api.env:/app_env/.api.env:ro
     ports:
       - "127.0.0.1:8282:8282"
     cap_drop:

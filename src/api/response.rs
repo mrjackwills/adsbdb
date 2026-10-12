@@ -1,7 +1,8 @@
 use axum::Json;
+use bigdecimal::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
-use crate::db_postgres::{EntryCount, ModelAircraft, ModelAirline, ModelFlightroute};
+use crate::db::postgres::{EntryCount, ModelAircraft, ModelAirline, ModelFlightroute};
 
 pub type AsJsonRes<T> = Json<ResponseJson<T>>;
 
@@ -17,7 +18,7 @@ impl<T> ResponseJson<T> {
 }
 
 /// Response for the /online api route
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Online {
     pub uptime: u64,
     pub api_version: String,
@@ -80,16 +81,6 @@ impl From<ModelAirline> for ResponseAirline {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct Airline {
-    pub name: String,
-    pub icao: String,
-    pub iata: Option<String>,
-    pub country: String,
-    pub country_iso: String,
-    pub callsign: Option<String>,
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct StatsEntry {
     pub aircraft: Vec<EntryCount>,
@@ -110,7 +101,7 @@ pub struct Stats {
 
 // should be option none
 // impl From<&ModelFlightroute> for Option<Airline> {
-impl Airline {
+impl ResponseAirline {
     fn from_model(value: &ModelFlightroute) -> Option<Self> {
         value.airline_name.as_ref().map(|name| Self {
             name: name.clone(),
@@ -145,8 +136,14 @@ impl Airport {
             elevation: flightroute.origin_airport_elevation,
             iata_code: flightroute.origin_airport_iata_code.clone(),
             icao_code: flightroute.origin_airport_icao_code.clone(),
-            latitude: flightroute.origin_airport_latitude,
-            longitude: flightroute.origin_airport_longitude,
+            latitude: flightroute
+                .origin_airport_latitude
+                .to_f64()
+                .unwrap_or_default(),
+            longitude: flightroute
+                .origin_airport_longitude
+                .to_f64()
+                .unwrap_or_default(),
             municipality: flightroute.origin_airport_municipality.clone(),
         };
 
@@ -172,8 +169,18 @@ impl Airport {
                     .midpoint_airport_icao_code
                     .clone()
                     .unwrap_or_default(),
-                latitude: flightroute.midpoint_airport_latitude.unwrap_or_default(),
-                longitude: flightroute.midpoint_airport_longitude.unwrap_or_default(),
+                latitude: flightroute
+                    .midpoint_airport_latitude
+                    .clone()
+                    .unwrap_or_default()
+                    .to_f64()
+                    .unwrap_or_default(),
+                longitude: flightroute
+                    .midpoint_airport_longitude
+                    .clone()
+                    .unwrap_or_default()
+                    .to_f64()
+                    .unwrap_or_default(),
                 municipality: flightroute
                     .midpoint_airport_municipality
                     .clone()
@@ -190,20 +197,26 @@ impl Airport {
             elevation: flightroute.destination_airport_elevation,
             iata_code: flightroute.destination_airport_iata_code.clone(),
             icao_code: flightroute.destination_airport_icao_code.clone(),
-            latitude: flightroute.destination_airport_latitude,
-            longitude: flightroute.destination_airport_longitude,
+            latitude: flightroute
+                .destination_airport_latitude
+                .to_f64()
+                .unwrap_or_default(),
+            longitude: flightroute
+                .destination_airport_longitude
+                .to_f64()
+                .unwrap_or_default(),
             municipality: flightroute.destination_airport_municipality.clone(),
         };
         (origin, midpoint, destination)
     }
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ResponseFlightRoute {
     pub callsign: String,
     pub callsign_icao: Option<String>,
     pub callsign_iata: Option<String>,
-    pub airline: Option<Airline>,
+    pub airline: Option<ResponseAirline>,
     pub origin: Airport,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub midpoint: Option<Airport>,
@@ -219,7 +232,7 @@ impl ResponseFlightRoute {
                 callsign_icao: flightroute.callsign_icao.clone(),
                 callsign_iata: flightroute.callsign_iata.clone(),
                 origin: airports.0,
-                airline: Airline::from_model(flightroute),
+                airline: ResponseAirline::from_model(flightroute),
                 midpoint: airports.1,
                 destination: airports.2,
             }
@@ -227,7 +240,8 @@ impl ResponseFlightRoute {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+/// {aircraft, flightroute, is either is None will skip that field}
 pub struct AircraftAndRoute {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aircraft: Option<ResponseAircraft>,

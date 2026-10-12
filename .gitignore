@@ -8,8 +8,10 @@
 
 n-number*
 
+todo.md
+
 /logs
-api.log
+api.log*
 
 db_data
 backups

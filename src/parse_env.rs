@@ -9,8 +9,27 @@ type EnvHashMap = HashMap<String, String>;
 enum EnvError {
     #[error("missing env: '{0}'")]
     NotFound(String),
+    #[error("unable to parse: '{0}'")]
+    Parse(String),
 }
 
+#[derive(Debug, Clone)]
+pub struct EnvRedis {
+    pub database: u16,
+    pub host: String,
+    pub password: String,
+    pub port: u16,
+    pub pool_size: u16,
+}
+#[derive(Debug, Clone)]
+pub struct EnvPostgres {
+    pub max_connections: u16,
+    pub database: String,
+    pub host: String,
+    pub pass: String,
+    pub port: u16,
+    pub user: String,
+}
 #[derive(Debug, Clone)]
 pub struct AppEnv {
     pub allow_scrape_flightroute: Option<()>,
@@ -20,18 +39,12 @@ pub struct AppEnv {
     pub api_port: u16,
     pub location_logs: String,
     pub log_level: tracing::Level,
-    pub pg_database: String,
-    pub pg_host: String,
-    pub pg_pass: String,
-    pub pg_port: u16,
-    pub pg_user: String,
-    pub redis_database: u16,
-    pub redis_host: String,
-    pub redis_password: String,
-    pub redis_port: u16,
+    pub redis: EnvRedis,
+    pub postgres: EnvPostgres,
     pub url_aircraft_photo: String,
     pub url_callsign: String,
     pub url_photo_prefix: String,
+    pub url_photo_thumbnail_prefix: String,
 }
 
 impl AppEnv {
@@ -51,12 +64,14 @@ impl AppEnv {
         }
     }
 
-    /// Parse string to u32, else return 1
+    /// Parse string to u16, else return 1
     fn parse_number(key: &str, map: &EnvHashMap) -> Result<u16, EnvError> {
-        let default = 1;
         map.get(key).map_or_else(
             || Err(EnvError::NotFound(key.into())),
-            |data| data.parse::<u16>().map_or(Ok(default), Ok),
+            |data| {
+                data.parse::<u16>()
+                    .map_err(|_| EnvError::Parse(key.to_owned()))
+            },
         )
     }
 
@@ -85,18 +100,25 @@ impl AppEnv {
             api_port: Self::parse_number("API_PORT", &map)?,
             location_logs: Self::parse_string("LOCATION_LOGS", &map)?,
             log_level: Self::parse_log(&map),
-            pg_database: Self::parse_string("PG_DATABASE", &map)?,
-            pg_host: Self::parse_string("PG_HOST", &map)?,
-            pg_pass: Self::parse_string("PG_PASS", &map)?,
-            pg_port: Self::parse_number("PG_PORT", &map)?,
-            pg_user: Self::parse_string("PG_USER", &map)?,
-            redis_database: Self::parse_number("REDIS_DATABASE", &map)?,
-            redis_host: Self::parse_string("REDIS_HOST", &map)?,
-            redis_password: Self::parse_string("REDIS_PASSWORD", &map)?,
-            redis_port: Self::parse_number("REDIS_PORT", &map)?,
+            postgres: EnvPostgres {
+                database: Self::parse_string("PG_DATABASE", &map)?,
+                host: Self::parse_string("PG_HOST", &map)?,
+                pass: Self::parse_string("PG_PASS", &map)?,
+                port: Self::parse_number("PG_PORT", &map)?,
+                max_connections: Self::parse_number("PG_MAX_CONNECTIONS", &map)?,
+                user: Self::parse_string("PG_USER", &map)?,
+            },
+            redis: EnvRedis {
+                database: Self::parse_number("REDIS_DATABASE", &map)?,
+                host: Self::parse_string("REDIS_HOST", &map)?,
+                password: Self::parse_string("REDIS_PASSWORD", &map)?,
+                pool_size: Self::parse_number("REDIS_POOL_SIZE", &map)?,
+                port: Self::parse_number("REDIS_PORT", &map)?,
+            },
             url_aircraft_photo: Self::parse_string("URL_AIRCRAFT_PHOTO", &map)?,
             url_callsign: Self::parse_string("URL_CALLSIGN", &map)?,
             url_photo_prefix: Self::parse_string("URL_PHOTO_PREFIX", &map)?,
+            url_photo_thumbnail_prefix: Self::parse_string("URL_PHOTO_THUMBNAIL_PREFIX", &map)?,
         })
     }
 
@@ -307,13 +329,33 @@ mod tests {
 
     #[test]
     fn env_parse_number_is_err() {
+        let mut map = HashMap::new();
+
+        let result = AppEnv::parse_number("U16_TEST", &map);
+
+        assert!(result.is_err());
+        if let EnvError::NotFound(value) = result.unwrap_err() {
+            assert_eq!(value, "U16_TEST")
+        }
+
+        map.insert("TEST".to_owned(), "TEST".to_owned());
+        let result = AppEnv::parse_number("TEST", &map);
+
+        assert!(result.is_err());
+        if let EnvError::Parse(value) = result.unwrap_err() {
+            assert_eq!(value, "TEST")
+        }
+    }
+
+    #[test]
+    fn env_parses_number_is_err() {
         let map = HashMap::new();
 
         let result = AppEnv::parse_number("U16_TEST", &map);
 
         assert!(result.is_err());
-        match result.unwrap_err() {
-            EnvError::NotFound(value) => assert_eq!(value, "U16_TEST"),
+        if let EnvError::NotFound(value) = result.unwrap_err() {
+            assert_eq!(value, "U16_TEST")
         }
     }
 }

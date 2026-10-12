@@ -11,19 +11,18 @@ pub use model_airline::ModelAirline;
 pub use model_airport::ModelAirport;
 pub use model_flightroute::ModelFlightroute;
 pub use model_incoming_request::{
-    EntryCount, ModelIncomingRequest, MsgIncomingRequest, PathID, QueryID, RE_SEED_TIME, UriMethod,
-    VersionID,
+    EntryCount, ModelIncomingRequest, MsgIncomingRequest, RE_SEED_TIME, UriMethod,
 };
 
 use crate::{api::AppError, parse_env::AppEnv};
 
 pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     let mut options = sqlx::postgres::PgConnectOptions::new_without_pgpass()
-        .host(&app_env.pg_host)
-        .port(app_env.pg_port)
-        .database(&app_env.pg_database)
-        .username(&app_env.pg_user)
-        .password(&app_env.pg_pass);
+        .host(&app_env.postgres.host)
+        .port(app_env.postgres.port)
+        .database(&app_env.postgres.database)
+        .username(&app_env.postgres.user)
+        .password(&app_env.postgres.pass);
 
     match app_env.log_level {
         tracing::Level::TRACE | tracing::Level::DEBUG => (),
@@ -31,7 +30,7 @@ pub async fn get_pool(app_env: &AppEnv) -> Result<PgPool, AppError> {
     }
 
     Ok(PgPoolOptions::new()
-        .max_connections(32)
+        .max_connections(app_env.postgres.max_connections.into())
         .connect_with(options)
         .await?)
 }

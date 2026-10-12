@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{AssertSqlSafe, PgPool};
+use sqlx::{AssertSqlSafe, PgPool, types::BigDecimal};
 
 use crate::{
     S,
@@ -15,7 +15,6 @@ use super::{ModelAirline, ModelAirport};
 struct Id {
     id: i64,
 }
-
 #[derive(sqlx::FromRow, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelFlightroute {
     pub flightroute_id: FlightrouteId,
@@ -36,8 +35,8 @@ pub struct ModelFlightroute {
     // THIS CAN BE NULL?
     pub origin_airport_iata_code: Option<String>,
     pub origin_airport_icao_code: String,
-    pub origin_airport_latitude: f64,
-    pub origin_airport_longitude: f64,
+    pub origin_airport_latitude: BigDecimal,
+    pub origin_airport_longitude: BigDecimal,
     pub origin_airport_municipality: String,
     pub origin_airport_name: String,
 
@@ -46,8 +45,8 @@ pub struct ModelFlightroute {
     pub midpoint_airport_elevation: Option<i32>,
     pub midpoint_airport_iata_code: Option<String>,
     pub midpoint_airport_icao_code: Option<String>,
-    pub midpoint_airport_latitude: Option<f64>,
-    pub midpoint_airport_longitude: Option<f64>,
+    pub midpoint_airport_latitude: Option<BigDecimal>,
+    pub midpoint_airport_longitude: Option<BigDecimal>,
     pub midpoint_airport_municipality: Option<String>,
     pub midpoint_airport_name: Option<String>,
 
@@ -56,8 +55,8 @@ pub struct ModelFlightroute {
     pub destination_airport_elevation: i32,
     pub destination_airport_iata_code: Option<String>,
     pub destination_airport_icao_code: String,
-    pub destination_airport_latitude: f64,
-    pub destination_airport_longitude: f64,
+    pub destination_airport_latitude: BigDecimal,
+    pub destination_airport_longitude: BigDecimal,
     pub destination_airport_municipality: String,
     pub destination_airport_name: String,
 }
@@ -81,7 +80,6 @@ impl ModelFlightroute {
     }
 
     #[allow(clippy::too_many_lines)]
-    /// TODO try to convert to a query_as! macro
     async fn _get_random(db: &PgPool) -> Result<Vec<Self>, AppError> {
         Ok(sqlx::query_as::<_, Self>("
 WITH random_flightroute AS (
@@ -106,39 +104,39 @@ SELECT
     co_o.country_name AS origin_airport_country_name,
     co_o.country_iso_name AS origin_airport_country_iso_name,
     am_o.municipality AS origin_airport_municipality,
-    aic_o.icao_code AS origin_airport_icao_code,
-    aia_o.iata_code AS origin_airport_iata_code, 
-    an_o.name AS origin_airport_name,
-    ae_o.elevation AS origin_airport_elevation,
-    ala_o.latitude AS origin_airport_latitude,
-    alo_o.longitude AS origin_airport_longitude,
+    apo.icao_code AS origin_airport_icao_code,
+    apo.iata_code AS origin_airport_iata_code,
+    apo.airport_name AS origin_airport_name,
+    apo.elevation AS origin_airport_elevation,
+    round(apo.latitude::numeric, 5) AS origin_airport_latitude,
+    round(apo.longitude::numeric, 5) AS origin_airport_longitude,
 
     co_m.country_name AS midpoint_airport_country_name,
     co_m.country_iso_name AS midpoint_airport_country_iso_name,
     am_m.municipality AS midpoint_airport_municipality,
-    aic_m.icao_code AS midpoint_airport_icao_code,
-    aia_m.iata_code AS midpoint_airport_iata_code,
-    an_m.name AS midpoint_airport_name,
-    ae_m.elevation AS midpoint_airport_elevation,
-    ala_m.latitude AS midpoint_airport_latitude,
-    alo_m.longitude AS midpoint_airport_longitude,
+    apm.icao_code AS midpoint_airport_icao_code,
+    apm.iata_code AS midpoint_airport_iata_code,
+    apm.airport_name AS midpoint_airport_name,
+    apm.elevation AS midpoint_airport_elevation,
+    round(apm.latitude::numeric, 5) AS midpoint_airport_latitude,
+    round(apm.longitude::numeric, 5) AS midpoint_airport_longitude,
 
     co_d.country_name AS destination_airport_country_name,
     co_d.country_iso_name AS destination_airport_country_iso_name,
     am_d.municipality AS destination_airport_municipality,
-    aic_d.icao_code AS destination_airport_icao_code,
-    aia_d.iata_code AS destination_airport_iata_code,
-    an_d.name AS destination_airport_name,
-    ae_d.elevation AS destination_airport_elevation,
-    ala_d.latitude AS destination_airport_latitude,
-    alo_d.longitude AS destination_airport_longitude
+    apd.icao_code AS destination_airport_icao_code,
+    apd.iata_code AS destination_airport_iata_code,
+    apd.airport_name AS destination_airport_name,
+    apd.elevation AS destination_airport_elevation,
+    round(apd.latitude::numeric, 5) AS destination_airport_latitude,
+    round(apd.longitude::numeric, 5) AS destination_airport_longitude
 FROM
     flightroute fl
     INNER JOIN random_flightroute rf ON rf.flightroute_id = fl.flightroute_id
 
     INNER JOIN flightroute_callsign flc USING(flightroute_callsign_id)
     INNER JOIN flightroute_callsign_inner fci_icao ON fci_icao.flightroute_callsign_inner_id = flc.icao_prefix_id
-    INNER JOIN airline ai USING(airline_id)
+    LEFT JOIN airline ai USING(airline_id)
     LEFT JOIN flightroute_callsign_inner fci_iata ON fci_iata.flightroute_callsign_inner_id = flc.iata_prefix_id
 
     LEFT JOIN country co_airline ON co_airline.country_id = ai.country_id
@@ -146,32 +144,14 @@ FROM
     INNER JOIN airport apo ON apo.airport_id = fl.airport_origin_id
     INNER JOIN country co_o ON co_o.country_id = apo.country_id
     INNER JOIN airport_municipality am_o ON am_o.airport_municipality_id = apo.airport_municipality_id
-    INNER JOIN airport_icao_code aic_o ON aic_o.airport_icao_code_id = apo.airport_icao_code_id
-    LEFT JOIN airport_iata_code aia_o ON aia_o.airport_iata_code_id = apo.airport_iata_code_id
-    INNER JOIN airport_name an_o ON an_o.airport_name_id = apo.airport_name_id
-    INNER JOIN airport_elevation ae_o ON ae_o.airport_elevation_id = apo.airport_elevation_id
-    INNER JOIN airport_latitude ala_o ON ala_o.airport_latitude_id = apo.airport_latitude_id
-    INNER JOIN airport_longitude alo_o ON alo_o.airport_longitude_id = apo.airport_longitude_id
 
     LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
     LEFT JOIN country co_m ON co_m.country_id = apm.country_id
     LEFT JOIN airport_municipality am_m ON am_m.airport_municipality_id = apm.airport_municipality_id
-    LEFT JOIN airport_icao_code aic_m ON aic_m.airport_icao_code_id = apm.airport_icao_code_id
-    LEFT JOIN airport_iata_code aia_m ON aia_m.airport_iata_code_id = apm.airport_iata_code_id
-    LEFT JOIN airport_name an_m ON an_m.airport_name_id = apm.airport_name_id
-    LEFT JOIN airport_elevation ae_m ON ae_m.airport_elevation_id = apm.airport_elevation_id
-    LEFT JOIN airport_latitude ala_m ON ala_m.airport_latitude_id = apm.airport_latitude_id
-    LEFT JOIN airport_longitude alo_m ON alo_m.airport_longitude_id = apm.airport_longitude_id
 
     INNER JOIN airport apd ON apd.airport_id = fl.airport_destination_id
     INNER JOIN country co_d ON co_d.country_id = apd.country_id
-    INNER JOIN airport_municipality am_d ON am_d.airport_municipality_id = apd.airport_municipality_id
-    INNER JOIN airport_icao_code aic_d ON aic_d.airport_icao_code_id = apd.airport_icao_code_id
-    LEFT JOIN airport_iata_code aia_d ON aia_d.airport_iata_code_id = apd.airport_iata_code_id 
-    INNER JOIN airport_name an_d ON an_d.airport_name_id = apd.airport_name_id
-    INNER JOIN airport_elevation ae_d ON ae_d.airport_elevation_id = apd.airport_elevation_id
-    INNER JOIN airport_latitude ala_d ON ala_d.airport_latitude_id = apd.airport_latitude_id
-    INNER JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_longitude_id;"
+    INNER JOIN airport_municipality am_d ON am_d.airport_municipality_id = apd.airport_municipality_id;"
 ).fetch_all(db).await?)
     }
 
@@ -205,65 +185,47 @@ LIMIT
     co_o.country_name AS origin_airport_country_name,
     co_o.country_iso_name AS origin_airport_country_iso_name,
     am_o.municipality AS origin_airport_municipality,
-    aic_o.icao_code AS origin_airport_icao_code,
-    aia_o.iata_code AS origin_airport_iata_code,
-    an_o.name AS origin_airport_name,
-    ae_o.elevation AS origin_airport_elevation,
-    ala_o.latitude AS origin_airport_latitude,
-    alo_o.longitude AS origin_airport_longitude,
+    apo.icao_code AS origin_airport_icao_code,
+    apo.iata_code AS origin_airport_iata_code,
+    apo.airport_name AS origin_airport_name,
+    apo.elevation AS origin_airport_elevation,
+    round(apo.latitude::numeric, 5) AS origin_airport_latitude,
+    round(apo.longitude::numeric, 5) AS origin_airport_longitude,
     co_m.country_name AS midpoint_airport_country_name,
     co_m.country_iso_name AS midpoint_airport_country_iso_name,
     am_m.municipality AS midpoint_airport_municipality,
-    aic_m.icao_code AS midpoint_airport_icao_code,
-    aia_m.iata_code AS midpoint_airport_iata_code,
-    an_m.name AS midpoint_airport_name,
-    ae_m.elevation AS midpoint_airport_elevation,
-    ala_m.latitude AS midpoint_airport_latitude,
-    alo_m.longitude AS midpoint_airport_longitude,
+    apm.icao_code AS midpoint_airport_icao_code,
+    apm.iata_code AS midpoint_airport_iata_code,
+    apm.airport_name AS midpoint_airport_name,
+    apm.elevation AS midpoint_airport_elevation,
+    round(apm.latitude::numeric, 5) AS midpoint_airport_latitude,
+    round(apm.longitude::numeric, 5) AS midpoint_airport_longitude,
     co_d.country_name AS destination_airport_country_name,
     co_d.country_iso_name AS destination_airport_country_iso_name,
     am_d.municipality AS destination_airport_municipality,
-    aic_d.icao_code AS destination_airport_icao_code,
-    aia_d.iata_code AS destination_airport_iata_code,
-    an_d.name AS destination_airport_name,
-    ae_d.elevation AS destination_airport_elevation,
-    ala_d.latitude AS destination_airport_latitude,
-    alo_d.longitude AS destination_airport_longitude
+    apd.icao_code AS destination_airport_icao_code,
+    apd.iata_code AS destination_airport_iata_code,
+    apd.airport_name AS destination_airport_name,
+    apd.elevation AS destination_airport_elevation,
+    round(apd.latitude::numeric, 5) AS destination_airport_latitude,
+    round(apd.longitude::numeric, 5) AS destination_airport_longitude
     FROM
         flightroute fl
     INNER JOIN flightroute_callsign flc USING(flightroute_callsign_id)
-    INNER JOIN airline ai USING(airline_id)
+    LEFT JOIN airline ai USING(airline_id)
     LEFT JOIN flightroute_callsign_inner fci ON fci.flightroute_callsign_inner_id = flc.callsign_id
             
     INNER JOIN airport apo ON apo.airport_id = fl.airport_origin_id
     INNER JOIN country co_o ON co_o.country_id = apo.country_id
     INNER JOIN airport_municipality am_o ON am_o.airport_municipality_id = apo.airport_municipality_id
-    INNER JOIN airport_icao_code aic_o ON aic_o.airport_icao_code_id = apo.airport_icao_code_id
-    LEFT JOIN airport_iata_code aia_o ON aia_o.airport_iata_code_id = apo.airport_iata_code_id
-    INNER JOIN airport_name an_o ON an_o.airport_name_id = apo.airport_name_id
-    INNER JOIN airport_elevation ae_o ON ae_o.airport_elevation_id = apo.airport_elevation_id
-    INNER JOIN airport_latitude ala_o ON ala_o.airport_latitude_id = apo.airport_latitude_id
-    INNER JOIN airport_longitude alo_o ON alo_o.airport_longitude_id = apo.airport_longitude_id
              
     LEFT JOIN airport apm ON apm.airport_id = fl.airport_midpoint_id
     LEFT JOIN country co_m ON co_m.country_id = apm.country_id
     LEFT JOIN airport_municipality am_m ON am_m.airport_municipality_id = apm.airport_municipality_id
-    LEFT JOIN airport_icao_code aic_m ON aic_m.airport_icao_code_id = apm.airport_icao_code_id
-    LEFT JOIN airport_iata_code aia_m ON aia_m.airport_iata_code_id = apm.airport_iata_code_id
-    LEFT JOIN airport_name an_m ON an_m.airport_name_id = apm.airport_name_id
-    LEFT JOIN airport_elevation ae_m ON ae_m.airport_elevation_id = apm.airport_elevation_id
-    LEFT JOIN airport_latitude ala_m ON ala_m.airport_latitude_id = apm.airport_latitude_id
-    LEFT JOIN airport_longitude alo_m ON alo_m.airport_longitude_id = apm.airport_longitude_id
              
     INNER JOIN airport apd ON apd.airport_id = fl.airport_destination_id
     INNER JOIN country co_d ON co_d.country_id = apd.country_id
     INNER JOIN airport_municipality am_d ON am_d.airport_municipality_id = apd.airport_municipality_id
-    INNER JOIN airport_icao_code aic_d ON aic_d.airport_icao_code_id = apd.airport_icao_code_id
-    LEFT JOIN airport_iata_code aia_d ON aia_d.airport_iata_code_id = apd.airport_iata_code_id
-    INNER JOIN airport_name an_d ON an_d.airport_name_id = apd.airport_name_id
-    INNER JOIN airport_elevation ae_d ON ae_d.airport_elevation_id = apd.airport_elevation_id
-    INNER JOIN airport_latitude ala_d ON ala_d.airport_latitude_id = apd.airport_latitude_id
-    INNER JOIN airport_longitude alo_d ON alo_d.airport_longitude_id = apd.airport_longitude_id
          "
     }
 
@@ -537,11 +499,13 @@ VALUES
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use crate::{S, api::Validate, db_postgres, parse_env::AppEnv};
+    use std::str::FromStr;
+
+    use crate::{S, api::Validate, db, parse_env::AppEnv};
 
     async fn setup() -> (AppEnv, PgPool) {
         let app_env = AppEnv::get_env();
-        let db = db_postgres::get_pool(&app_env).await.unwrap();
+        let db = db::postgres::get_pool(&app_env).await.unwrap();
         (app_env, db)
     }
 
@@ -598,8 +562,8 @@ mod tests {
             origin_airport_elevation: 12,
             origin_airport_iata_code: Some(S!("OKA")),
             origin_airport_icao_code: S!("ROAH"),
-            origin_airport_latitude: 26.195_801,
-            origin_airport_longitude: 127.646_004,
+            origin_airport_latitude: BigDecimal::from_str("26.19580").unwrap(),
+            origin_airport_longitude: BigDecimal::from_str("127.64600").unwrap(),
             origin_airport_municipality: S!("Naha"),
             origin_airport_name: S!("Naha Airport / JASDF Naha Air Base"),
             midpoint_airport_country_iso_name: None,
@@ -616,8 +580,8 @@ mod tests {
             destination_airport_elevation: 35,
             destination_airport_iata_code: Some(S!("HND")),
             destination_airport_icao_code: S!("RJTT"),
-            destination_airport_latitude: 35.552_299,
-            destination_airport_longitude: 139.779_999,
+            destination_airport_latitude: BigDecimal::from_str("35.55230").unwrap(),
+            destination_airport_longitude: BigDecimal::from_str("139.78000").unwrap(),
             destination_airport_municipality: S!("Tokyo"),
             destination_airport_name: S!("Tokyo Haneda International Airport"),
         };

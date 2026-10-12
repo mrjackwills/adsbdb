@@ -4,7 +4,7 @@ networks:
     name: adsbdb-net
 services:
   adsbdb_postgres:
-    image: adsbdb_postgres:0.6.5
+    image: adsbdb_postgres:0.7.0
     container_name: adsbdb_postgres
     build:
       context: $HOME/adsbdb.d/
@@ -22,19 +22,21 @@ services:
     networks:
       - adsbdb-net
     command: >
-       postgres
+      postgres
        -c autovacuum_vacuum_scale_factor=0.1
        -c autovacuum_analyze_scale_factor=0.05
        -c autovacuum_vacuum_cost_limit=1000
        -c checkpoint_completion_target=0.9
        -c effective_cache_size=3GB
        -c effective_io_concurrency=200
-       -c max_wal_size=8GB
-       -c min_wal_size=2GB
+       -c max_wal_size=4GB
+       -c min_wal_size=1GB
        -c random_page_cost=1.1
        -c shared_buffers=1GB
        -c wal_compression=on
-       -c work_mem=16MB
+       -c work_mem=32MB
+       -c max_connections=100
+       -c huge_pages=off
     deploy:
       resources:
         limits:
@@ -45,13 +47,13 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-  adsbdb_postgres_backup:
-    image: adsbdb_postgres_backup:0.6.5
-    container_name: adsbdb_postgres_backup
+  adsbdb_backup:
+    image: adsbdb_backup:0.7.0
+    container_name: adsbdb_backup
     build:
       context: $HOME/adsbdb.d/
-      dockerfile: $HOME/adsbdb.d/docker/dockerfile/postgres_backup.Dockerfile
-    env_file: $HOME/adsbdb.d/docker/env/.postgres_backup.env
+      dockerfile: $HOME/adsbdb.d/docker/dockerfile/backup.Dockerfile
+    env_file: $HOME/adsbdb.d/docker/env/.backup.env
     cap_drop:
       - all
     security_opt:
@@ -59,7 +61,7 @@ services:
     ipc: private
     volumes:
       - $HOME/databases.d/adsbdb/backups:/backups
-      - $HOME/databases.d/adsbdb/redis_data:/redis_data:ro
+      - $HOME/databases.d/adsbdb/temp_backup:/temp_backup
       - $HOME/logs.d/adsbdb:/logs:ro
     networks:
       - adsbdb-net
@@ -70,7 +72,7 @@ services:
         condition: service_healthy
     restart: 'no'
   adsbdb_redis:
-    image: adsbdb_redis:0.6.5
+    image: adsbdb_redis:0.7.0
     container_name: adsbdb_redis
     hostname: adsbdb_redis
     build:
@@ -99,7 +101,7 @@ services:
         limits:
           memory: 4096MB
   adsbdb_api:
-    image: adsbdb_api:0.6.5
+    image: adsbdb_api:0.7.0
     container_name: adsbdb_api
     hostname: adsbdb_api
     build:

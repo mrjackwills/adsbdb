@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH counts AS (\n    SELECT\n        ir.incoming_request_url_version_id,\n        ir.incoming_request_url_path_id,\n        ir.incoming_request_url_query_id,\n        SUM(COALESCE(ir.count, 0))::BIGINT AS url_count\n    FROM incoming_request ir\n    JOIN incoming_request_url_path irup\n        ON irup.incoming_request_url_path_id = ir.incoming_request_url_path_id\n    WHERE irup.url_path = $1\n    GROUP BY\n        ir.incoming_request_url_version_id,\n        ir.incoming_request_url_path_id,\n        ir.incoming_request_url_query_id\n    ORDER BY url_count DESC\n    LIMIT 10\n)\nSELECT\n    '/' || CONCAT_WS(\n        '/',\n        NULLIF(iruv.url_version, ''),\n        NULLIF(irup.url_path, ''),\n        NULLIF(iruq.url_query, '')\n    ) AS \"url!\",\n    c.url_count AS \"count!\"\nFROM counts c\nLEFT JOIN incoming_request_url_version iruv\n    ON iruv.incoming_request_url_version_id = c.incoming_request_url_version_id\nLEFT JOIN incoming_request_url_path irup\n    ON irup.incoming_request_url_path_id = c.incoming_request_url_path_id\nLEFT JOIN incoming_request_url_query iruq\n    ON iruq.incoming_request_url_query_id = c.incoming_request_url_query_id\nORDER BY c.url_count DESC, \"url!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "url!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "371107a016ca81649dd68f0a52c8047c8b760dbf49b0695261b4edd96940b275"
+}

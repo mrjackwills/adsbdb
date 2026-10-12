@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COALESCE(SUM(count), 0) AS \"count!\" FROM temp_incoming_request;",
+  "query": "SELECT COALESCE(MAX(total), 0) AS \"count!\" FROM request_total WHERE id = 1;",
   "describe": {
     "columns": [
       {
@@ -17,5 +17,5 @@
       null
     ]
   },
-  "hash": "30d86839ab10b37b611d6c425a5ef9238fd38dca27f4f4abc7c12c34fa3689e3"
+  "hash": "4a1bf6a1ad68ea6a75c2869ea6db883e0a742c08c016900b2514fd7742a5c710"
 }

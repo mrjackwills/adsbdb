@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    '/' || CONCAT_WS(\n        '/',\n        NULLIF(iruv.url_version, ''),\n        NULLIF(irup.url_path, ''),\n        NULLIF(iruq.url_query, '')\n    ) AS \"url!\",\n    SUM(COALESCE(ir.count, 0))::BIGINT AS \"count!\"\nFROM incoming_request ir\nLEFT JOIN incoming_request_url_version iruv ON iruv.incoming_request_url_version_id = ir.incoming_request_url_version_id\nLEFT JOIN incoming_request_url_path irup  ON irup.incoming_request_url_path_id  = ir.incoming_request_url_path_id\nLEFT JOIN incoming_request_url_query iruq ON iruq.incoming_request_url_query_id = ir.incoming_request_url_query_id\nWHERE irup.url_path = $1\nGROUP BY\n    '/' || CONCAT_WS('/', NULLIF(iruv.url_version,''), NULLIF(irup.url_path,''), NULLIF(iruq.url_query,''))\nORDER BY \"count!\" DESC, \"url!\"\nLIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "url!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "ae17e32f71a1bfa87252c2a4fd9acf1492d8e9575695818963ddf8d0d1f8f715"
+}

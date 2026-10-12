@@ -1,14 +1,48 @@
 #!/bin/sh
 set -e
 
-sed -i "s=# requirepass foobared=requirepass ${DOCKER_REDIS_PASSWORD}=" /init/redis.conf
-sed -i "s=bind 127.0.0.1 -::1=bind ${DOCKER_REDIS_HOST}=" /init/redis.conf
-sed -i "s=/var/run/redis_6379.pid=/var/run/redis_${DOCKER_REDIS_PORT}.pid=" /init/redis.conf
-sed -i "s=logfile \"\"=logfile /redis_logs/redis-server.log=" /init/redis.conf
-sed -i "s=# save 3600 1 300 100 60 10000=save 60 1=" /init/redis.conf
-sed -i "s=dir ./=dir /redis_data=" /init/redis.conf
-sed -i "s=repl-diskless-sync yes=repl-diskless-sync no=" /init/redis.conf
-sed -i "s=^# maxmemory <bytes>=maxmemory 1342177280=" /init/redis.conf
-sed -i "s=^# maxmemory-policy volatile-ttl=maxmemory-policy volatile-ttl=" /init/redis.conf
+# Check the required env's are present
+check_env() {
+	missing=false
+	for env_var in \
+		DOCKER_REDIS_HOST \
+		DOCKER_REDIS_PORT \
+		REDISCLI_AUTH
+	do
+		eval "value=\${$env_var}"
+		if [ -z "$value" ]; then
+			echo "ERROR: environment variable $env_var is not set" >&2
+			missing=true
+		fi
+	done
+
+	if [ "$missing" = true ]; then
+		exit 1
+	fi
+}
+
+check_env
+
+cat > /redis.conf <<EOF
+bind ${DOCKER_REDIS_HOST}
+port ${DOCKER_REDIS_PORT}
+requirepass "${REDISCLI_AUTH}"
+logfile ""
+loglevel notice
+save 60 1
+dir /redis_data
+repl-diskless-sync no
+repl-diskless-load disabled
+maxmemory 3gb
+maxmemory-policy allkeys-lru
+maxclients 1500
+timeout 300
+tcp-keepalive 300
+tcp-backlog 511
+databases 16
+rdbcompression yes
+rdbchecksum yes
+stop-writes-on-bgsave-error yes
+EOF
 
 exec "$@"

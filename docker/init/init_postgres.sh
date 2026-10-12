@@ -1,6 +1,25 @@
 #!/bin/bash
 set -e
 
+check_env() {
+	missing=false
+	for env_var in \
+		POSTGRES_USER \
+		DB_USER \
+		DB_NAME
+	do
+		eval "value=\${$env_var}"
+		if [ -z "$value" ]; then
+			echo "ERROR: environment variable $env_var is not set" >&2
+			missing=true
+		fi
+	done
+
+	if [ "$missing" = true ]; then
+		exit 1
+	fi
+}
+
 create_database() {
 	echo "create ${DB_NAME} database"
 	psql -v ON_ERROR_STOP=0 -U "$POSTGRES_USER" -d "$POSTGRES_USER" <<-EOSQL
@@ -20,13 +39,16 @@ bootstrap_from_sql_file() {
 	psql -U "${POSTGRES_USER}" -d "${POSTGRES_USER}" -f /init/init_db.sql
 }
 
-# Run any & all migrations
+# Run any & all migrations in filename order
 run_migrations() {
-	# need env port here!
-	if ! psql -v ON_ERROR_STOP=0 -U "$POSTGRES_USER" -d "${DB_NAME}" -f "/init/migrations.sql"; then
-		echo "Error: Failed to run migrations.sql" >&2
-		exit 1
-	fi
+	local LC_ALL=C
+	for file in /migrations/*.sql; do
+		[ -f "$file" ] || continue
+		echo "Running $(basename "${file}")"
+		if ! psql -v ON_ERROR_STOP=0 -U "${POSTGRES_USER}" -d "${DB_NAME}" -f "${file}"; then
+			echo "Error: Failed to run ${file}" >&2
+		fi
+	done
 }
 
 # # restore a db from a pg_dump file
@@ -46,7 +68,7 @@ from_pg_dump() {
 }
 
 from_scratch() {
-	create_adsbdb_user
+	create_user
 	bootstrap_from_sql_file
 }
 
@@ -59,6 +81,8 @@ create_tables() {
 }
 
 main() {
+	check_env
+
 	if [ "$1" == "migrations" ]; then
 		run_migrations
 	else

@@ -23,10 +23,9 @@ SELECT
     airport_id
 FROM
     airport
-    JOIN airport_icao_code ar USING (airport_icao_code_id)
 WHERE
-    ar.icao_code = UPPER($1)",
-            airport_icao
+    icao_code = UPPER($1)",
+            airport_icao.to_uppercase()
         )
         .fetch_optional(db)
         .await?)

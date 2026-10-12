@@ -5,20 +5,37 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod api;
 mod argon;
-mod db_postgres;
-mod db_redis;
+mod db;
 mod n_number;
 mod parse_env;
 mod scraper;
 
 use api::AppError;
+use crossfire::mpsc::Array;
+use fred::clients::Pool;
 use parse_env::AppEnv;
-use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt};
+use sqlx::PgPool;
+use tracing_subscriber::{fmt, prelude::*};
 
 use crate::{
-    db_postgres::{ModelIncomingRequest, MsgIncomingRequest},
-    scraper::{MsgScraper, Scraper},
+    db::postgres::{ModelIncomingRequest, MsgIncomingRequest},
+    scraper::Scraper,
 };
+// TODO create a custom struct for these channels, with a trait etc
+pub type Tx<T> = crossfire::MAsyncTx<Array<T>>;
+pub type RX<T> = crossfire::AsyncRx<Array<T>>;
+pub type OneTX<T> = crossfire::oneshot::TxOneshot<T>;
+pub type OneRX<T> = crossfire::oneshot::RxOneshot<T>;
+
+/// Create a bounded async channel of x size
+fn create_rx_tx<T: 'static + Send + Sync>(size: usize) -> (Tx<T>, RX<T>) {
+    crossfire::mpsc::bounded_async::<T>(size)
+}
+
+/// Create a onehsot channel
+fn create_oneshot<T: 'static + Send + Sync>() -> (OneTX<T>, OneRX<T>) {
+    crossfire::oneshot::oneshot()
+}
 
 /// Simple macro to create an empty String, or create String from a &str - to get rid of .to_owned() / String::from() etc
 #[macro_export]
@@ -32,7 +49,7 @@ macro_rules! S {
 }
 
 fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
-    let logfile = tracing_appender::rolling::never(&app_env.location_logs, "api.log");
+    let logfile = tracing_appender::rolling::weekly(&app_env.location_logs, "api.log");
 
     let log_fmt = fmt::Layer::default()
         .json()
@@ -55,18 +72,13 @@ fn setup_tracing(app_env: &AppEnv) -> Result<(), AppError> {
     }
 }
 
-async fn start_scraper(app_env: &AppEnv) -> Result<async_channel::Sender<MsgScraper>, AppError> {
-    let postgres = db_postgres::get_pool(app_env).await?;
-    Ok(Scraper::start(app_env, postgres))
-}
-
 /// This initial seeding is slow, will block until complete
 /// Ideally put the daily stats into redis, but would a decent amount of work
 async fn start_incoming_requests(
-    app_env: &AppEnv,
-) -> Result<async_channel::Sender<MsgIncomingRequest>, AppError> {
-    let db = tokio::try_join!(db_postgres::get_pool(app_env), db_redis::get_pool(app_env))?;
-    ModelIncomingRequest::start(db.0, db.1).await
+    postgres: &PgPool,
+    redis: &Pool,
+) -> Result<Tx<MsgIncomingRequest>, AppError> {
+    ModelIncomingRequest::start(postgres, redis).await
 }
 
 async fn start() -> Result<(), AppError> {
@@ -75,12 +87,12 @@ async fn start() -> Result<(), AppError> {
     tracing::info!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 
     let (postgres, redis) = tokio::try_join!(
-        db_postgres::get_pool(&app_env),
-        db_redis::get_pool(&app_env),
+        db::postgres::get_pool(&app_env),
+        db::redis::get_pool(&app_env),
     )?;
 
-    let (tx_scraper, tx_stats) =
-        tokio::try_join!(start_scraper(&app_env), start_incoming_requests(&app_env),)?;
+    let tx_scraper = Scraper::start(&app_env, &postgres);
+    let tx_stats = start_incoming_requests(&postgres, &redis).await?;
 
     api::serve(app_env, postgres, redis, tx_scraper, tx_stats).await
 }

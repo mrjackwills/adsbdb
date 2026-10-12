@@ -72,8 +72,9 @@ DOCKER_DIR="${APP_DIR}/docker"
 
 # Containers
 API="${APP_NAME}_api"
-BACKUP_CONTAINER="${APP_NAME}_postgres_backup"
-BASE_CONTAINERS=("${APP_NAME}_postgres" "${APP_NAME}_redis")
+APP_POSTGRES="${APP_NAME}_postgres"
+BACKUP_CONTAINER="${APP_NAME}_backup"
+BASE_CONTAINERS=("${APP_POSTGRES}" "${APP_NAME}_redis")
 ALL=("${BASE_CONTAINERS[@]}" "${API}" "${BACKUP_CONTAINER}")
 TO_RUN=("${BASE_CONTAINERS[@]}")
 
@@ -82,7 +83,8 @@ make_db_data_directories() {
 	local pg_data="${BASE_DIR}/databases.d/${APP_NAME}/pg_data"
 	local redis_data="${BASE_DIR}/databases.d/${APP_NAME}/redis_data"
 	local backups="${BASE_DIR}/databases.d/${APP_NAME}/backups"
-	for DIRECTORY in $pg_data $redis_data $backups; do
+	local temp_backup="${BASE_DIR}/databases.d/${APP_NAME}/temp_backup"
+	for DIRECTORY in $pg_data $redis_data $backups $temp_backup; do
 		if [[ ! -d "$DIRECTORY" ]]; then
 			echo -e "${GREEN}making directory:${RESET} \"$DIRECTORY\""
 			mkdir -p "$DIRECTORY"
@@ -106,13 +108,39 @@ make_all_directories() {
 restart_base_containers() {
 	echo "restarting base containers: ${BASE_CONTAINERS[*]}"
 	docker restart "${BASE_CONTAINERS[@]}"
-	sleep 10
 }
 
+# Check if postgres is operational, ignores pg_restore or migrations, just if the container is up and ready
+wait_for_postgres() {
+	echo -e "\n${YELLOW}Waiting for postgres${RESET}\n"
+	until docker exec "$APP_POSTGRES" pg_isready -U postgres >/dev/null 2>&1; do
+		echo "$APP_POSTGRES not ready - sleeping 2 seconds"
+		sleep 2
+	done
+	echo -e "\n${GREEN}Postgres ready${RESET}\n"
+}
+
+# Wait for postgres pg_restore to complete
+wait_for_pg_restore() {
+	echo -e "\n${YELLOW}Waiting for pg_restore${RESET}\n"
+	while docker exec "$APP_POSTGRES" pgrep -x pg_restore >/dev/null 2>&1; do
+		echo "$APP_POSTGRES pg_restore still running - sleeping 30 seconds"
+		sleep 30
+	done
+	echo -e "\n${GREEN}pg_restore complete${RESET}\n"
+}
+
+# Ask if migrations want to be run, will check for pg_restore beforehand
 run_migrations() {
+	# This is flaky
+	if [[ "$1" != "1" ]]; then
+		sleep 30
+	fi
+	wait_for_pg_restore
 	if ask_yn "run migrations"; then
 		restart_base_containers
-		docker exec -it "${APP_NAME}_postgres" /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
+		wait_for_postgres
+		docker exec -it ${APP_POSTGRES} /docker-entrypoint-initdb.d/init_postgres.sh "migrations"
 	fi
 }
 
@@ -120,7 +148,6 @@ dev_up() {
 	cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 	echo "starting base containers: ${BASE_CONTAINERS[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${BASE_CONTAINERS[@]}"
-	sleep 15
 	run_migrations
 	echo "starting selected containers: ${TO_RUN[*]}"
 	docker compose -f dev.docker-compose.yml up --force-recreate --build -d "${TO_RUN[@]}"
@@ -137,7 +164,6 @@ production_up() {
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		echo "starting base containers: ${BASE_CONTAINERS[*]}"
 		docker compose -f docker-compose.yml up -d "${BASE_CONTAINERS[@]}"
-		sleep 15
 		run_migrations
 		echo "starting all containers: ${ALL[*]}"
 		docker compose -f docker-compose.yml up -d
@@ -152,7 +178,6 @@ production_rebuild() {
 		cd "${DOCKER_DIR}" || error_close "${DOCKER_DIR} doesn't exist"
 		echo "starting base containers: ${BASE_CONTAINERS[*]}"
 		docker compose -f docker-compose.yml up -d  --build "${BASE_CONTAINERS[@]}"
-		sleep 15
 		run_migrations
 		echo "starting all containers: ${ALL[*]}"
 		docker compose -f docker-compose.yml up -d  --build
@@ -267,7 +292,7 @@ main() {
 			pull_branch
 			;;
 		7)
-			run_migrations
+			run_migrations 1
 			;;
 		esac
 	done
